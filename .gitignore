@@ -52,3 +52,10 @@ compile_commands.json
 *creator.user*
 
 *_qmlcache.qrc
+
+# Clangd
+.clangd.local
+compile_commands.json
+
+build/
+.cache/
