@@ -1,6 +1,3 @@
+# .clangd
 CompileFlags:
-  Add:
-    - -std=c++23
-  Remove: 
-    - -mno-direct-extern-access
-
+  Remove: [-mno-direct-extern-access]

@@ -1,0 +1,3 @@
+[submodule "3rdpart/ElaWidgetTools"]
+	path = 3rdpart/ElaWidgetTools
+	url = git@github.com:Liniyous/ElaWidgetTools.git
