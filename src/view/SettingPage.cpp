@@ -42,10 +42,10 @@ SettingPage::SettingPage(QWidget* parent)
 
     auto micaSwitchButton = new ElaToggleSwitch(this);
     auto micaSwitchArea = createScrollPageArea("Mica Effect", micaSwitchButton);
-    connect(micaSwitchButton, &ElaToggleSwitch::toggled, this, [=](bool checked) {
-        eApp->setIsEnableMica(checked);
-        settings.setValue("micaEffect", checked);
-    });
+    // connect(micaSwitchButton, &ElaToggleSwitch::toggled, this, [=](bool checked) {
+    //     eApp->setIsEnableMica(checked);
+    //     settings.setValue("micaEffect", checked);
+    // });
     micaSwitchButton->setIsToggled(settings.value("micaEffect").toBool());
 
     auto minimumButton = new ElaRadioButton("Minimum", this);
