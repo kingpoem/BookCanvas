@@ -1,7 +1,7 @@
 #include "Tools.h"
 #include <QDebug.h>
 
-void printObjectTree(QObject* obj, const QString& prefix, bool isLast) {
+void printObjectTree(QObject* obj, const QString& prefix, bool isLast) { // NOLINT(misc-no-recursion)
     QString branch = prefix + (isLast ? "└── " : "├── ");
 
     // 打印对象名（空则显示 None）和 qt 类名
