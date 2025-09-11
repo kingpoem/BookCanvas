@@ -7,10 +7,12 @@
 #include <QClipboard>
 #include <QVBoxLayout>
 #include <Version.h>
-#include <ELaToolBar.h>
+#include <ElaToolBar.h>
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
+#include "utils/Tools.h"
 
+// 这里写所有的内容，调用其他函数
 CanvasPage::CanvasPage(QWidget* parent) : BasePage(parent) {
     setWindowTitle("Canvas");
     auto *layout = new QHBoxLayout(this);
@@ -28,6 +30,8 @@ CanvasPage::CanvasPage(QWidget* parent) : BasePage(parent) {
     layout->addWidget(toolbar);
     layout->addWidget(view, 1);
     setLayout(layout);
+
+    printObjectTree(layout);
 }
 
 ElaScrollPageArea* CanvasPage::createTextArea(QString label, QString content) {

@@ -1,6 +1,5 @@
 #include "MainWindow.h"
 #include "utils/Settings.hpp"
-#include "utils/Tools.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : ElaWindow(parent) {
@@ -35,8 +34,6 @@ void MainWindow::initContent() {
     settingPage = new SettingPage(this);
     QString settingPageKey;
     addFooterNode("Setting", settingPage, settingPageKey, 0, ElaIconType::GearComplex);
-
-    printObjectTree(this, "", true);
 }
 
 void MainWindow::initModel() {
