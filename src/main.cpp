@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
     ElaTheme::getInstance()->setThemeMode(
         settings.value("theme").toString() == "light" ? ElaThemeType::Light : ElaThemeType::Dark);
     MainWindow w;
-    w.show();
+    // w.show();
     return a.exec();
 }
 

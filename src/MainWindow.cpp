@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "utils/Settings.hpp"
+#include "utils/Tools.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : ElaWindow(parent) {
@@ -13,6 +14,7 @@ MainWindow::~MainWindow() {
     settings.setValue("windowSize", size());
 }
 
+
 void MainWindow::initWindow() {
     resize(settings.value("windowSize").toSize());
     setUserInfoCardVisible(false);
@@ -23,6 +25,9 @@ void MainWindow::initWindow() {
 
 void MainWindow::initContent() {
     // pages
+    canvasPage = new CanvasPage(this);
+    addPageNode("Canvas", canvasPage, ElaIconType::Flag);
+
     aboutPage = new AboutPage(this);
     QString aboutPageKey;
     addFooterNode("About", aboutPage, aboutPageKey, 0, ElaIconType::CircleInfo);
@@ -30,6 +35,8 @@ void MainWindow::initContent() {
     settingPage = new SettingPage(this);
     QString settingPageKey;
     addFooterNode("Setting", settingPage, settingPageKey, 0, ElaIconType::GearComplex);
+
+    printObjectTree(this, "", true);
 }
 
 void MainWindow::initModel() {
@@ -40,4 +47,3 @@ void MainWindow::initModel() {
     // QObject::connect(diskScanner, &DiskScanner::fullScan, mediaModel, &MediaListModel::resetEntries);
     // clang-format on
 }
-

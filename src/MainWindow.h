@@ -3,6 +3,7 @@
 #include <ElaWindow.h>
 #include "view/SettingPage.h"
 #include "view/AboutPage.h"
+#include "view/CanvasPage.h"
 
 class MainWindow : public ElaWindow {
     Q_OBJECT
@@ -17,6 +18,7 @@ public:
 
 private:
     // pages
+    CanvasPage* canvasPage {};
     SettingPage* settingPage {};
     AboutPage* aboutPage {};
 
