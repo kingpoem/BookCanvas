@@ -8,8 +8,4 @@ class CanvasPage : public BasePage {
     Q_OBJECT
 public:
     explicit CanvasPage(QWidget* parent = nullptr);
-
-private:
-    ElaScrollPageArea* createTextArea(QString label, QString content);
-
 };

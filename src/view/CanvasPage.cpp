@@ -1,41 +1,57 @@
 #include "CanvasPage.h"
-#include <ElaIconButton.h>
-#include <ElaImageCard.h>
-#include <ElaText.h>
-#include <ElaMessageBar.h>
-#include <QApplication>
-#include <QClipboard>
-#include <QVBoxLayout>
-#include <Version.h>
-#include <ElaToolBar.h>
+#include "component/CanvasScene.h"
+#include "component/CanvasView.h"
+#include "component/DragButton.h"
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
-#include "utils/Tools.h"
+#include <ElaIconButton.h>
+#include <ElaImageCard.h>
+#include <ElaMessageBar.h>
+#include <ElaText.h>
+#include <ElaToolBar.h>
+#include <QApplication>
+#include <QClipboard>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <Version.h>
 
-// 这里写所有的内容，调用其他函数
-CanvasPage::CanvasPage(QWidget* parent) : BasePage(parent) {
+CanvasPage::CanvasPage(QWidget* parent)
+    : BasePage(parent) {
     setWindowTitle("Canvas");
-    auto *layout = new QHBoxLayout(this);
 
-    // 左边工具栏
-    // QAction* addElaIconAction(ElaIconType::IconName icon, const QString& text);
-    auto *toolbar = new ElaToolBar(this);
-    toolbar->addElaIconAction(ElaIconType::CircleInfo, "Circle");
-    toolbar->addElaIconAction(ElaIconType::Square, "Square");
+    auto* toolBar = new ElaToolBar();
 
-    // 中间画布
-    auto *scene = new ElaGraphicsScene(this);
-    auto *view = new ElaGraphicsView(scene);
+    // 创建拖拽按钮
+    auto* circleBtn = new DragButton(ElaIconType::Circle, "Circle", toolBar);
+    auto* squareBtn = new DragButton(ElaIconType::Square, "Square", toolBar);
+    auto* arrowBtn = new DragButton(ElaIconType::ArrowRight, "ArrowRight", toolBar);
 
-    layout->addWidget(toolbar);
-    layout->addWidget(view, 1);
-    setLayout(layout);
+    // 添加到工具栏
+    toolBar->addWidget(circleBtn);
+    toolBar->addSeparator();
+    toolBar->addWidget(squareBtn);
+    toolBar->addSeparator();
+    toolBar->addWidget(arrowBtn);
+    toolBar->setStyleSheet("background-color: purple;");
+    toolBar->setFixedHeight(50);
+    toolBar->setSizePolicy(toolBar->sizePolicy().horizontalPolicy(),
+                           toolBar->sizePolicy().verticalPolicy());
 
-    printObjectTree(layout);
-}
+    auto* toolBarLayout = new QHBoxLayout();
+    toolBarLayout->addWidget(toolBar);
+    toolBarLayout->addSpacing(20);
+    toolBarLayout->setAlignment(Qt::AlignLeft);
 
-ElaScrollPageArea* CanvasPage::createTextArea(QString label, QString content) {
-    auto* contentText = new ElaText(content, this);
-    contentText->setWordWrap(false);
-    contentText->setTextPixelSize(15);
+    // 画布
+    auto* scene = new CanvasScene(this);
+    auto* view = new CanvasView(scene, this);
+
+    auto centralWidget = new QWidget(this);
+    centralWidget->setWindowTitle("Canvas");
+    auto centerLayout = new QVBoxLayout(centralWidget);
+    centerLayout->addLayout(toolBarLayout);
+    centerLayout->addSpacing(15);
+    centerLayout->addWidget(view);
+    centerLayout->setContentsMargins(0, 0, 20, 0);
+    addCentralWidget(centralWidget, true, true, 0);
 }

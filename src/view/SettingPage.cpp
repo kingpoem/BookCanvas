@@ -101,7 +101,7 @@ SettingPage::SettingPage(QWidget* parent)
     centerLayout->addWidget(micaSwitchArea);
     centerLayout->addWidget(displayModeArea);
     centerLayout->addSpacing(15);
-    // centerLayout->addStretch();
+    centerLayout->addStretch();
     centerLayout->setContentsMargins(0, 0, 20, 0);
     addCentralWidget(centralWidget, true, true, 0);
 }
