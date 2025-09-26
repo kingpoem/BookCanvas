@@ -1,7 +1,7 @@
 #include "CanvasPage.h"
-#include "component/CanvasScene.h"
 #include "component/CanvasView.h"
 #include "component/DragButton.h"
+#include "component/GraphScene.h"
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
 #include <ElaIconButton.h>
@@ -43,7 +43,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     toolBarLayout->setAlignment(Qt::AlignLeft);
 
     // 画布
-    auto* scene = new CanvasScene(this);
+    auto* scene = new GraphScene(this);
     auto* view = new CanvasView(scene, this);
 
     auto centralWidget = new QWidget(this);

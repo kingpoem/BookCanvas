@@ -3,43 +3,46 @@
 #include <QDrag>
 #include <QMimeData>
 
-DragButton::DragButton(ElaIconType::IconName awesome, const QString& toolType, QWidget* parent)
+DragButton::DragButton(ElaIconType::IconName awesome, QString toolType, QWidget* parent)
     : ElaIconButton(awesome, parent)
-    , m_toolType(toolType) {
-    setMouseTracking(true);
+    , m_toolType(std::move(toolType)) {
+    setMouseTracking(true); // 即使鼠标没按键，也能跟踪移动
 }
 
-DragButton::DragButton(ElaIconType::IconName awesome,
-                       int pixelSize,
-                       const QString& toolType,
-                       QWidget* parent)
+// clang-format off
+DragButton::DragButton(ElaIconType::IconName awesome, int pixelSize, QString toolType, QWidget* parent)
     : ElaIconButton(awesome, pixelSize, parent)
-    , m_toolType(toolType) {
+    , m_toolType(std::move(toolType)) {
     setMouseTracking(true);
 }
+// clang-format on
 
 void DragButton::mousePressEvent(QMouseEvent* event) {
-    m_startPos = event->pos();
-    ElaIconButton::mousePressEvent(event);
+    ElaIconButton::mousePressEvent(event); // 调用基类
 }
 
 void DragButton::mouseMoveEvent(QMouseEvent* event) {
-    if (!(event->buttons() & Qt::LeftButton))
+    // 检查左键是否按住
+    if (!(event->buttons() & Qt::LeftButton)) {
+        qDebug() << event->buttons() << Qt::LeftButton;
         return;
+    }
 
+    // 判断拖动距离是否足够 小于这个距离 → 视为点击，不触发拖拽
     if ((event->pos() - m_startPos).manhattanLength() < QApplication::startDragDistance())
         return;
 
     // 创建拖拽对象
-    QDrag* drag = new QDrag(this);
-    QMimeData* mimeData = new QMimeData;
+    auto* drag = new QDrag(this);
+    auto* mimeData = new QMimeData; // 存储拖拽的数据内容
 
     // 设置拖拽数据为工具类型
     mimeData->setText(m_toolType);
     drag->setMimeData(mimeData);
 
     // 可选：拖拽显示按钮本身的 pixmap
-    drag->setPixmap(this->grab());
+    drag->setPixmap(this->grab()); // 拖动时，光标旁边会显示按钮的截图
 
+    // 执行拖拽，操作类型是 复制
     drag->exec(Qt::CopyAction);
 }
