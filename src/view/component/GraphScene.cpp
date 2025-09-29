@@ -9,12 +9,12 @@
 
 GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
-    setSceneRect(0, 0, 800, 600);
+    setSceneRect(200, 200, 800, 600);
     setBackgroundBrush(Qt::white);
 }
 
 GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, const QString& label) {
-    GraphNode* node = new GraphNode(id);
+    auto* node = new GraphNode(id);
     node->setLabel(label);
     node->setPos(pos);
     addItem(node);
@@ -39,7 +39,7 @@ void GraphScene::removeNode(GraphNode* node) {
 GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weight) {
     if (!start || !end)
         return nullptr;
-    GraphEdge* edge = new GraphEdge(start, end);
+    auto* edge = new GraphEdge(start, end);
     edge->setWeight(weight);
     addItem(edge);
     m_edges.append(edge);
@@ -78,7 +78,7 @@ void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
 // 鼠标事件用于连线
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     QGraphicsItem* item = itemAt(event->scenePos(), QTransform());
-    GraphNode* node = dynamic_cast<GraphNode*>(item);
+    auto* node = dynamic_cast<GraphNode*>(item);
     if (node && event->button() == Qt::RightButton) {
         m_lineStartNode = node;
         m_tempEdge = new GraphEdge(node, node);
@@ -98,7 +98,7 @@ void GraphScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
 void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     if (m_tempEdge && m_lineStartNode) {
         QGraphicsItem* item = itemAt(event->scenePos(), QTransform());
-        GraphNode* endNode = dynamic_cast<GraphNode*>(item);
+        auto* endNode = dynamic_cast<GraphNode*>(item);
         if (endNode && endNode != m_lineStartNode) {
             m_tempEdge->setParentItem(nullptr);
             m_tempEdge->setWeight(1.0);

@@ -2,6 +2,7 @@
 #include "component/CanvasView.h"
 #include "component/DragButton.h"
 #include "component/GraphScene.h"
+#include "component/ShowButton.h"
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
 #include <ElaIconButton.h>
@@ -22,17 +23,13 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* toolBar = new ElaToolBar();
 
     // 创建拖拽按钮
-    auto* circleBtn = new DragButton(ElaIconType::Circle, "Circle", toolBar);
-    auto* squareBtn = new DragButton(ElaIconType::Square, "Square", toolBar);
-    auto* arrowBtn = new DragButton(ElaIconType::ArrowRight, "ArrowRight", toolBar);
+    auto* circleBtn = new DragButton(ElaIconType::Circle, "Circle", toolBar); // 节点创建可拖拽按钮
+    auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", toolBar); // 线条权重显示/隐藏按钮
 
     // 添加到工具栏
     toolBar->addWidget(circleBtn);
     toolBar->addSeparator();
-    toolBar->addWidget(squareBtn);
-    toolBar->addSeparator();
-    toolBar->addWidget(arrowBtn);
-    toolBar->setStyleSheet("background-color: purple;");
+    toolBar->addWidget(showBtn);
     toolBar->setFixedHeight(50);
     toolBar->setSizePolicy(toolBar->sizePolicy().horizontalPolicy(),
                            toolBar->sizePolicy().verticalPolicy());
@@ -46,11 +43,27 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* scene = new GraphScene(this);
     auto* view = new CanvasView(scene, this);
 
+    auto* labelX = new QLabel("LabelX", this);
+    auto* labelY = new QLabel("LabelY", this);
+    auto* labelSceneX = new QLabel("LabelSceneX", this);
+    auto* labelSceneY = new QLabel("LabelSceneY", this);
+    auto* labelLayout = new QHBoxLayout();
+    labelLayout->addWidget(labelX);
+    labelLayout->addWidget(labelY);
+    labelLayout->addWidget(labelSceneX);
+    labelLayout->addWidget(labelSceneY);
+    labelLayout->addStretch();
+    labelX->setStyleSheet("color: black;");
+    labelY->setStyleSheet("color: black;");
+    labelSceneX->setStyleSheet("color: black;");
+    labelSceneY->setStyleSheet("color: black;");
+
     auto centralWidget = new QWidget(this);
     centralWidget->setWindowTitle("Canvas");
     auto centerLayout = new QVBoxLayout(centralWidget);
     centerLayout->addLayout(toolBarLayout);
     centerLayout->addSpacing(15);
+    centerLayout->addLayout(labelLayout);
     centerLayout->addWidget(view);
     centerLayout->setContentsMargins(0, 0, 20, 0);
     addCentralWidget(centralWidget, true, true, 0);

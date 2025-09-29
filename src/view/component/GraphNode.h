@@ -14,14 +14,12 @@ public:
                const QStyleOptionGraphicsItem* option,
                QWidget* widget) override; // 绘制节点外观 QGraphicsItem 虚函数 刷新界面时自动调用
 
-    [[nodiscard]] QPointF getPortPosition(int portIndex) const; // 根据端口索引获取节点上的连接点坐标
-                                                                // portIndex = 0 → 左侧中点
-                                                                // portIndex = 1 → 右侧中点
-                                                                // 其他值 → 节点中心
-    void setLabel(const QString& label) { m_label = label; }    // 获取节点的 label
-    QString getLabel() const { return m_label; };
+    void setLabel(const QString& label) { m_label = label; } // 获取节点的 label
+    [[nodiscard]] QString getLabel() const { return m_label; };
+    [[nodiscard]] QString getId() const { return m_id; };
 
-    QString getId() const { return m_id; };
+signals:
+    void posChanged(QPointF localPos, QPointF scenePos);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;   // 鼠标按下事件，用于开始拖拽
@@ -31,7 +29,7 @@ protected:
 private:
     QString m_id;                         // 节点唯一标识符
     QString m_label;                      // 节点显示文本（标签）
-    QRectF m_rect = QRectF(0, 0, 80, 50); // 节点矩形
+    QRectF m_rect = QRectF(0, 0, 50, 50); // 节点形状
     bool m_dragging = false;              // 是否处于拖拽状态
     QPointF m_dragStartPos;               // 拖拽起始点
 };
