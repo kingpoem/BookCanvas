@@ -1,7 +1,7 @@
 #include "CanvasPage.h"
-#include "component/GraphView.h"
 #include "component/DragButton.h"
 #include "component/GraphScene.h"
+#include "component/GraphView.h"
 #include "component/ShowButton.h"
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
@@ -39,24 +39,30 @@ CanvasPage::CanvasPage(QWidget* parent)
     toolBarLayout->addSpacing(20);
     toolBarLayout->setAlignment(Qt::AlignLeft);
 
-    // 画布
-    auto* scene = new GraphScene(this);
-    auto* view = new GraphView(scene, this); // 外部传入 scene 便于控制
-
     auto* labelX = new QLabel("LabelX", this);
     auto* labelY = new QLabel("LabelY", this);
     auto* labelSceneX = new QLabel("LabelSceneX", this);
     auto* labelSceneY = new QLabel("LabelSceneY", this);
+    labelX->setStyleSheet("color: black;");
+    labelY->setStyleSheet("color: black;");
+    labelSceneX->setStyleSheet("color: black;");
+    labelSceneY->setStyleSheet("color: black;");
+
+    // 画布
+    auto* scene = new GraphScene(this);
+    auto* view = new GraphView(scene,
+                               labelX,
+                               labelY,
+                               labelSceneX,
+                               labelSceneY,
+                               this); // 外部传入 scene 便于控制
+
     auto* labelLayout = new QHBoxLayout();
     labelLayout->addWidget(labelX);
     labelLayout->addWidget(labelY);
     labelLayout->addWidget(labelSceneX);
     labelLayout->addWidget(labelSceneY);
     labelLayout->addStretch();
-    labelX->setStyleSheet("color: black;");
-    labelY->setStyleSheet("color: black;");
-    labelSceneX->setStyleSheet("color: black;");
-    labelSceneY->setStyleSheet("color: black;");
 
     auto centralWidget = new QWidget(this);
     centralWidget->setWindowTitle("Canvas");

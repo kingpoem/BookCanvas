@@ -12,13 +12,12 @@ class GraphScene : public ElaGraphicsScene {
 public:
     explicit GraphScene(QObject* parent = nullptr);
 
-    // void addItem(ElaGraphicsItem* item);
-    // 创建节点
-    GraphNode* createNode(const QString& id, const QPointF& pos, const QString& label = "");
-    // 删除节点和相关的边
-    void removeNode(GraphNode* node);
-    // 返回当前场景中所有节点的列表
-    [[nodiscard]] QList<GraphNode*> nodes() const { return m_nodes; }
+    GraphNode* createNode(const QString& id,
+                          const QPointF& pos); // 创建节点
+    void removeNode(GraphNode* node);                 // 删除节点和相关的边
+    [[nodiscard]] QList<GraphNode*> nodes() const {
+        return m_nodes;
+    } // 返回当前场景中所有节点的列表
 
     // 边管理
     GraphEdge* createEdge(GraphNode* start, GraphNode* end, double weight = 1.0);
@@ -27,6 +26,7 @@ public:
 
     // 导出图信息
     void exportGraph(const QString& filePath);
+    // drawBackground
 
 protected:
     // 从工具栏拖动一个节点到场景

@@ -2,10 +2,9 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
-GraphNode::GraphNode(const QString& id, QGraphicsItem* parent)
+GraphNode::GraphNode(QString id, QGraphicsItem* parent)
     : ElaGraphicsItem(parent)
-    , m_id(id)
-    , m_label(id) {
+    , m_id(std::move(id)) {
     setFlags(ItemIsSelectable | ItemSendsGeometryChanges); // 可移动、可选中，并能报告几何变化
     // setFlags(ItemIsMovable); 设置节点拖拽属性
 }
@@ -20,8 +19,7 @@ void GraphNode::paint(QPainter* painter,
                       QWidget* /*widget*/) {
     painter->setBrush(Qt::black);
     painter->setPen(QPen(Qt::black, 2));
-    painter->drawEllipse(m_rect);
-    painter->drawText(m_rect, Qt::AlignCenter, m_label);
+    painter->drawEllipse(m_rect); // 局部坐标系
 }
 
 void GraphNode::mousePressEvent(QGraphicsSceneMouseEvent* event) {

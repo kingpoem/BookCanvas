@@ -7,15 +7,13 @@
 class GraphNode : public ElaGraphicsItem {
     Q_OBJECT
 public:
-    explicit GraphNode(const QString& id, QGraphicsItem* parent = nullptr);
+    explicit GraphNode(QString id, QGraphicsItem* parent = nullptr);
 
     [[nodiscard]] QRectF boundingRect() const override; // 定义节点边界矩形
     void paint(QPainter* painter,
                const QStyleOptionGraphicsItem* option,
                QWidget* widget) override; // 绘制节点外观 QGraphicsItem 虚函数 刷新界面时自动调用
 
-    void setLabel(const QString& label) { m_label = label; } // 获取节点的 label
-    [[nodiscard]] QString getLabel() const { return m_label; };
     [[nodiscard]] QString getId() const { return m_id; };
 
 signals:
@@ -28,7 +26,6 @@ protected:
 
 private:
     QString m_id;                         // 节点唯一标识符
-    QString m_label;                      // 节点显示文本（标签）
     QRectF m_rect = QRectF(0, 0, 50, 50); // 节点形状
     bool m_dragging = false;              // 是否处于拖拽状态
     QPointF m_dragStartPos;               // 拖拽起始点

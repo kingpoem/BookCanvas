@@ -9,13 +9,12 @@
 
 GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
-    setSceneRect(200, 200, 800, 600);
-    setBackgroundBrush(Qt::white);
+    setSceneRect(QRectF(0, 0, 1500, 800));
+    // setBackgroundBrush(Qt::red); // no work
 }
 
-GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, const QString& label) {
+GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos) {
     auto* node = new GraphNode(id);
-    node->setLabel(label);
     node->setPos(pos);
     addItem(node);
     m_nodes.append(node);
@@ -69,7 +68,7 @@ void GraphScene::dragMoveEvent(QGraphicsSceneDragDropEvent* event) {
 void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
     if (!m_pendingToolName.isEmpty()) {
         QString id = QString("Node_%1").arg(m_nodes.size());
-        createNode(id, event->scenePos(), m_pendingToolName);
+        createNode(id, event->scenePos());
         m_pendingToolName.clear();
         event->acceptProposedAction();
     }
@@ -123,8 +122,8 @@ void GraphScene::exportGraph(const QString& filePath) {
     QTextStream out(&file);
     out << "Nodes:\n";
     for (GraphNode* node : m_nodes) {
-        out << node->getId() << ": " << node->getLabel() << ", x=" << node->scenePos().x()
-            << ", y=" << node->scenePos().y() << "\n";
+        out << node->getId() << ", x=" << node->scenePos().x() << ", y=" << node->scenePos().y()
+            << "\n";
     }
 
     out << "Edges:\n";
