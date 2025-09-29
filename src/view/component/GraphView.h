@@ -8,5 +8,14 @@ public:
     explicit GraphView(GraphScene* scene, QWidget* parent = nullptr); // GraphScene 由外部控制
 
 protected:
-    void wheelEvent(QWheelEvent* event) override; // 支持缩放
+    void wheelEvent(QWheelEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+    void drawBackground(QPainter* painter, const QRectF& rect) override;
+
+private:
+    double m_scale = 1.0;
+    const double m_minScale = 0.2;
+    const double m_maxScale = 3.0;
 };
