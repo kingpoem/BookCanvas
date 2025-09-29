@@ -14,7 +14,7 @@ public:
 
     GraphNode* createNode(const QString& id,
                           const QPointF& pos); // 创建节点
-    void removeNode(GraphNode* node);                 // 删除节点和相关的边
+    void removeNode(GraphNode* node);          // 删除节点和相关的边
     [[nodiscard]] QList<GraphNode*> nodes() const {
         return m_nodes;
     } // 返回当前场景中所有节点的列表

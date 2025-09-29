@@ -9,14 +9,14 @@
 
 GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
-    setSceneRect(QRectF(0, 0, 1500, 800));
-    // setBackgroundBrush(Qt::red); // no work
+    setSceneRect(QRectF(0, 0, 1200, 600));
+    // (x, y ,sceneX, sceneY) (x, y) 控制画布左上角点 (sceneX, sceneY) 控制宽高
 }
 
 GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos) {
     auto* node = new GraphNode(id);
-    node->setPos(pos);
     addItem(node);
+    node->setPos(pos); // NOTE: this line must be after addItem(node); `addItem` has written `setPos`
     m_nodes.append(node);
     return node;
 }
@@ -65,10 +65,11 @@ void GraphScene::dragMoveEvent(QGraphicsSceneDragDropEvent* event) {
     event->acceptProposedAction();
 }
 
+// 放置节点的直接逻辑
 void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
     if (!m_pendingToolName.isEmpty()) {
         QString id = QString("Node_%1").arg(m_nodes.size());
-        createNode(id, event->scenePos());
+        createNode(id, event->scenePos()); // event->scenePos() is true
         m_pendingToolName.clear();
         event->acceptProposedAction();
     }
