@@ -1,5 +1,5 @@
 #include "CanvasPage.h"
-#include "component/CanvasView.h"
+#include "component/GraphView.h"
 #include "component/DragButton.h"
 #include "component/GraphScene.h"
 #include "component/ShowButton.h"
@@ -41,7 +41,7 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     // 画布
     auto* scene = new GraphScene(this);
-    auto* view = new CanvasView(scene, this);
+    auto* view = new GraphView(scene, this); // 外部传入 scene 便于控制
 
     auto* labelX = new QLabel("LabelX", this);
     auto* labelY = new QLabel("LabelY", this);
