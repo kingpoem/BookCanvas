@@ -61,6 +61,12 @@ void GraphScene::removeEdge(GraphEdge* edge) {
     // delete edge; NOTE: add this line will contribute to segmentation fault;
 }
 
+void GraphScene::setAllEdgeWeightsVisible(bool visible) {
+    for (GraphEdge* edge : m_edges) {
+        edge->setWeightVisible(visible);
+    }
+}
+
 // 拖拽生成节点
 void GraphScene::dragEnterEvent(QGraphicsSceneDragDropEvent* event) {
     if (event->mimeData()->hasText()) {

@@ -46,6 +46,12 @@ void GraphEdge::setWeight(double w) {
     }
 }
 
+void GraphEdge::setWeightVisible(bool visible) {
+    if (m_weight != 1.0) {
+        m_weightText->setVisible(visible);
+    }
+}
+
 void GraphEdge::updatePosition() {
     if (!m_startNode || !m_endNode) {
         return;

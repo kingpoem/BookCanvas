@@ -23,6 +23,9 @@ public:
     GraphEdge* createEdge(GraphNode* start, GraphNode* end, double weight = 1.0);
     void removeEdge(GraphEdge* edge);
     [[nodiscard]] QList<GraphEdge*> edges() const { return m_edges; }
+    
+    // 控制所有边的权重显示/隐藏
+    void setAllEdgeWeightsVisible(bool visible);
 
     // 导出图信息
     void exportGraph(const QString& filePath);

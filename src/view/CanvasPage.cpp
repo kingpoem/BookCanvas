@@ -56,6 +56,9 @@ CanvasPage::CanvasPage(QWidget* parent)
                                labelSceneX,
                                labelSceneY,
                                this); // 外部传入 scene 便于控制
+    
+    // 连接ShowButton的信号到GraphScene的权重显示控制
+    connect(showBtn, &ShowButton::toggled, scene, &GraphScene::setAllEdgeWeightsVisible);
 
     auto* labelLayout = new QHBoxLayout();
     labelLayout->addWidget(labelX);

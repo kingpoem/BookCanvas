@@ -18,6 +18,9 @@ public:
     // 获取和设置边的权重
     [[nodiscard]] double weight() const { return m_weight; }
     void setWeight(double w);
+    
+    // 控制权重文本的显示/隐藏
+    void setWeightVisible(bool visible);
 
     void setLine(const QLineF& line);
     [[nodiscard]] const QLineF& line() const { return m_line; }
