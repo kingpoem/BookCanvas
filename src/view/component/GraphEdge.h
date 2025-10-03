@@ -19,23 +19,22 @@ public:
     [[nodiscard]] double weight() const { return m_weight; }
     void setWeight(double w);
 
-    void setLine(const QLineF& line) {
-        m_line = line;
-        update();
-    }
-    const QLineF& line() const { return m_line; }
+    void setLine(const QLineF& line);
+    [[nodiscard]] const QLineF& line() const { return m_line; }
 
+    [[nodiscard]] QRectF boundingRect() const override;
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+
+public slots:
     // 更新边的几何位置：
     // 当节点被移动时，需要调用它来调整连线的起止点和权重文字的位置
     void updatePosition(); // 根据节点位置更新线段
-
-    QRectF boundingRect() const override;
-    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
 protected:
     // 鼠标双击事件：
     // 例如双击边可以弹出对话框修改权重，或者实现其它交互功能
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override; // 右键菜单
 
 private:
     GraphNode* m_startNode;            // 起点节点指针

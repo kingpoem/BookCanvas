@@ -36,11 +36,18 @@ void GraphScene::removeNode(GraphNode* node) {
 }
 
 GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weight) {
-    if (!start || !end)
-        return nullptr;
+    if (!start || !end) return nullptr;
     auto* edge = new GraphEdge(start, end);
-    edge->setWeight(weight);
     addItem(edge);
+
+    // 现在 item 已在 scene 中，可以正确 mapFromScene
+    edge->setWeight(weight);
+    edge->updatePosition();
+
+    // 让边随节点移动（节点发出 posChanged）
+    connect(start, &GraphNode::posChanged, edge, &GraphEdge::updatePosition);
+    connect(end, &GraphNode::posChanged, edge, &GraphEdge::updatePosition);
+
     m_edges.append(edge);
     return edge;
 }
@@ -49,8 +56,9 @@ void GraphScene::removeEdge(GraphEdge* edge) {
     if (!edge)
         return;
     removeItem(edge);
+    qDebug() << m_edges.size() << ' ';
     m_edges.removeAll(edge);
-    delete edge;
+    // delete edge; NOTE: add this line will contribute to segmentation fault;
 }
 
 // 拖拽生成节点
@@ -75,15 +83,37 @@ void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
     }
 }
 
-// 鼠标事件用于连线
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     QGraphicsItem* item = itemAt(event->scenePos(), QTransform());
     auto* node = dynamic_cast<GraphNode*>(item);
-    if (node && event->button() == Qt::RightButton) {
-        m_lineStartNode = node;
-        m_tempEdge = new GraphEdge(node, node);
-        addItem(m_tempEdge);
+
+    if (event->button() == Qt::LeftButton) {
+        if (node) {
+            if (!m_highlightNode) {
+                // 没有高亮 → 设置为高亮
+                m_highlightNode = node;
+                node->setNodeState(GraphNode::Highlighted);
+            } else if (m_highlightNode == node) {
+                // 再点自己 → 取消高亮
+                m_highlightNode->setNodeState(GraphNode::Normal);
+                m_highlightNode = nullptr;
+            } else {
+                // 有高亮节点且点了别的节点 → 创建连线
+                createEdge(m_highlightNode, node, 1.0);
+                // 两个节点恢复默认
+                m_highlightNode->setNodeState(GraphNode::Normal);
+                node->setNodeState(GraphNode::Normal);
+                m_highlightNode = nullptr;
+            }
+        } else {
+            // 点击空白 → 取消高亮
+            if (m_highlightNode) {
+                m_highlightNode->setNodeState(GraphNode::Normal);
+                m_highlightNode = nullptr;
+            }
+        }
     }
+
     ElaGraphicsScene::mousePressEvent(event);
 }
 

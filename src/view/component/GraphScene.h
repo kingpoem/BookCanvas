@@ -48,4 +48,6 @@ private:
 
     // 工具栏拖拽生成节点
     QString m_pendingToolName;
+
+    GraphNode* m_highlightNode = nullptr;
 };
