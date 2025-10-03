@@ -3,9 +3,10 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
-GraphNode::GraphNode(QString id, QGraphicsItem* parent)
+GraphNode::GraphNode(QString id, NodeType type, QGraphicsItem* parent)
     : ElaGraphicsItem(parent)
-    , m_id(std::move(id)) {
+    , m_id(std::move(id))
+    , m_type(type) {
     setFlags(ItemIsMovable | ItemIsSelectable
              | ItemSendsGeometryChanges); // 可移动 选中 报告几何变化
 }
@@ -18,18 +19,55 @@ void GraphNode::paint(QPainter* painter,
                       const QStyleOptionGraphicsItem* option,
                       QWidget* /*widget*/) {
     QPen pen(Qt::black, 2);
-    QBrush brush(Qt::black);
+    QBrush brush;
 
-    // 这里只做外观绘制，不加逻辑
-    if (option->state & QStyle::State_Selected) {
+    // 根据节点类型设置不同的颜色和形状
+    if (m_type == Router) {
+        brush.setColor(Qt::blue); // 路由器用蓝色
+    } else {
+        brush.setColor(Qt::yellow); // 普通节点用黄色
+    }
+
+    // 设置高亮状态的样式
+    if (m_state == Highlighted) {
         pen.setColor(Qt::red);
         pen.setWidth(3);
-        brush.setColor(Qt::yellow);
+        if (m_type == Router) {
+            brush.setColor(Qt::cyan);
+        } else {
+            brush.setColor(Qt::lightGray);
+        }
+    } else if (option->state & QStyle::State_Selected) {
+        pen.setColor(Qt::red);
+        pen.setWidth(3);
+        if (m_type == Router) {
+            brush.setColor(QColor(173, 216, 230)); // lightBlue 的 RGB 值
+        } else {
+            brush.setColor(Qt::yellow);
+        }
     }
 
     painter->setPen(pen);
     painter->setBrush(brush);
-    painter->drawEllipse(m_rect);
+    
+    // 根据类型绘制不同形状
+    if (m_type == Router) {
+        painter->drawRect(m_rect); // 路由器绘制方形
+        // 在中心绘制路由器标识文本
+        painter->setPen(Qt::white);
+        QFont font = painter->font();
+        font.setPointSize(8);
+        painter->setFont(font);
+        painter->drawText(m_rect, Qt::AlignCenter, "R");
+    } else {
+        painter->drawEllipse(m_rect); // 普通节点绘制圆形
+        // 在中心绘制节点标识文本
+        painter->setPen(Qt::black);
+        QFont font = painter->font();
+        font.setPointSize(8);
+        painter->setFont(font);
+        painter->drawText(m_rect, Qt::AlignCenter, "N");
+    }
 }
 
 // 捕捉选中状态变化

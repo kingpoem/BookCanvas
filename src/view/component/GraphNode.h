@@ -8,7 +8,8 @@ class GraphNode : public ElaGraphicsItem {
     Q_OBJECT
 public:
     enum NodeState { Normal, Highlighted };
-    explicit GraphNode(QString id, QGraphicsItem* parent = nullptr);
+    enum NodeType { Node, Router }; // 添加节点类型枚举
+    explicit GraphNode(QString id, NodeType type = Node, QGraphicsItem* parent = nullptr);
 
     void setNodeState(NodeState state) {
         m_state = state;
@@ -22,6 +23,7 @@ public:
                QWidget* widget) override; // 绘制节点外观 QGraphicsItem 虚函数 刷新界面时自动调用
 
     [[nodiscard]] QString getId() const { return m_id; };
+    [[nodiscard]] NodeType getType() const { return m_type; }; // 获取节点类型
 
 signals:
     void posChanged(const QPointF& localPos, const QPointF& scenePos);
@@ -31,6 +33,7 @@ protected:
 
 private:
     QString m_id;
+    NodeType m_type; // 节点类型
     QRectF m_rect = QRectF(0, 0, 50, 50);
     NodeState m_state = Normal;
 };

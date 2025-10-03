@@ -13,7 +13,8 @@ public:
     explicit GraphScene(QObject* parent = nullptr);
 
     GraphNode* createNode(const QString& id,
-                          const QPointF& pos); // 创建节点
+                          const QPointF& pos,
+                          GraphNode::NodeType type = GraphNode::Node); // 创建节点，支持指定类型
     void removeNode(GraphNode* node);          // 删除节点和相关的边
     [[nodiscard]] QList<GraphNode*> nodes() const {
         return m_nodes;
@@ -26,6 +27,9 @@ public:
     
     // 控制所有边的权重显示/隐藏
     void setAllEdgeWeightsVisible(bool visible);
+    
+    // 检查连接是否合法（节点只能连接路由器，路由器可以连接任何节点）
+    bool isConnectionValid(GraphNode* start, GraphNode* end) const;
 
     // 导出图信息
     void exportGraph(const QString& filePath);

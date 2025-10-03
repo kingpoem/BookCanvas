@@ -1,5 +1,6 @@
 #include "CanvasPage.h"
 #include "component/DragButton.h"
+#include "component/ExportButton.h"
 #include "component/GraphScene.h"
 #include "component/GraphView.h"
 #include "component/ShowButton.h"
@@ -12,7 +13,9 @@
 #include <ElaToolBar.h>
 #include <QApplication>
 #include <QClipboard>
+#include <QFileDialog>
 #include <QHBoxLayout>
+#include <QMessageBox>
 #include <QVBoxLayout>
 #include <Version.h>
 
@@ -24,12 +27,17 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     // 创建拖拽按钮
     auto* circleBtn = new DragButton(ElaIconType::Circle, "Circle", toolBar); // 节点创建可拖拽按钮
+    auto* routerBtn = new DragButton(ElaIconType::Square, "Router", toolBar); // 路由器创建可拖拽按钮
     auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", toolBar); // 线条权重显示/隐藏按钮
+    auto* exportBtn = new ExportButton(ElaIconType::Download, "Export", toolBar); // 导出按钮
 
     // 添加到工具栏
     toolBar->addWidget(circleBtn);
+    toolBar->addWidget(routerBtn);
     toolBar->addSeparator();
     toolBar->addWidget(showBtn);
+    toolBar->addSeparator();
+    toolBar->addWidget(exportBtn);
     toolBar->setFixedHeight(50);
     toolBar->setSizePolicy(toolBar->sizePolicy().horizontalPolicy(),
                            toolBar->sizePolicy().verticalPolicy());
@@ -59,6 +67,21 @@ CanvasPage::CanvasPage(QWidget* parent)
     
     // 连接ShowButton的信号到GraphScene的权重显示控制
     connect(showBtn, &ShowButton::toggled, scene, &GraphScene::setAllEdgeWeightsVisible);
+    
+    // 连接导出按钮的信号
+    connect(exportBtn, &ExportButton::exportRequested, [scene, this]() {
+        QString fileName = QFileDialog::getSaveFileName(
+            this,
+            "导出网络配置文件",
+            "network_config.txt",
+            "Text Files (*.txt);;All Files (*)"
+        );
+        
+        if (!fileName.isEmpty()) {
+            scene->exportGraph(fileName);
+            QMessageBox::information(this, "导出成功", "网络配置文件已导出到: " + fileName);
+        }
+    });
 
     auto* labelLayout = new QHBoxLayout();
     labelLayout->addWidget(labelX);
