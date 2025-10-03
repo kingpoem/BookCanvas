@@ -37,14 +37,15 @@ void GraphScene::removeNode(GraphNode* node) {
 }
 
 GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weight) {
-    if (!start || !end) return nullptr;
-    
+    if (!start || !end)
+        return nullptr;
+
     // 检查连接是否合法
     if (!isConnectionValid(start, end)) {
         qDebug() << "非法连接：节点只能连接路由器";
         return nullptr;
     }
-    
+
     auto* edge = new GraphEdge(start, end);
     addItem(edge);
 
@@ -76,18 +77,19 @@ void GraphScene::setAllEdgeWeightsVisible(bool visible) {
 }
 
 bool GraphScene::isConnectionValid(GraphNode* start, GraphNode* end) const {
-    if (!start || !end) return false;
-    
+    if (!start || !end)
+        return false;
+
     // 路由器可以连接任何节点（路由器或普通节点）
     if (start->getType() == GraphNode::Router) {
         return true;
     }
-    
+
     // 普通节点只能连接路由器
     if (start->getType() == GraphNode::Node) {
         return end->getType() == GraphNode::Router;
     }
-    
+
     return false;
 }
 
@@ -108,7 +110,7 @@ void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
     if (!m_pendingToolName.isEmpty()) {
         QString id;
         GraphNode::NodeType type;
-        
+
         if (m_pendingToolName == "Router") {
             int routerCount = 0;
             for (GraphNode* node : m_nodes) {
@@ -128,7 +130,7 @@ void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
             id = QString("Node_%1").arg(nodeCount);
             type = GraphNode::Node;
         }
-        
+
         createNode(id, event->scenePos(), type);
         m_pendingToolName.clear();
         event->acceptProposedAction();
@@ -203,25 +205,25 @@ void GraphScene::exportGraph(const QString& filePath) {
         return;
 
     QTextStream out(&file);
-    
+
     // 按照指定格式导出：以路由器为起点，列出所有连接
     QMap<QString, QStringList> routerConnections;
-    
+
     // 遍历所有边，构建连接关系
     for (GraphEdge* edge : m_edges) {
         GraphNode* start = edge->startNode();
         GraphNode* end = edge->endNode();
-        
+
         QString startId = start->getId();
         QString endId = end->getId();
         double weight = edge->weight();
-        
+
         // 如果权重不是1.0，在ID后面添加权重
         QString endIdWithWeight = endId;
         if (weight != 1.0) {
             endIdWithWeight += " " + QString::number(weight);
         }
-        
+
         // 确保路由器在起始位置
         if (start->getType() == GraphNode::Router) {
             routerConnections[startId].append(endIdWithWeight);
@@ -229,7 +231,7 @@ void GraphScene::exportGraph(const QString& filePath) {
             routerConnections[endId].append(startId);
         }
     }
-    
+
     // 输出每个路由器的连接
     for (auto it = routerConnections.begin(); it != routerConnections.end(); ++it) {
         out << it.key(); // 路由器ID
@@ -238,6 +240,6 @@ void GraphScene::exportGraph(const QString& filePath) {
         }
         out << "\n";
     }
-    
+
     file.close();
 }

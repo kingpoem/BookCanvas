@@ -49,7 +49,7 @@ void GraphNode::paint(QPainter* painter,
 
     painter->setPen(pen);
     painter->setBrush(brush);
-    
+
     // 根据类型绘制不同形状
     if (m_type == Router) {
         painter->drawRect(m_rect); // 路由器绘制方形

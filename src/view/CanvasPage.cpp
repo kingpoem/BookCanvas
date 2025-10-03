@@ -64,19 +64,17 @@ CanvasPage::CanvasPage(QWidget* parent)
                                labelSceneX,
                                labelSceneY,
                                this); // 外部传入 scene 便于控制
-    
+
     // 连接ShowButton的信号到GraphScene的权重显示控制
     connect(showBtn, &ShowButton::toggled, scene, &GraphScene::setAllEdgeWeightsVisible);
-    
+
     // 连接导出按钮的信号
     connect(exportBtn, &ExportButton::exportRequested, [scene, this]() {
-        QString fileName = QFileDialog::getSaveFileName(
-            this,
-            "导出网络配置文件",
-            "network_config.txt",
-            "Text Files (*.txt);;All Files (*)"
-        );
-        
+        QString fileName = QFileDialog::getSaveFileName(this,
+                                                        "导出网络配置文件",
+                                                        "network_config.txt",
+                                                        "Text Files (*.txt);;All Files (*)");
+
         if (!fileName.isEmpty()) {
             scene->exportGraph(fileName);
             QMessageBox::information(this, "导出成功", "网络配置文件已导出到: " + fileName);

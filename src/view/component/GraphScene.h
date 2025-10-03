@@ -15,7 +15,7 @@ public:
     GraphNode* createNode(const QString& id,
                           const QPointF& pos,
                           GraphNode::NodeType type = GraphNode::Node); // 创建节点，支持指定类型
-    void removeNode(GraphNode* node);          // 删除节点和相关的边
+    void removeNode(GraphNode* node);                                  // 删除节点和相关的边
     [[nodiscard]] QList<GraphNode*> nodes() const {
         return m_nodes;
     } // 返回当前场景中所有节点的列表
@@ -24,10 +24,10 @@ public:
     GraphEdge* createEdge(GraphNode* start, GraphNode* end, double weight = 1.0);
     void removeEdge(GraphEdge* edge);
     [[nodiscard]] QList<GraphEdge*> edges() const { return m_edges; }
-    
+
     // 控制所有边的权重显示/隐藏
     void setAllEdgeWeightsVisible(bool visible);
-    
+
     // 检查连接是否合法（节点只能连接路由器，路由器可以连接任何节点）
     bool isConnectionValid(GraphNode* start, GraphNode* end) const;
 

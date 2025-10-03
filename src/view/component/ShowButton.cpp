@@ -2,12 +2,17 @@
 #include <QMouseEvent>
 
 ShowButton::ShowButton(ElaIconType::IconName awesome, QString toolType, QWidget* parent)
-    : ElaIconButton(awesome, parent), m_toolType(toolType) {
+    : ElaIconButton(awesome, parent)
+    , m_toolType(toolType) {
     setCursor(Qt::PointingHandCursor); // 鼠标悬停显示手型
 }
 
-ShowButton::ShowButton(ElaIconType::IconName awesome, int pixelSize, QString toolType, QWidget* parent)
-    : ElaIconButton(awesome, pixelSize, parent), m_toolType(toolType) {
+ShowButton::ShowButton(ElaIconType::IconName awesome,
+                       int pixelSize,
+                       QString toolType,
+                       QWidget* parent)
+    : ElaIconButton(awesome, pixelSize, parent)
+    , m_toolType(toolType) {
     setCursor(Qt::PointingHandCursor);
 }
 
@@ -26,4 +31,3 @@ void ShowButton::mousePressEvent(QMouseEvent* event) {
     // 调用父类处理（保留按钮本身功能）
     ElaIconButton::mousePressEvent(event);
 }
-
