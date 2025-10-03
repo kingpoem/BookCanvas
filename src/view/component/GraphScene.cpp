@@ -199,6 +199,60 @@ void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 // 导出图信息
+// void GraphScene::exportGraph(const QString& filePath) {
+//     QFile file(filePath);
+//     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+//         return;
+//
+//     QTextStream out(&file);
+//
+//     // 按照指定格式导出：以路由器为起点，列出所有连接
+//     QMap<QString, QStringList> routerConnections;
+//
+//     // 遍历所有边，构建连接关系
+//     for (GraphEdge* edge : m_edges) {
+//         GraphNode* start = edge->startNode();
+//         GraphNode* end = edge->endNode();
+//
+//         QString startId = start->getId();
+//         QString endId = end->getId();
+//         double weight = edge->weight();
+//
+//         // 如果权重不是1.0，在ID后面添加权重
+//         QString endIdWithWeight = endId;
+//         if (weight != 1.0) {
+//             endIdWithWeight += " " + QString::number(weight);
+//         }
+//
+//         // 确保路由器在起始位置
+//         if (start->getType() == GraphNode::Router) {
+//             routerConnections[startId].append(endIdWithWeight);
+//         } else if (end->getType() == GraphNode::Router) {
+//             routerConnections[endId].append(startId);
+//         }
+//     }
+//
+//     // 输出每个路由器的连接
+//     for (auto it = routerConnections.begin(); it != routerConnections.end(); ++it) {
+//         out << it.key(); // 路由器ID
+//         for (const QString& connection : it.value()) {
+//             out << " " << connection;
+//         }
+//         out << "\n";
+//     }
+//
+//     file.close();
+// }
+// 辅助函数：从ID中提取数字部分
+int GraphScene::extractNumberId(const QString& id) {
+    // 假设ID格式为 "类型_数字"，如 "Router_0", "Node_1"
+    QStringList parts = id.split('_');
+    if (parts.size() >= 2) {
+        return parts[1].toInt();
+    }
+    return 0; // 默认值
+}
+
 void GraphScene::exportGraph(const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
@@ -206,40 +260,62 @@ void GraphScene::exportGraph(const QString& filePath) {
 
     QTextStream out(&file);
 
-    // 按照指定格式导出：以路由器为起点，列出所有连接
-    QMap<QString, QStringList> routerConnections;
+    // 存储每个路由器的连接信息
+    QMap<int, QList<QPair<QString, double>>> routerConnections; // 路由器ID -> 连接列表(类型+ID, 权重)
 
     // 遍历所有边，构建连接关系
     for (GraphEdge* edge : m_edges) {
         GraphNode* start = edge->startNode();
         GraphNode* end = edge->endNode();
-
-        QString startId = start->getId();
-        QString endId = end->getId();
         double weight = edge->weight();
 
-        // 如果权重不是1.0，在ID后面添加权重
-        QString endIdWithWeight = endId;
-        if (weight != 1.0) {
-            endIdWithWeight += " " + QString::number(weight);
-        }
+        // 提取数字ID
+        int startNum = extractNumberId(start->getId());
+        int endNum = extractNumberId(end->getId());
 
-        // 确保路由器在起始位置
-        if (start->getType() == GraphNode::Router) {
-            routerConnections[startId].append(endIdWithWeight);
-        } else if (end->getType() == GraphNode::Router) {
-            routerConnections[endId].append(startId);
+        // 确定连接类型和方向
+        if (start->getType() == GraphNode::Router && end->getType() == GraphNode::Router) {
+            // 路由器之间的双向连接
+            QString conn1 = "router " + QString::number(endNum);
+            QString conn2 = "router " + QString::number(startNum);
+            routerConnections[startNum].append(qMakePair(conn1, weight));
+            routerConnections[endNum].append(qMakePair(conn2, weight));
+        }
+        else if (start->getType() == GraphNode::Router && end->getType() == GraphNode::Node) {
+            // 路由器到节点的连接
+            QString conn = "node " + QString::number(endNum);
+            routerConnections[startNum].append(qMakePair(conn, weight));
+        }
+        else if (start->getType() == GraphNode::Node && end->getType() == GraphNode::Router) {
+            // 节点到路由器的连接
+            QString conn = "node " + QString::number(startNum);
+            routerConnections[endNum].append(qMakePair(conn, weight));
         }
     }
 
-    // 输出每个路由器的连接
-    for (auto it = routerConnections.begin(); it != routerConnections.end(); ++it) {
-        out << it.key(); // 路由器ID
-        for (const QString& connection : it.value()) {
-            out << " " << connection;
+    // 按路由器ID排序输出
+    QList<int> routerIds = routerConnections.keys();
+    std::sort(routerIds.begin(), routerIds.end());
+
+    for (int routerId : routerIds) {
+        out << "router " << routerId;
+        
+        // 获取该路由器的所有连接
+        const auto& connections = routerConnections[routerId];
+        
+        // 输出所有连接（可以按需要排序）
+        for (const auto& connection : connections) {
+            out << " " << connection.first;
+            if (connection.second != 1.0) {
+                out << " " << connection.second;
+            } else {
+                // do nothing
+                // out << " "; // 或者如果权重为1可以省略，根据您的需求
+            }
         }
         out << "\n";
     }
 
     file.close();
 }
+

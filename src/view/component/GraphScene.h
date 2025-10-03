@@ -46,6 +46,8 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
 
 private:
+    static int extractNumberId(const QString& id); // 辅助函数
+
     QList<GraphNode*> m_nodes; // 存放所有节点
     QList<GraphEdge*> m_edges; // 存放所有边
 
