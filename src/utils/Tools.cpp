@@ -1,5 +1,5 @@
 #include "Tools.h"
-#include <QDebug.h>
+#include <QDebug>
 
 void printObjectTree(QObject* obj, const QString& prefix, bool isLast) { // NOLINT(misc-no-recursion)
     QString branch = prefix + (isLast ? "└── " : "├── ");

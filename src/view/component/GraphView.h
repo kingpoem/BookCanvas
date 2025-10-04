@@ -1,7 +1,7 @@
 #pragma once
 #include "ElaGraphicsView.h"
 #include "GraphScene.h"
-#include <QLabel.h>
+#include <QLabel>
 
 class GraphView : public ElaGraphicsView {
     Q_OBJECT
