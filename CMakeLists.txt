@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.23)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/.cmake/)
 include(Version)
 
-project(book-canvas VERSION ${VERSION_SEMANTIC} LANGUAGES CXX)
+project(BookCanvas VERSION ${VERSION_SEMANTIC} LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -15,7 +15,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(WIN32)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-    set(VERSION_RC_PATH ${CMAKE_SOURCE_DIR}/book-canvas.rc)
+    set(VERSION_RC_PATH ${CMAKE_SOURCE_DIR}/BookCanvas.rc)
     set(WIN32_MANIFEST_PATH ${CMAKE_SOURCE_DIR}/app.manifest)
     configure_file(
       ${CMAKE_SOURCE_DIR}/.cmake/version_exe.rc.in
@@ -50,7 +50,7 @@ file(GLOB_RECURSE PROJECT_SOURCES
     src/*.h
 )
 
-qt_add_executable(book-canvas MACOSX_BUNDLE
+qt_add_executable(BookCanvas MACOSX_BUNDLE
     ${${PROJECT_NAME}_MAC_ICON}
     ${PROJECT_SOURCES}
     res/res.qrc
@@ -68,7 +68,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     3rdpart/ElaWidgetTools/src/include
 )
 
-target_link_libraries(book-canvas PRIVATE
+target_link_libraries(BookCanvas PRIVATE
     Qt6::Widgets
     Qt6::Multimedia
     Qt6::MultimediaWidgets
@@ -81,9 +81,9 @@ target_link_libraries(book-canvas PRIVATE
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
 if(${QT_VERSION} VERSION_LESS 6.1.0)
-    set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.book-canvas)
+    set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.BookCanvas)
 endif()
-set_target_properties(book-canvas PROPERTIES
+set_target_properties(BookCanvas PROPERTIES
     ${BUNDLE_ID_OPTION}
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
@@ -92,7 +92,7 @@ set_target_properties(book-canvas PROPERTIES
 )
 
 include(GNUInstallDirs)
-install(TARGETS book-canvas
+install(TARGETS BookCanvas
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
