@@ -13,6 +13,8 @@ public:
                        QLabel* labelSceneY,
                        QWidget* parent = nullptr); // GraphScene 由外部控制
 
+    explicit GraphView(GraphScene* scene, QWidget* parent = nullptr);
+
 protected:
     void wheelEvent(QWheelEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
