@@ -38,7 +38,7 @@ Design, customize, and simulate irregular NoC topologies with a drag-and-drop in
 1. 使用[Visual Studio Installer](https://visualstudio.microsoft.com/zh-hans/downloads)安装 Visual Studio
 2. 配置环境变量，在 `Path` 中添加 `C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\<version>\bin\Hostx64\x64`，
 版本号替换为自己的，视具体情况更改，在命令行中输入 `cl` 检验是否安装成功
-3. 预设使用 `MSVC x86`，不指定`-G "Ninja"`
+3. 不使用`-G "Ninja"`，目前 Ninja 构建有问题，请指定`-G "Visual Studio 17 2022"`
 
 从源码构建：
 
