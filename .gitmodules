@@ -1,4 +1,4 @@
 [submodule "3rdpart/ElaWidgetTools"]
 	path = 3rdpart/ElaWidgetTools
 	url = git@github.com:kingpoem/ElaWidgetTools.git
-    branch = main
+    branch = stable
