@@ -40,13 +40,13 @@ SettingPage::SettingPage(QWidget* parent)
     });
     themeComboBox->setCurrentIndex(settings.value("theme").toString() == "dark");
 
-    auto micaSwitchButton = new ElaToggleSwitch(this);
-    auto micaSwitchArea = createScrollPageArea("Mica Effect", micaSwitchButton);
+    // auto micaSwitchButton = new ElaToggleSwitch(this);
+    // auto micaSwitchArea = createScrollPageArea("Mica Effect", micaSwitchButton);
     // connect(micaSwitchButton, &ElaToggleSwitch::toggled, this, [=](bool checked) {
     //     eApp->setIsEnableMica(checked);
     //     settings.setValue("micaEffect", checked);
     // });
-    micaSwitchButton->setIsToggled(settings.value("micaEffect").toBool());
+    // micaSwitchButton->setIsToggled(settings.value("micaEffect").toBool());
 
     auto minimumButton = new ElaRadioButton("Minimum", this);
     auto compactButton = new ElaRadioButton("Compact", this);
@@ -98,7 +98,6 @@ SettingPage::SettingPage(QWidget* parent)
     centerLayout->addWidget(appearanceText);
     centerLayout->addSpacing(10);
     centerLayout->addWidget(themeSwitchArea);
-    centerLayout->addWidget(micaSwitchArea);
     centerLayout->addWidget(displayModeArea);
     centerLayout->addSpacing(15);
     centerLayout->addStretch();
