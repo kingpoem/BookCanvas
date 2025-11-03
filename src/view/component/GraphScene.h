@@ -12,6 +12,9 @@ class GraphScene : public ElaGraphicsScene {
 public:
     explicit GraphScene(QObject* parent = nullptr);
 
+    // 信号：节点配置请求
+    Q_SIGNAL void nodeConfigureRequested(GraphNode* node);
+
     GraphNode* createNode(const QString& id,
                           const QPointF& pos,
                           GraphNode::NodeType type = GraphNode::Node); // 创建节点，支持指定类型
@@ -29,10 +32,18 @@ public:
     void setAllEdgeWeightsVisible(bool visible);
 
     // 检查连接是否合法（节点只能连接路由器，路由器可以连接任何节点）
-    bool isConnectionValid(GraphNode* start, GraphNode* end) const;
+    static bool isConnectionValid(GraphNode* start, GraphNode* end);
 
     // 导出图信息
     void exportGraph(const QString& filePath);
+
+    // 导出路由器配置
+    void exportRouterConfig(const QString& filePath);
+
+    // 获取和设置路由器配置
+    [[nodiscard]] QMap<QString, QString> getRouterConfig() const { return m_routerConfig; }
+    void setRouterConfig(const QMap<QString, QString>& config) { m_routerConfig = config; }
+
     // drawBackground
 
 protected:
@@ -59,4 +70,7 @@ private:
     QString m_pendingToolName;
 
     GraphNode* m_highlightNode = nullptr;
+
+    // 路由器配置参数
+    QMap<QString, QString> m_routerConfig;
 };

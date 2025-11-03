@@ -12,6 +12,20 @@ GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
     setSceneRect(QRectF(0, 0, 1200, 600));
     // (x, y ,sceneX, sceneY) (x, y) 控制画布左上角点 (sceneX, sceneY) 控制宽高
+
+    // 初始化默认路由器配置
+    m_routerConfig = {{"topology", "anynet"},
+                      {"routing_function", "min"},
+                      {"network_file", "anynet_file"},
+                      {"traffic", "uniform"},
+                      {"use_read_write", "0"},
+                      {"sample_period", "10000"},
+                      {"injection_rate", "0.01"},
+                      {"vc_allocator", "separable_input_first"},
+                      {"sw_allocator", "separable_input_first"},
+                      {"alloc_iters", "1"},
+                      {"num_vcs", "1"},
+                      {"vc_buf_size", "3"}};
 }
 
 GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNode::NodeType type) {
@@ -19,6 +33,10 @@ GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNo
     addItem(node);
     node->setPos(pos); // NOTE: this line must be after addItem(node); `addItem` has written `setPos`
     m_nodes.append(node);
+
+    // 连接节点的配置请求信号到场景
+    connect(node, &GraphNode::configureRequested, this, &GraphScene::nodeConfigureRequested);
+
     return node;
 }
 
@@ -26,7 +44,7 @@ void GraphScene::removeNode(GraphNode* node) {
     if (!node)
         return;
     // 删除关联边
-    for (int i = m_edges.size() - 1; i >= 0; --i) {
+    for (auto i = m_edges.size() - 1; i >= 0; --i) {
         if (m_edges[i]->startNode() == node || m_edges[i]->endNode() == node) {
             removeEdge(m_edges[i]);
         }
@@ -49,7 +67,6 @@ GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weigh
     auto* edge = new GraphEdge(start, end);
     addItem(edge);
 
-    // 现在 item 已在 scene 中，可以正确 mapFromScene
     edge->setWeight(weight);
     edge->updatePosition();
 
@@ -76,7 +93,7 @@ void GraphScene::setAllEdgeWeightsVisible(bool visible) {
     }
 }
 
-bool GraphScene::isConnectionValid(GraphNode* start, GraphNode* end) const {
+bool GraphScene::isConnectionValid(GraphNode* start, GraphNode* end) {
     if (!start || !end)
         return false;
 
@@ -267,10 +284,42 @@ void GraphScene::exportGraph(const QString& filePath) {
                 out << " " << connection.second;
             } else {
                 // do nothing
-                // out << " "; // 或者如果权重为1可以省略，根据您的需求
+                // out << " "; // 或者如果权重为1可以省略
             }
         }
         out << "\n";
+    }
+
+    file.close();
+}
+
+// 导出路由器配置
+void GraphScene::exportRouterConfig(const QString& filePath) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return;
+
+    QTextStream out(&file);
+
+    // 如果配置为空，使用默认配置
+    if (m_routerConfig.isEmpty()) {
+        m_routerConfig = {{"topology", "anynet"},
+                          {"routing_function", "min"},
+                          {"network_file", "anynet_file"},
+                          {"traffic", "uniform"},
+                          {"use_read_write", "0"},
+                          {"sample_period", "10000"},
+                          {"injection_rate", "0.01"},
+                          {"vc_allocator", "separable_input_first"},
+                          {"sw_allocator", "separable_input_first"},
+                          {"alloc_iters", "1"},
+                          {"num_vcs", "1"},
+                          {"vc_buf_size", "3"}};
+    }
+
+    // 写入配置
+    for (auto it = m_routerConfig.begin(); it != m_routerConfig.end(); ++it) {
+        out << it.key() << " = " << it.value() << ";\n";
     }
 
     file.close();

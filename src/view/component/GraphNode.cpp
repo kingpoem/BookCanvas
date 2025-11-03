@@ -1,5 +1,7 @@
 #include "GraphNode.h"
 #include <QDebug>
+#include <QGraphicsSceneContextMenuEvent>
+#include <QMenu>
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
@@ -9,6 +11,8 @@ GraphNode::GraphNode(QString id, NodeType type, QGraphicsItem* parent)
     , m_type(type) {
     setFlags(ItemIsMovable | ItemIsSelectable
              | ItemSendsGeometryChanges); // 可移动 选中 报告几何变化
+
+    setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
 }
 
 QRectF GraphNode::boundingRect() const {
@@ -82,4 +86,17 @@ QVariant GraphNode::itemChange(GraphicsItemChange change, const QVariant& value)
         }
     }
     return ElaGraphicsItem::itemChange(change, value);
+}
+
+// 右键菜单事件
+void GraphNode::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
+    if (m_type == Router) {
+        QMenu menu;
+        QAction* configAction = menu.addAction("配置参数");
+
+        QAction* selected = menu.exec(event->screenPos());
+        if (selected == configAction) {
+            emit configureRequested(this);
+        }
+    }
 }

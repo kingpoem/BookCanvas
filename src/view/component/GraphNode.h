@@ -27,9 +27,11 @@ public:
 
 signals:
     void posChanged(const QPointF& localPos, const QPointF& scenePos);
+    void configureRequested(GraphNode* node); // 配置请求信号
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override; // 右键菜单
 
 private:
     QString m_id;
