@@ -5,6 +5,7 @@
 #include "component/GraphScene.h"
 #include "component/GraphView.h"
 #include "component/RouterConfigDialog.h"
+#include "component/RouterGlobalConfigDialog.h"
 #include "component/ShowButton.h"
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
@@ -34,16 +35,17 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* circleBtn = new DragButton(ElaIconType::Circle, "Circle", toolBar); // 节点创建可拖拽按钮
     auto* routerBtn = new DragButton(ElaIconType::Square, "Router", toolBar); // 路由器创建可拖拽按钮
     auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", toolBar); // 线条权重显示/隐藏按钮
-    auto* exportBtn = new ExportButton(ElaIconType::Download, "Export File", toolBar); // 导出按钮
-    auto* exportConfigBtn = new ExportButton(ElaIconType::Gear,
-                                             "Export Config",
-                                             toolBar); // 导出配置按钮
+    auto* exportBtn = new ExportButton(ElaIconType::Download, "Export File", toolBar); // 导出网络文件按钮
+    auto* exportConfigBtn = new ExportButton(ElaIconType::Gear, "Export Config", toolBar); // 导出JSON配置按钮
+    auto* globalConfigBtn = new ExportButton(ElaIconType::CarWrench, "Global Config", toolBar); // 全局配置按钮
 
     // 添加到工具栏
     toolBar->addWidget(circleBtn);
     toolBar->addWidget(routerBtn);
     toolBar->addSeparator();
     toolBar->addWidget(showBtn);
+    toolBar->addSeparator();
+    toolBar->addWidget(globalConfigBtn);
     toolBar->addSeparator();
     toolBar->addWidget(exportBtn);
     toolBar->addWidget(exportConfigBtn);
@@ -72,15 +74,31 @@ CanvasPage::CanvasPage(QWidget* parent)
     // 连接ShowButton的信号到GraphScene的权重显示控制
     connect(showBtn, &ShowButton::toggled, scene, &GraphScene::setAllEdgeWeightsVisible);
 
+    // 获取booksim可执行文件所在目录
+    QString booksimDir = QDir(QCoreApplication::applicationDirPath()).absolutePath();
+    
+    // 在调试和开发模式下，尝试从构建目录找到booksim
+    QDir buildDir(QDir(QCoreApplication::applicationDirPath()).absolutePath());
+    if (!buildDir.exists("booksim")) {
+        // 尝试从相对路径找到3rdpart/booksim2/src
+        QString possibleBooksimPath = QDir(QCoreApplication::applicationDirPath())
+                                          .absoluteFilePath("../../../../3rdpart/booksim2/src/booksim");
+        QFileInfo booksimInfo(possibleBooksimPath);
+        if (booksimInfo.exists()) {
+            booksimDir = booksimInfo.absolutePath();
+        }
+    } else {
+        booksimDir = buildDir.absolutePath();
+    }
+
     // 连接导出anynet_file按钮的信号
-    connect(exportBtn, &ExportButton::exportRequested, [scene, this]() {
-        QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-        QString defaultFilePath = QDir(downloadsPath).filePath("anynet_file");
+    connect(exportBtn, &ExportButton::exportRequested, [scene, this, booksimDir]() {
+        QString defaultFilePath = QDir(booksimDir).filePath("anynet_file");
 
         QString fileName = QFileDialog::getSaveFileName(this,
                                                         "导出网络配置文件",
                                                         defaultFilePath,
-                                                        "Config Files (*);;All Files (*)");
+                                                        "All Files (*)");
 
         if (!fileName.isEmpty()) {
             scene->exportGraph(fileName);
@@ -88,30 +106,39 @@ CanvasPage::CanvasPage(QWidget* parent)
         }
     });
 
-    // 连接导出anynet_config按钮的信号
-    connect(exportConfigBtn, &ExportButton::exportRequested, [scene, this]() {
-        QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-        QString defaultFilePath = QDir(downloadsPath).filePath("anynet_config");
+    // 连接导出JSON配置按钮的信号
+    connect(exportConfigBtn, &ExportButton::exportRequested, [scene, this, booksimDir]() {
+        QString defaultFilePath = QDir(booksimDir).filePath("config.json");
 
         QString fileName = QFileDialog::getSaveFileName(this,
-                                                        "导出路由器配置",
+                                                        "导出JSON配置",
                                                         defaultFilePath,
-                                                        "Config Files (*);;All Files (*)");
+                                                        "JSON Files (*.json);;All Files (*)");
 
         if (!fileName.isEmpty()) {
-            scene->exportRouterConfig(fileName);
-            QMessageBox::information(this, "导出成功", "路由器配置已导出到: " + fileName);
+            scene->exportJSONConfig(fileName);
+            QMessageBox::information(this, "导出成功", "JSON配置已导出到: " + fileName);
+        }
+    });
+
+    // 连接全局配置按钮的信号
+    connect(globalConfigBtn, &ExportButton::exportRequested, [scene, this]() {
+        RouterGlobalConfigDialog dialog(this);
+        dialog.setConfig(scene->getGlobalConfig());
+
+        if (dialog.exec() == QDialog::Accepted) {
+            scene->setGlobalConfig(dialog.getConfig());
         }
     });
 
     // 连接场景的配置请求信号（当节点右键点击时触发）
     connect(scene, &GraphScene::nodeConfigureRequested, [scene, this](GraphNode* node) {
         if (node && node->getType() == GraphNode::Router) {
-            RouterConfigDialog dialog(this);
-            dialog.setConfig(scene->getRouterConfig());
+            RouterConfigDialog dialog(node->getId(), this);
+            dialog.setConfig(scene->getRouterConfig(node->getId()));
 
             if (dialog.exec() == QDialog::Accepted) {
-                scene->setRouterConfig(dialog.getConfig());
+                scene->setRouterConfig(node->getId(), dialog.getConfig());
             }
         }
     });

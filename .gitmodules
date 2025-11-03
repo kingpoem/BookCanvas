@@ -2,3 +2,7 @@
 	path = 3rdpart/ElaWidgetTools
 	url = git@github.com:kingpoem/ElaWidgetTools.git
     branch = stable
+[submodule "3rdpart/booksim2"]
+	path = 3rdpart/booksim2
+	url = https://github.com/kingpoem/booksim2.git
+	branch = json-support

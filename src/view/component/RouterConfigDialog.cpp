@@ -5,100 +5,89 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QVBoxLayout>
 
-QMap<QString, QString> RouterConfigDialog::s_defaultConfig = {{"topology", "anynet"},
-                                                              {"routing_function", "min"},
-                                                              {"network_file", "anynet_file"},
-                                                              {"traffic", "uniform"},
-                                                              {"use_read_write", "0"},
-                                                              {"sample_period", "10000"},
-                                                              {"injection_rate", "0.01"},
-                                                              {"vc_allocator",
-                                                               "separable_input_first"},
-                                                              {"sw_allocator",
-                                                               "separable_input_first"},
-                                                              {"alloc_iters", "1"},
-                                                              {"num_vcs", "1"},
-                                                              {"vc_buf_size", "3"}};
-
-RouterConfigDialog::RouterConfigDialog(QWidget* parent)
+RouterConfigDialog::RouterConfigDialog(const QString& routerId, QWidget* parent)
     : QDialog(parent)
+    , m_routerId(routerId)
     , m_mainLayout(nullptr)
+    , m_scrollArea(nullptr)
     , m_saveBtn(nullptr)
     , m_cancelBtn(nullptr) {
     setupUI();
-    setWindowTitle("全局路由器配置");
-    setMinimumSize(500, 600);
+    setWindowTitle("路由器配置: " + routerId);
+    setMinimumSize(600, 700);
 }
 
 void RouterConfigDialog::setupUI() {
-    m_mainLayout = new QVBoxLayout(this);
-
-    QStringList configKeys = {"topology",
-                              "routing_function",
-                              "network_file",
-                              "traffic",
-                              "use_read_write",
-                              "sample_period",
-                              "injection_rate",
-                              "vc_allocator",
-                              "sw_allocator",
-                              "alloc_iters",
-                              "num_vcs",
-                              "vc_buf_size"};
-
-    QStringList configLabels = {"拓扑结构 (topology)",
-                                "路由函数 (routing_function)",
-                                "网络文件 (network_file)",
-                                "流量模式 (traffic)",
-                                "读写模式 (use_read_write)",
-                                "采样周期 (sample_period)",
-                                "注入速率 (injection_rate)",
-                                "VC分配器 (vc_allocator)",
-                                "开关分配器 (sw_allocator)",
-                                "分配迭代次数 (alloc_iters)",
-                                "虚拟通道数 (num_vcs)",
-                                "VC缓冲区大小 (vc_buf_size)"};
-
-    for (int i = 0; i < configKeys.size(); ++i) {
-        auto* label = new QLabel(configLabels[i], this);
-        auto* edit = new ElaLineEdit(this);
-
-        m_edits[configKeys[i]] = edit;
-
-        auto* itemLayout = new QHBoxLayout();
-        itemLayout->addWidget(label);
-        itemLayout->addWidget(edit);
-
-        m_mainLayout->addLayout(itemLayout);
-    }
-
+    auto* outerLayout = new QVBoxLayout(this);
+    
+    // 创建滚动区域
+    m_scrollArea = new QScrollArea(this);
+    m_scrollArea->setWidgetResizable(true);
+    m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    
+    auto* scrollContent = new QWidget();
+    m_mainLayout = new QVBoxLayout(scrollContent);
+    m_mainLayout->setSpacing(10);
+    
+    // 添加路由器配置项
+    addConfigItem("num_vcs", "虚拟通道数 (num_vcs)", "8");
+    addConfigItem("vc_buf_size", "VC缓冲区大小 (vc_buf_size)", "16");
+    addConfigItem("input_speedup", "输入加速 (input_speedup)", "1");
+    addConfigItem("output_speedup", "输出加速 (output_speedup)", "1");
+    addConfigItem("internal_speedup", "内部加速 (internal_speedup)", "1.0");
+    addConfigItem("vc_allocator", "VC分配器 (vc_allocator)", "islip");
+    addConfigItem("sw_allocator", "开关分配器 (sw_allocator)", "islip");
+    addConfigItem("alloc_iters", "分配迭代次数 (alloc_iters)", "1");
+    addConfigItem("routing_delay", "路由延迟 (routing_delay)", "1");
+    addConfigItem("vc_alloc_delay", "VC分配延迟 (vc_alloc_delay)", "1");
+    addConfigItem("sw_alloc_delay", "开关分配延迟 (sw_alloc_delay)", "1");
+    addConfigItem("credit_delay", "信用延迟 (credit_delay)", "1");
+    addConfigItem("speculative", "推测分配 (speculative)", "0");
+    addConfigItem("vc_busy_when_full", "满时VC忙碌 (vc_busy_when_full)", "0");
+    addConfigItem("vc_prioritize_empty", "VC优先空队列 (vc_prioritize_empty)", "0");
+    addConfigItem("vc_shuffle_requests", "VC随机请求 (vc_shuffle_requests)", "0");
+    addConfigItem("hold_switch_for_packet", "为包保持开关 (hold_switch_for_packet)", "0");
+    addConfigItem("wait_for_tail_credit", "等待尾部信用 (wait_for_tail_credit)", "1");
+    addConfigItem("output_buffer_size", "输出缓冲大小 (output_buffer_size)", "-1");
+    addConfigItem("noq", "无输出排队 (noq)", "0");
+    
     m_mainLayout->addStretch();
-
+    
+    m_scrollArea->setWidget(scrollContent);
+    outerLayout->addWidget(m_scrollArea);
+    
+    // 按钮布局
     auto* buttonLayout = new QHBoxLayout();
     buttonLayout->addStretch();
-
+    
     m_saveBtn = new ElaPushButton("保存", this);
     m_cancelBtn = new ElaPushButton("取消", this);
-
+    
     buttonLayout->addWidget(m_saveBtn);
     buttonLayout->addWidget(m_cancelBtn);
-
-    m_mainLayout->addLayout(buttonLayout);
-
+    
+    outerLayout->addLayout(buttonLayout);
+    
     connect(m_saveBtn, &ElaPushButton::clicked, this, &RouterConfigDialog::onSaveClicked);
     connect(m_cancelBtn, &ElaPushButton::clicked, this, &RouterConfigDialog::onCancelClicked);
-
-    initializeDefaultConfig();
 }
 
-void RouterConfigDialog::initializeDefaultConfig() {
-    for (auto it = s_defaultConfig.begin(); it != s_defaultConfig.end(); ++it) {
-        if (m_edits.contains(it.key())) {
-            m_edits[it.key()]->setText(it.value());
-        }
-    }
+void RouterConfigDialog::addConfigItem(const QString& key, const QString& label, const QString& defaultValue) {
+    auto* labelWidget = new QLabel(label, this);
+    labelWidget->setMinimumWidth(200);
+    auto* edit = new ElaLineEdit(this);
+    edit->setText(defaultValue);
+    
+    m_edits[key] = edit;
+    
+    auto* itemLayout = new QHBoxLayout();
+    itemLayout->addWidget(labelWidget);
+    itemLayout->addWidget(edit);
+    
+    m_mainLayout->addLayout(itemLayout);
 }
 
 void RouterConfigDialog::setConfig(const QMap<QString, QString>& config) {

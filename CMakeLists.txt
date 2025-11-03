@@ -64,6 +64,32 @@ qt_add_executable(BookCanvas MACOSX_BUNDLE
 set(ELAWIDGETTOOLS_BUILD_STATIC_LIB "STATIC" CACHE STRING "Build ElaWidgetTools as a static library")
 add_subdirectory(3rdpart/ElaWidgetTools)
 
+# Set booksim2 source directory and binary directory
+set(BOOKSIM2_SRC_DIR ${CMAKE_SOURCE_DIR}/3rdpart/booksim2/src)
+set(BOOKSIM2_EXECUTABLE ${BOOKSIM2_SRC_DIR}/booksim)
+
+# Custom command to compile booksim
+find_program(MAKE_PROGRAM make)
+if(WIN32)
+    find_program(MAKE_PROGRAM mingw32-make)
+    if(NOT MAKE_PROGRAM)
+        find_program(MAKE_PROGRAM nmake)
+    endif()
+endif()
+
+add_custom_command(
+    OUTPUT ${BOOKSIM2_EXECUTABLE}
+    COMMAND ${CMAKE_COMMAND} -E chdir ${BOOKSIM2_SRC_DIR} ${MAKE_PROGRAM}
+    COMMENT "Building booksim2..."
+    WORKING_DIRECTORY ${BOOKSIM2_SRC_DIR}
+    VERBATIM
+)
+
+# Add custom target
+add_custom_target(booksim2
+    DEPENDS ${BOOKSIM2_EXECUTABLE}
+)
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     src
     3rdpart/ElaWidgetTools/src/include

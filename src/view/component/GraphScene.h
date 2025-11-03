@@ -37,12 +37,16 @@ public:
     // 导出图信息
     void exportGraph(const QString& filePath);
 
-    // 导出路由器配置
-    void exportRouterConfig(const QString& filePath);
+    // 导出JSON配置
+    void exportJSONConfig(const QString& filePath);
 
-    // 获取和设置路由器配置
-    [[nodiscard]] QMap<QString, QString> getRouterConfig() const { return m_routerConfig; }
-    void setRouterConfig(const QMap<QString, QString>& config) { m_routerConfig = config; }
+    // 获取和设置路由器独立配置
+    [[nodiscard]] QMap<QString, QString> getRouterConfig(const QString& routerId) const;
+    void setRouterConfig(const QString& routerId, const QMap<QString, QString>& config);
+
+    // 获取和设置全局配置
+    [[nodiscard]] QMap<QString, QString> getGlobalConfig() const { return m_globalConfig; }
+    void setGlobalConfig(const QMap<QString, QString>& config) { m_globalConfig = config; }
 
     // drawBackground
 
@@ -71,6 +75,9 @@ private:
 
     GraphNode* m_highlightNode = nullptr;
 
-    // 路由器配置参数
-    QMap<QString, QString> m_routerConfig;
+    // 每个路由器的独立配置（routerId -> config）
+    QMap<QString, QMap<QString, QString>> m_routerConfigs;
+    
+    // 全局配置参数
+    QMap<QString, QString> m_globalConfig;
 };

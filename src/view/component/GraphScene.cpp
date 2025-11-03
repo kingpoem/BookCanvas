@@ -12,20 +12,6 @@ GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
     setSceneRect(QRectF(0, 0, 1200, 600));
     // (x, y ,sceneX, sceneY) (x, y) 控制画布左上角点 (sceneX, sceneY) 控制宽高
-
-    // 初始化默认路由器配置
-    m_routerConfig = {{"topology", "anynet"},
-                      {"routing_function", "min"},
-                      {"network_file", "anynet_file"},
-                      {"traffic", "uniform"},
-                      {"use_read_write", "0"},
-                      {"sample_period", "10000"},
-                      {"injection_rate", "0.01"},
-                      {"vc_allocator", "separable_input_first"},
-                      {"sw_allocator", "separable_input_first"},
-                      {"alloc_iters", "1"},
-                      {"num_vcs", "1"},
-                      {"vc_buf_size", "3"}};
 }
 
 GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNode::NodeType type) {
@@ -293,34 +279,87 @@ void GraphScene::exportGraph(const QString& filePath) {
     file.close();
 }
 
-// 导出路由器配置
-void GraphScene::exportRouterConfig(const QString& filePath) {
+// 获取和设置路由器独立配置
+QMap<QString, QString> GraphScene::getRouterConfig(const QString& routerId) const {
+    if (m_routerConfigs.contains(routerId)) {
+        return m_routerConfigs[routerId];
+    }
+    return QMap<QString, QString>();
+}
+
+void GraphScene::setRouterConfig(const QString& routerId, const QMap<QString, QString>& config) {
+    m_routerConfigs[routerId] = config;
+}
+
+// 导出JSON配置
+void GraphScene::exportJSONConfig(const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return;
 
     QTextStream out(&file);
-
-    // 如果配置为空，使用默认配置
-    if (m_routerConfig.isEmpty()) {
-        m_routerConfig = {{"topology", "anynet"},
-                          {"routing_function", "min"},
-                          {"network_file", "anynet_file"},
-                          {"traffic", "uniform"},
-                          {"use_read_write", "0"},
-                          {"sample_period", "10000"},
-                          {"injection_rate", "0.01"},
-                          {"vc_allocator", "separable_input_first"},
-                          {"sw_allocator", "separable_input_first"},
-                          {"alloc_iters", "1"},
-                          {"num_vcs", "1"},
-                          {"vc_buf_size", "3"}};
+    
+    // 开始JSON
+    out << "{\n";
+    
+    // 导出全局配置
+    bool first = true;
+    for (auto it = m_globalConfig.begin(); it != m_globalConfig.end(); ++it) {
+        if (!first) out << ",\n";
+        first = false;
+        // 判断是否为数字（不包含引号）
+        QString value = it.value();
+        bool isNumber = false;
+        value.toInt(&isNumber);
+        bool isDouble = false;
+        if (!isNumber) {
+            value.toDouble(&isDouble);
+        }
+        
+        if (isNumber || isDouble) {
+            out << "  \"" << it.key() << "\": " << value;
+        } else {
+            out << "  \"" << it.key() << "\": \"" << value << "\"";
+        }
     }
-
-    // 写入配置
-    for (auto it = m_routerConfig.begin(); it != m_routerConfig.end(); ++it) {
-        out << it.key() << " = " << it.value() << ";\n";
+    
+    // 导出路由器特定配置
+    if (!m_routerConfigs.isEmpty()) {
+        out << ",\n\n  \"routers\": {\n";
+        bool firstRouter = true;
+        for (auto it = m_routerConfigs.begin(); it != m_routerConfigs.end(); ++it) {
+            if (!firstRouter) out << ",\n";
+            firstRouter = false;
+            out << "    \"" << it.key() << "\": {\n";
+            
+            bool firstParam = true;
+            for (auto paramIt = it.value().begin(); paramIt != it.value().end(); ++paramIt) {
+                if (!firstParam) out << ",\n";
+                firstParam = false;
+                
+                // 判断是否为数字
+                QString value = paramIt.value();
+                bool isNumber = false;
+                value.toInt(&isNumber);
+                bool isDouble = false;
+                if (!isNumber) {
+                    value.toDouble(&isDouble);
+                }
+                
+                if (isNumber || isDouble) {
+                    out << "      \"" << paramIt.key() << "\": " << value;
+                } else {
+                    out << "      \"" << paramIt.key() << "\": \"" << value << "\"";
+                }
+            }
+            
+            out << "\n    }";
+        }
+        out << "\n  }\n";
+    } else {
+        out << "\n";
     }
-
+    
+    out << "}\n";
     file.close();
 }
