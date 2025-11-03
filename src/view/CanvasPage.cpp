@@ -20,6 +20,7 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QStandardPaths>
 #include <QVBoxLayout>
 #include <Version.h>
 
@@ -73,10 +74,13 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     // 连接导出anynet_file按钮的信号
     connect(exportBtn, &ExportButton::exportRequested, [scene, this]() {
+        QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+        QString defaultFilePath = QDir(downloadsPath).filePath("anynet_file");
+
         QString fileName = QFileDialog::getSaveFileName(this,
                                                         "导出网络配置文件",
-                                                        "network_config.txt",
-                                                        "Text Files (*.txt);;All Files (*)");
+                                                        defaultFilePath,
+                                                        "Config Files (*);;All Files (*)");
 
         if (!fileName.isEmpty()) {
             scene->exportGraph(fileName);
@@ -86,9 +90,12 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     // 连接导出anynet_config按钮的信号
     connect(exportConfigBtn, &ExportButton::exportRequested, [scene, this]() {
+        QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+        QString defaultFilePath = QDir(downloadsPath).filePath("anynet_config");
+
         QString fileName = QFileDialog::getSaveFileName(this,
                                                         "导出路由器配置",
-                                                        "anynet_config",
+                                                        defaultFilePath,
                                                         "Config Files (*);;All Files (*)");
 
         if (!fileName.isEmpty()) {
