@@ -35,7 +35,7 @@ AboutPage::AboutPage(QWidget* parent)
     centerLayout->addLayout(pixCardLayout);
     centerLayout->addSpacing(30);
     centerLayout->addWidget(createTextArea("Version Info", VERSION_FULL));
-    centerLayout->addWidget(createTextArea("License", "MIT License Copyright (c) 2025 NJUPT"));
+    centerLayout->addWidget(createTextArea("License", "MIT License Copyright (c) 2025 kingpoem"));
     centerLayout->addWidget(createTextArea("Supported Platforms", "Windows | Linux | macOS"));
     centerLayout->addStretch();
     centerLayout->setContentsMargins(0, 0, 20, 0);

@@ -3,6 +3,7 @@
 #include "view/AboutPage.h"
 #include "view/CanvasPage.h"
 #include "view/SettingPage.h"
+#include "view/SimulationPage.h"
 #include <ElaWindow.h>
 
 class MainWindow : public ElaWindow {
@@ -19,6 +20,7 @@ public:
 private:
     // pages
     CanvasPage* canvasPage{};
+    SimulationPage* simulationPage{};
     SettingPage* settingPage{};
     AboutPage* aboutPage{};
 

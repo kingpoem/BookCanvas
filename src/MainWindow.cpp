@@ -1,6 +1,5 @@
 #include "MainWindow.h"
 #include "utils/Settings.hpp"
-#include "utils/Tools.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : ElaWindow(parent) {
@@ -23,10 +22,11 @@ void MainWindow::initWindow() {
 }
 
 void MainWindow::initContent() {
-    // pages
     canvasPage = new CanvasPage(this);
     addPageNode("Canvas", canvasPage, ElaIconType::Flag);
-    printObjectTree(canvasPage);
+
+    simulationPage = new SimulationPage(this);
+    addPageNode("Simulation", simulationPage, ElaIconType::Play);
 
     aboutPage = new AboutPage(this);
     QString aboutPageKey;
