@@ -19,8 +19,8 @@ private slots:
 
 private:
     void appendOutput(const QString& text);
-    QString findBooksimExecutable();
-    QString findBooksimDirectory();
+    static QString findBooksimExecutable();
+    static QString findBooksimDirectory();
 
     ElaPushButton* m_runButton;
     QPlainTextEdit* m_outputText;

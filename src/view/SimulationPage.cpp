@@ -168,13 +168,13 @@ QString SimulationPage::findBooksimExecutable() {
     }
 #endif
 
-    return QString();
+    return {};
 }
 
 QString SimulationPage::findBooksimDirectory() {
     QString booksimExec = findBooksimExecutable();
     if (booksimExec.isEmpty()) {
-        return QString();
+        return {};
     }
 
     // 返回可执行文件所在目录

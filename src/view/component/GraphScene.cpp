@@ -203,12 +203,11 @@ void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
 
 // 辅助函数：从ID中提取数字部分
 int GraphScene::extractNumberId(const QString& id) {
-    // ID格式为 "类型_数字"，如 "Router_0", "Node_1"
     QStringList parts = id.split('_');
     if (parts.size() >= 2) {
         return parts[1].toInt();
     }
-    return 0; // 默认值
+    return 0;
 }
 
 // 导出图信息
@@ -228,13 +227,10 @@ void GraphScene::exportGraph(const QString& filePath) {
         GraphNode* end = edge->endNode();
         double weight = edge->weight();
 
-        // 提取数字ID
         int startNum = extractNumberId(start->getId());
         int endNum = extractNumberId(end->getId());
 
-        // 确定连接类型和方向
         if (start->getType() == GraphNode::Router && end->getType() == GraphNode::Router) {
-            // 只记录一次：按数字大小
             if (startNum < endNum) {
                 QString conn = "router " + QString::number(endNum);
                 routerConnections[startNum].append(qMakePair(conn, weight));
@@ -283,7 +279,7 @@ QMap<QString, QString> GraphScene::getRouterConfig(const QString& routerId) cons
     if (m_routerConfigs.contains(routerId)) {
         return m_routerConfigs[routerId];
     }
-    return QMap<QString, QString>();
+    return {};
 }
 
 void GraphScene::setRouterConfig(const QString& routerId, const QMap<QString, QString>& config) {
@@ -307,7 +303,7 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
         if (!first)
             out << ",\n";
         first = false;
-        QString value = it.value();
+        const QString& value = it.value();
         bool isNumber = false;
         value.toInt(&isNumber);
         bool isDouble = false;
@@ -344,7 +340,7 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
                     out << ",\n";
                 firstParam = false;
 
-                QString value = paramIt.value();
+                const QString& value = paramIt.value();
                 bool isNumber = false;
                 value.toInt(&isNumber);
                 bool isDouble = false;

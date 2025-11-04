@@ -2,23 +2,6 @@
 #include "GraphScene.h"
 #include <QWheelEvent>
 
-GraphView::GraphView(GraphScene* scene,
-                     QLabel* labelX,
-                     QLabel* labelY,
-                     QLabel* labelSceneX,
-                     QLabel* labelSceneY,
-                     QWidget* parent)
-    : ElaGraphicsView(scene, parent)
-    , m_labelX(labelX)
-    , m_labelY(labelY)
-    , m_labelSceneX(labelSceneX)
-    , m_labelSceneY(labelSceneY) {
-    setRenderHint(QPainter::Antialiasing);      // 开启抗锯齿
-    setDragMode(QGraphicsView::RubberBandDrag); // 使用鼠标拖出“橡皮筋”选择框来选择多个图形项
-    setAcceptDrops(true); // 启用拖放功能，让 View 可以接收拖放事件（文件、图形元素等）
-    setMouseTracking(true);
-}
-
 GraphView::GraphView(GraphScene* scene, QWidget* parent)
     : ElaGraphicsView(scene, parent) {
     setRenderHint(QPainter::Antialiasing);      // 开启抗锯齿
@@ -30,16 +13,6 @@ GraphView::GraphView(GraphScene* scene, QWidget* parent)
 void GraphView::mouseMoveEvent(QMouseEvent* event) {
     QPoint viewPos = event->pos();          // 视图坐标
     QPointF scenePos = mapToScene(viewPos); // 场景坐标
-
-    if (m_labelX)
-        m_labelX->setText(QString("X: %1").arg(viewPos.x()));
-    if (m_labelY)
-        m_labelY->setText(QString("Y: %1").arg(viewPos.y()));
-    if (m_labelSceneX)
-        m_labelSceneX->setText(QString("SceneX: %1").arg(scenePos.x()));
-    if (m_labelSceneY)
-        m_labelSceneY->setText(QString("SceneY: %1").arg(scenePos.y()));
-
     ElaGraphicsView::mouseMoveEvent(event);
 }
 
