@@ -118,15 +118,7 @@ void SimulationPage::onProcessReadyReadStandardError() {
 }
 
 void SimulationPage::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
-    // 启用按钮
     m_runButton->setEnabled(true);
-
-    appendOutput("\n----------------------------------------\n");
-    if (exitStatus == QProcess::NormalExit) {
-        appendOutput(QString("进程正常退出，退出代码: %1\n").arg(exitCode));
-    } else {
-        appendOutput("进程异常退出\n");
-    }
 }
 
 void SimulationPage::appendOutput(const QString& text) {

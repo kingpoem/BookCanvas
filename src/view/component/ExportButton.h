@@ -11,7 +11,7 @@ public:
     // clang-format on
 
 signals:
-    void exportRequested(); // 请求导出信号
+    void exportRequested();
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;

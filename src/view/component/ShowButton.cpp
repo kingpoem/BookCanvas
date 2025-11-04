@@ -18,12 +18,8 @@ ShowButton::ShowButton(ElaIconType::IconName awesome,
 
 void ShowButton::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        // 切换显示状态
         m_visible = !m_visible;
-
-        // 发射信号通知外部
         emit toggled(m_visible);
-
         setChecked(m_visible);
     }
 
