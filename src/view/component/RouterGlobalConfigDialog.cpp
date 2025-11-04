@@ -21,16 +21,16 @@ RouterGlobalConfigDialog::RouterGlobalConfigDialog(QWidget* parent)
 
 void RouterGlobalConfigDialog::setupUI() {
     auto* outerLayout = new QVBoxLayout(this);
-    
+
     // 创建滚动区域
     m_scrollArea = new QScrollArea(this);
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    
+
     auto* scrollContent = new QWidget();
     m_mainLayout = new QVBoxLayout(scrollContent);
     m_mainLayout->setSpacing(10);
-    
+
     // 添加全局配置项
     addConfigItem("channel_file", "通道文件 (channel_file)", "");
     addConfigItem("subnets", "子网数 (subnets)", "1");
@@ -149,40 +149,42 @@ void RouterGlobalConfigDialog::setupUI() {
     addConfigItem("tech_file", "技术文件 (tech_file)", "");
     addConfigItem("channel_width", "通道宽度 (channel_width)", "128");
     addConfigItem("channel_sweep", "通道扫描 (channel_sweep)", "0");
-    
+
     m_mainLayout->addStretch();
-    
+
     m_scrollArea->setWidget(scrollContent);
     outerLayout->addWidget(m_scrollArea);
-    
+
     // 按钮布局
     auto* buttonLayout = new QHBoxLayout();
     buttonLayout->addStretch();
-    
+
     m_saveBtn = new ElaPushButton("保存", this);
     m_cancelBtn = new ElaPushButton("取消", this);
-    
+
     buttonLayout->addWidget(m_saveBtn);
     buttonLayout->addWidget(m_cancelBtn);
-    
+
     outerLayout->addLayout(buttonLayout);
-    
+
     connect(m_saveBtn, &ElaPushButton::clicked, this, &RouterGlobalConfigDialog::onSaveClicked);
     connect(m_cancelBtn, &ElaPushButton::clicked, this, &RouterGlobalConfigDialog::onCancelClicked);
 }
 
-void RouterGlobalConfigDialog::addConfigItem(const QString& key, const QString& label, const QString& defaultValue) {
+void RouterGlobalConfigDialog::addConfigItem(const QString& key,
+                                             const QString& label,
+                                             const QString& defaultValue) {
     auto* labelWidget = new QLabel(label, this);
     labelWidget->setMinimumWidth(250);
     auto* edit = new ElaLineEdit(this);
     edit->setText(defaultValue);
-    
+
     m_edits[key] = edit;
-    
+
     auto* itemLayout = new QHBoxLayout();
     itemLayout->addWidget(labelWidget);
     itemLayout->addWidget(edit);
-    
+
     m_mainLayout->addLayout(itemLayout);
 }
 
@@ -209,4 +211,3 @@ void RouterGlobalConfigDialog::onSaveClicked() {
 void RouterGlobalConfigDialog::onCancelClicked() {
     reject();
 }
-

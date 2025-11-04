@@ -1,9 +1,9 @@
 #pragma once
 
-#include <ElaWindow.h>
-#include "view/SettingPage.h"
 #include "view/AboutPage.h"
 #include "view/CanvasPage.h"
+#include "view/SettingPage.h"
+#include <ElaWindow.h>
 
 class MainWindow : public ElaWindow {
     Q_OBJECT
@@ -18,11 +18,9 @@ public:
 
 private:
     // pages
-    CanvasPage* canvasPage {};
-    SettingPage* settingPage {};
-    AboutPage* aboutPage {};
+    CanvasPage* canvasPage{};
+    SettingPage* settingPage{};
+    AboutPage* aboutPage{};
 
     // models
-
 };
-

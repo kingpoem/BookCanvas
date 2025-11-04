@@ -34,4 +34,3 @@ private:
     ElaPushButton* m_saveBtn;
     ElaPushButton* m_cancelBtn;
 };
-

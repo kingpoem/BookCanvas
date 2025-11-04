@@ -35,9 +35,15 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* circleBtn = new DragButton(ElaIconType::Circle, "Circle", toolBar); // 节点创建可拖拽按钮
     auto* routerBtn = new DragButton(ElaIconType::Square, "Router", toolBar); // 路由器创建可拖拽按钮
     auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", toolBar); // 线条权重显示/隐藏按钮
-    auto* exportBtn = new ExportButton(ElaIconType::Download, "Export File", toolBar); // 导出网络文件按钮
-    auto* exportConfigBtn = new ExportButton(ElaIconType::Gear, "Export Config", toolBar); // 导出JSON配置按钮
-    auto* globalConfigBtn = new ExportButton(ElaIconType::CarWrench, "Global Config", toolBar); // 全局配置按钮
+    auto* exportBtn = new ExportButton(ElaIconType::Download,
+                                       "Export File",
+                                       toolBar); // 导出网络文件按钮
+    auto* exportConfigBtn = new ExportButton(ElaIconType::Gear,
+                                             "Export Config",
+                                             toolBar); // 导出JSON配置按钮
+    auto* globalConfigBtn = new ExportButton(ElaIconType::CarWrench,
+                                             "Global Config",
+                                             toolBar); // 全局配置按钮
 
     // 添加到工具栏
     toolBar->addWidget(circleBtn);
@@ -76,13 +82,14 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     // 获取booksim可执行文件所在目录
     QString booksimDir = QDir(QCoreApplication::applicationDirPath()).absolutePath();
-    
+
     // 在调试和开发模式下，尝试从构建目录找到booksim
     QDir buildDir(QDir(QCoreApplication::applicationDirPath()).absolutePath());
     if (!buildDir.exists("booksim")) {
         // 尝试从相对路径找到3rdpart/booksim2/src
         QString possibleBooksimPath = QDir(QCoreApplication::applicationDirPath())
-                                          .absoluteFilePath("../../../../3rdpart/booksim2/src/booksim");
+                                          .absoluteFilePath(
+                                              "../../../../3rdpart/booksim2/src/booksim");
         QFileInfo booksimInfo(possibleBooksimPath);
         if (booksimInfo.exists()) {
             booksimDir = booksimInfo.absolutePath();

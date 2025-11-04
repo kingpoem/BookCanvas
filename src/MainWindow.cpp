@@ -1,6 +1,6 @@
 #include "MainWindow.h"
-#include "utils/Tools.h"
 #include "utils/Settings.hpp"
+#include "utils/Tools.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : ElaWindow(parent) {
@@ -13,7 +13,6 @@ MainWindow::MainWindow(QWidget* parent)
 MainWindow::~MainWindow() {
     settings.setValue("windowSize", size());
 }
-
 
 void MainWindow::initWindow() {
     resize(settings.value("windowSize").toSize());

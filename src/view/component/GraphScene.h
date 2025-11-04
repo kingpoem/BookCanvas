@@ -77,7 +77,7 @@ private:
 
     // 每个路由器的独立配置（routerId -> config）
     QMap<QString, QMap<QString, QString>> m_routerConfigs;
-    
+
     // 全局配置参数
     QMap<QString, QString> m_globalConfig;
 };

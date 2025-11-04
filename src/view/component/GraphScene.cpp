@@ -298,14 +298,15 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
         return;
 
     QTextStream out(&file);
-    
+
     // 开始JSON
     out << "{\n";
-    
+
     // 导出全局配置
     bool first = true;
     for (auto it = m_globalConfig.begin(); it != m_globalConfig.end(); ++it) {
-        if (!first) out << ",\n";
+        if (!first)
+            out << ",\n";
         first = false;
         // 判断是否为数字（不包含引号）
         QString value = it.value();
@@ -315,28 +316,30 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
         if (!isNumber) {
             value.toDouble(&isDouble);
         }
-        
+
         if (isNumber || isDouble) {
             out << "  \"" << it.key() << "\": " << value;
         } else {
             out << "  \"" << it.key() << "\": \"" << value << "\"";
         }
     }
-    
+
     // 导出路由器特定配置
     if (!m_routerConfigs.isEmpty()) {
         out << ",\n\n  \"routers\": {\n";
         bool firstRouter = true;
         for (auto it = m_routerConfigs.begin(); it != m_routerConfigs.end(); ++it) {
-            if (!firstRouter) out << ",\n";
+            if (!firstRouter)
+                out << ",\n";
             firstRouter = false;
             out << "    \"" << it.key() << "\": {\n";
-            
+
             bool firstParam = true;
             for (auto paramIt = it.value().begin(); paramIt != it.value().end(); ++paramIt) {
-                if (!firstParam) out << ",\n";
+                if (!firstParam)
+                    out << ",\n";
                 firstParam = false;
-                
+
                 // 判断是否为数字
                 QString value = paramIt.value();
                 bool isNumber = false;
@@ -345,21 +348,21 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
                 if (!isNumber) {
                     value.toDouble(&isDouble);
                 }
-                
+
                 if (isNumber || isDouble) {
                     out << "      \"" << paramIt.key() << "\": " << value;
                 } else {
                     out << "      \"" << paramIt.key() << "\": \"" << value << "\"";
                 }
             }
-            
+
             out << "\n    }";
         }
         out << "\n  }\n";
     } else {
         out << "\n";
     }
-    
+
     out << "}\n";
     file.close();
 }

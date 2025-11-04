@@ -48,4 +48,3 @@ ElaScrollPageArea* AboutPage::createTextArea(QString label, QString content) {
     contentText->setTextPixelSize(15);
     return createScrollPageArea(label, contentText);
 }
-

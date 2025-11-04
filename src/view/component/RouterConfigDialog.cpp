@@ -22,16 +22,16 @@ RouterConfigDialog::RouterConfigDialog(const QString& routerId, QWidget* parent)
 
 void RouterConfigDialog::setupUI() {
     auto* outerLayout = new QVBoxLayout(this);
-    
+
     // 创建滚动区域
     m_scrollArea = new QScrollArea(this);
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    
+
     auto* scrollContent = new QWidget();
     m_mainLayout = new QVBoxLayout(scrollContent);
     m_mainLayout->setSpacing(10);
-    
+
     // 添加路由器配置项
     addConfigItem("num_vcs", "虚拟通道数 (num_vcs)", "8");
     addConfigItem("vc_buf_size", "VC缓冲区大小 (vc_buf_size)", "16");
@@ -53,40 +53,42 @@ void RouterConfigDialog::setupUI() {
     addConfigItem("wait_for_tail_credit", "等待尾部信用 (wait_for_tail_credit)", "1");
     addConfigItem("output_buffer_size", "输出缓冲大小 (output_buffer_size)", "-1");
     addConfigItem("noq", "无输出排队 (noq)", "0");
-    
+
     m_mainLayout->addStretch();
-    
+
     m_scrollArea->setWidget(scrollContent);
     outerLayout->addWidget(m_scrollArea);
-    
+
     // 按钮布局
     auto* buttonLayout = new QHBoxLayout();
     buttonLayout->addStretch();
-    
+
     m_saveBtn = new ElaPushButton("保存", this);
     m_cancelBtn = new ElaPushButton("取消", this);
-    
+
     buttonLayout->addWidget(m_saveBtn);
     buttonLayout->addWidget(m_cancelBtn);
-    
+
     outerLayout->addLayout(buttonLayout);
-    
+
     connect(m_saveBtn, &ElaPushButton::clicked, this, &RouterConfigDialog::onSaveClicked);
     connect(m_cancelBtn, &ElaPushButton::clicked, this, &RouterConfigDialog::onCancelClicked);
 }
 
-void RouterConfigDialog::addConfigItem(const QString& key, const QString& label, const QString& defaultValue) {
+void RouterConfigDialog::addConfigItem(const QString& key,
+                                       const QString& label,
+                                       const QString& defaultValue) {
     auto* labelWidget = new QLabel(label, this);
     labelWidget->setMinimumWidth(200);
     auto* edit = new ElaLineEdit(this);
     edit->setText(defaultValue);
-    
+
     m_edits[key] = edit;
-    
+
     auto* itemLayout = new QHBoxLayout();
     itemLayout->addWidget(labelWidget);
     itemLayout->addWidget(edit);
-    
+
     m_mainLayout->addLayout(itemLayout);
 }
 
