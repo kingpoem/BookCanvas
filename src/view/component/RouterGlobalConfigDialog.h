@@ -30,6 +30,7 @@ private slots:
 private:
     void setupUI();
     void addConfigItem(const QString& key, const QString& label, const QString& defaultValue);
+    void addSectionTitle(const QString& title);
 
     QVBoxLayout* m_mainLayout;
     QScrollArea* m_scrollArea;

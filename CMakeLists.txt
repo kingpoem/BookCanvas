@@ -36,9 +36,9 @@ if(APPLE)
     set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${spectral_VERSION})
     set(MACOSX_BUNDLE_BUNDLE_VERSION ${spectral_VERSION})
 
-    set(ICON_NAME "res/icon/app.icns")
-    set(${PROJECT_NAME}_MAC_ICON "${CMAKE_SOURCE_DIR}/${ICON_NAME}")
-    set(MACOSX_BUNDLE_ICON_FILE ${ICON_NAME})
+    set(ICON_SOURCE_PATH "${CMAKE_SOURCE_DIR}/res/icon/app.icns")
+    set(${PROJECT_NAME}_MAC_ICON "${ICON_SOURCE_PATH}")
+    set(MACOSX_BUNDLE_ICON_FILE "app.icns")
     set_property(SOURCE "${${PROJECT_NAME}_MAC_ICON}" PROPERTY
         MACOSX_PACKAGE_LOCATION Resources)
 endif()

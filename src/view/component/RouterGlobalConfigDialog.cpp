@@ -1,6 +1,8 @@
 #include "RouterGlobalConfigDialog.h"
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
+#include <QFont>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
@@ -31,13 +33,12 @@ void RouterGlobalConfigDialog::setupUI() {
     m_mainLayout = new QVBoxLayout(scrollContent);
     m_mainLayout->setSpacing(10);
 
-    // 添加全局配置项
+    // 网络拓扑参数
+    addSectionTitle("网络拓扑参数");
     addConfigItem("channel_file", "通道文件 (channel_file)", "");
     addConfigItem("subnets", "子网数 (subnets)", "1");
     addConfigItem("topology", "拓扑结构 (topology)", "anynet");
     addConfigItem("network_file", "网络文件 (network_file)", "anynet_file");
-    addConfigItem("routing_function", "路由函数 (routing_function)", "min");
-    addConfigItem("use_noc_latency", "使用NoC延迟 (use_noc_latency)", "1");
     addConfigItem("x", "X维度 (x)", "8");
     addConfigItem("y", "Y维度 (y)", "8");
     addConfigItem("xr", "X路由器 (xr)", "1");
@@ -46,17 +47,23 @@ void RouterGlobalConfigDialog::setupUI() {
     addConfigItem("fail_seed", "失败种子 (fail_seed)", "0");
     addConfigItem("in_ports", "输入端口 (in_ports)", "5");
     addConfigItem("out_ports", "输出端口 (out_ports)", "5");
+
+    // 路由参数
+    addSectionTitle("路由参数");
+    addConfigItem("routing_function", "路由函数 (routing_function)", "min");
+    addConfigItem("use_noc_latency", "使用NoC延迟 (use_noc_latency)", "1");
+
+    // 路由器基础参数
+    addSectionTitle("路由器基础参数");
     addConfigItem("router", "路由器类型 (router)", "iq");
     addConfigItem("output_delay", "输出延迟 (output_delay)", "0");
     addConfigItem("credit_delay", "信用延迟 (credit_delay)", "1");
     addConfigItem("internal_speedup", "内部加速 (internal_speedup)", "1.0");
     addConfigItem("output_buffer_size", "输出缓冲大小 (output_buffer_size)", "-1");
     addConfigItem("noq", "无输出排队 (noq)", "0");
-    addConfigItem("speculative", "推测分配 (speculative)", "0");
-    addConfigItem("spec_check_elig", "推测检查资格 (spec_check_elig)", "1");
-    addConfigItem("spec_check_cred", "推测检查信用 (spec_check_cred)", "1");
-    addConfigItem("spec_mask_by_reqs", "推测掩码请求 (spec_mask_by_reqs)", "0");
-    addConfigItem("spec_sw_allocator", "推测开关分配器 (spec_sw_allocator)", "prio");
+
+    // 虚拟通道配置
+    addSectionTitle("虚拟通道配置");
     addConfigItem("num_vcs", "虚拟通道数 (num_vcs)", "8");
     addConfigItem("vc_buf_size", "VC缓冲区大小 (vc_buf_size)", "16");
     addConfigItem("buf_size", "缓冲大小 (buf_size)", "-1");
@@ -73,19 +80,42 @@ void RouterGlobalConfigDialog::setupUI() {
     addConfigItem("vc_prioritize_empty", "VC优先空队列 (vc_prioritize_empty)", "0");
     addConfigItem("vc_priority_donation", "VC优先捐赠 (vc_priority_donation)", "0");
     addConfigItem("vc_shuffle_requests", "VC随机请求 (vc_shuffle_requests)", "0");
-    addConfigItem("hold_switch_for_packet", "为包保持开关 (hold_switch_for_packet)", "0");
-    addConfigItem("input_speedup", "输入加速 (input_speedup)", "1");
-    addConfigItem("output_speedup", "输出加速 (output_speedup)", "1");
+
+    // 推测执行参数
+    addSectionTitle("推测执行参数");
+    addConfigItem("speculative", "推测分配 (speculative)", "0");
+    addConfigItem("spec_check_elig", "推测检查资格 (spec_check_elig)", "1");
+    addConfigItem("spec_check_cred", "推测检查信用 (spec_check_cred)", "1");
+    addConfigItem("spec_mask_by_reqs", "推测掩码请求 (spec_mask_by_reqs)", "0");
+    addConfigItem("spec_sw_allocator", "推测开关分配器 (spec_sw_allocator)", "prio");
+
+    // 流水线延迟参数
+    addSectionTitle("流水线延迟参数");
     addConfigItem("routing_delay", "路由延迟 (routing_delay)", "1");
     addConfigItem("vc_alloc_delay", "VC分配延迟 (vc_alloc_delay)", "1");
     addConfigItem("sw_alloc_delay", "开关分配延迟 (sw_alloc_delay)", "1");
     addConfigItem("st_prepare_delay", "ST准备延迟 (st_prepare_delay)", "0");
     addConfigItem("st_final_delay", "ST最终延迟 (st_final_delay)", "1");
+
+    // 端口加速参数
+    addSectionTitle("端口加速参数");
+    addConfigItem("input_speedup", "输入加速 (input_speedup)", "1");
+    addConfigItem("output_speedup", "输出加速 (output_speedup)", "1");
+    addConfigItem("hold_switch_for_packet", "为包保持开关 (hold_switch_for_packet)", "0");
+
+    // Event-Driven 路由器参数
+    addSectionTitle("Event-Driven 路由器参数");
     addConfigItem("vct", "VCT模式 (vct)", "0");
+
+    // 分配器配置
+    addSectionTitle("分配器配置");
     addConfigItem("vc_allocator", "VC分配器 (vc_allocator)", "islip");
     addConfigItem("sw_allocator", "开关分配器 (sw_allocator)", "islip");
     addConfigItem("arb_type", "仲裁类型 (arb_type)", "round_robin");
     addConfigItem("alloc_iters", "分配迭代次数 (alloc_iters)", "1");
+
+    // 流量配置
+    addSectionTitle("流量配置");
     addConfigItem("classes", "类别数 (classes)", "1");
     addConfigItem("traffic", "流量模式 (traffic)", "uniform");
     addConfigItem("class_priority", "类别优先级 (class_priority)", "0");
@@ -102,6 +132,9 @@ void RouterGlobalConfigDialog::setupUI() {
     addConfigItem("batch_size", "批次大小 (batch_size)", "1000");
     addConfigItem("batch_count", "批次数量 (batch_count)", "1");
     addConfigItem("max_outstanding_requests", "最大未完成请求 (max_outstanding_requests)", "0");
+
+    // 请求-应答流量配置
+    addSectionTitle("请求-应答流量配置");
     addConfigItem("use_read_write", "使用读写 (use_read_write)", "0");
     addConfigItem("write_fraction", "写入分数 (write_fraction)", "0.5");
     addConfigItem("read_request_begin_vc", "读请求起始VC (read_request_begin_vc)", "0");
@@ -120,6 +153,9 @@ void RouterGlobalConfigDialog::setupUI() {
     addConfigItem("write_request_size", "写请求大小 (write_request_size)", "1");
     addConfigItem("read_reply_size", "读回复大小 (read_reply_size)", "4");
     addConfigItem("write_reply_size", "写回复大小 (write_reply_size)", "4");
+
+    // 仿真控制参数
+    addSectionTitle("仿真控制参数");
     addConfigItem("sim_type", "仿真类型 (sim_type)", "latency");
     addConfigItem("warmup_periods", "预热周期 (warmup_periods)", "3");
     addConfigItem("sample_period", "采样周期 (sample_period)", "5000");
@@ -144,6 +180,9 @@ void RouterGlobalConfigDialog::setupUI() {
     addConfigItem("watch_transactions", "监视事务 (watch_transactions)", "");
     addConfigItem("watch_out", "监视输出 (watch_out)", "");
     addConfigItem("stats_out", "统计输出 (stats_out)", "");
+
+    // 功耗相关参数
+    addSectionTitle("功耗相关参数");
     addConfigItem("sim_power", "仿真功耗 (sim_power)", "0");
     addConfigItem("power_output_file", "功耗输出文件 (power_output_file)", "pwr_tmp");
     addConfigItem("tech_file", "技术文件 (tech_file)", "");
@@ -210,6 +249,25 @@ void RouterGlobalConfigDialog::onSaveClicked() {
 
 void RouterGlobalConfigDialog::onCancelClicked() {
     reject();
+}
+
+void RouterGlobalConfigDialog::addSectionTitle(const QString& title) {
+    // 添加分隔线（除了第一个分组）
+    if (m_mainLayout->count() > 0) {
+        auto* line = new QFrame(this);
+        line->setFrameShape(QFrame::HLine);
+        line->setFrameShadow(QFrame::Sunken);
+        m_mainLayout->addWidget(line);
+    }
+
+    // 添加分组标题
+    auto* titleLabel = new QLabel(title, this);
+    QFont font = titleLabel->font();
+    font.setBold(true);
+    font.setPointSize(font.pointSize() + 1);
+    titleLabel->setFont(font);
+    titleLabel->setStyleSheet("color: #2c3e50; margin-top: 5px; margin-bottom: 5px;");
+    m_mainLayout->addWidget(titleLabel);
 }
 
 QMap<QString, QString> RouterGlobalConfigDialog::getDefaultConfig() {

@@ -23,6 +23,7 @@ private slots:
 private:
     void setupUI();
     void addConfigItem(const QString& key, const QString& label, const QString& defaultValue);
+    void addSectionTitle(const QString& title);
 
     QString m_routerId;
     QVBoxLayout* m_mainLayout;
