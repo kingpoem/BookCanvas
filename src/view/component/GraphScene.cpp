@@ -1,4 +1,6 @@
 #include "GraphScene.h"
+#include "RouterConfigDialog.h"
+#include "RouterGlobalConfigDialog.h"
 #include <QBrush>
 #include <QFile>
 #include <QGraphicsLineItem>
@@ -294,12 +296,15 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
 
     QTextStream out(&file);
 
-    // 开始JSON
     out << "{\n";
 
-    // 导出全局配置
+    QMap<QString, QString> globalConfigToExport = m_globalConfig;
+    if (globalConfigToExport.isEmpty()) {
+        globalConfigToExport = RouterGlobalConfigDialog::getDefaultConfig();
+    }
+
     bool first = true;
-    for (auto it = m_globalConfig.begin(); it != m_globalConfig.end(); ++it) {
+    for (auto it = globalConfigToExport.begin(); it != globalConfigToExport.end(); ++it) {
         if (!first)
             out << ",\n";
         first = false;
@@ -319,23 +324,35 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
     }
 
     // 导出路由器特定配置
-    if (!m_routerConfigs.isEmpty()) {
-        QMap<int, QMap<QString, QString>> sortedRouters;
-        for (auto it = m_routerConfigs.begin(); it != m_routerConfigs.end(); ++it) {
-            int numericId = extractNumberId(it.key());
-            sortedRouters[numericId] = it.value();
+    // 收集所有路由器节点
+    QMap<int, QString> routerIds; // 数字ID -> 完整ID
+    for (GraphNode* node : m_nodes) {
+        if (node->getType() == GraphNode::Router) {
+            QString nodeId = node->getId();
+            int numericId = extractNumberId(nodeId);
+            routerIds[numericId] = nodeId;
         }
+    }
 
+    // 如果有路由器，导出配置
+    if (!routerIds.isEmpty()) {
         out << ",\n\n  \"routers\": {\n";
         bool firstRouter = true;
-        for (auto it = sortedRouters.begin(); it != sortedRouters.end(); ++it) {
+        for (auto it = routerIds.begin(); it != routerIds.end(); ++it) {
             if (!firstRouter)
                 out << ",\n";
             firstRouter = false;
+
+            // 获取路由器配置（如果有），否则使用默认配置
+            QMap<QString, QString> routerConfig = m_routerConfigs.value(it.value());
+            if (routerConfig.isEmpty()) {
+                routerConfig = RouterConfigDialog::getDefaultConfig();
+            }
+
             out << "    \"" << it.key() << "\": {\n";
 
             bool firstParam = true;
-            for (auto paramIt = it.value().begin(); paramIt != it.value().end(); ++paramIt) {
+            for (auto paramIt = routerConfig.begin(); paramIt != routerConfig.end(); ++paramIt) {
                 if (!firstParam)
                     out << ",\n";
                 firstParam = false;

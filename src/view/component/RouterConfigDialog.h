@@ -8,17 +8,13 @@ class ElaPushButton;
 class QVBoxLayout;
 class QScrollArea;
 
-// 单个路由器配置对话框，用于编辑booksim2路由器参数
 class RouterConfigDialog : public QDialog {
     Q_OBJECT
 public:
     explicit RouterConfigDialog(const QString& routerId, QWidget* parent = nullptr);
-
-    // 设置配置参数
     void setConfig(const QMap<QString, QString>& config);
-
-    // 获取配置参数
     [[nodiscard]] QMap<QString, QString> getConfig() const;
+    static QMap<QString, QString> getDefaultConfig();
 
 private slots:
     void onSaveClicked();

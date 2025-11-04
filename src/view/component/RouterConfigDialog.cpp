@@ -115,3 +115,30 @@ void RouterConfigDialog::onSaveClicked() {
 void RouterConfigDialog::onCancelClicked() {
     reject();
 }
+
+QMap<QString, QString> RouterConfigDialog::getDefaultConfig() {
+    QMap<QString, QString> defaultConfig;
+
+    defaultConfig["num_vcs"] = "8";
+    defaultConfig["vc_buf_size"] = "16";
+    defaultConfig["input_speedup"] = "1";
+    defaultConfig["output_speedup"] = "1";
+    defaultConfig["internal_speedup"] = "1.0";
+    defaultConfig["vc_allocator"] = "islip";
+    defaultConfig["sw_allocator"] = "islip";
+    defaultConfig["alloc_iters"] = "1";
+    defaultConfig["routing_delay"] = "1";
+    defaultConfig["vc_alloc_delay"] = "1";
+    defaultConfig["sw_alloc_delay"] = "1";
+    defaultConfig["credit_delay"] = "1";
+    defaultConfig["speculative"] = "0";
+    defaultConfig["vc_busy_when_full"] = "0";
+    defaultConfig["vc_prioritize_empty"] = "0";
+    defaultConfig["vc_shuffle_requests"] = "0";
+    defaultConfig["hold_switch_for_packet"] = "0";
+    defaultConfig["wait_for_tail_credit"] = "1";
+    defaultConfig["output_buffer_size"] = "-1";
+    defaultConfig["noq"] = "0";
+
+    return defaultConfig;
+}

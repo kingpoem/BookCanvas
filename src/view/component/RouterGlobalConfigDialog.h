@@ -20,6 +20,9 @@ public:
     // 获取配置参数
     [[nodiscard]] QMap<QString, QString> getConfig() const;
 
+    // 获取默认配置
+    static QMap<QString, QString> getDefaultConfig();
+
 private slots:
     void onSaveClicked();
     void onCancelClicked();
