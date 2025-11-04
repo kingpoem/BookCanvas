@@ -263,7 +263,6 @@ void GraphScene::exportGraph(const QString& filePath) {
         // 获取该路由器的所有连接
         const auto& connections = routerConnections[routerId];
 
-        // 输出所有连接（可以按需要排序）
         for (const auto& connection : connections) {
             out << " " << connection.first;
             if (connection.second != 1.0) {
@@ -308,7 +307,6 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
         if (!first)
             out << ",\n";
         first = false;
-        // 判断是否为数字（不包含引号）
         QString value = it.value();
         bool isNumber = false;
         value.toInt(&isNumber);
@@ -326,9 +324,15 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
 
     // 导出路由器特定配置
     if (!m_routerConfigs.isEmpty()) {
+        QMap<int, QMap<QString, QString>> sortedRouters;
+        for (auto it = m_routerConfigs.begin(); it != m_routerConfigs.end(); ++it) {
+            int numericId = extractNumberId(it.key());
+            sortedRouters[numericId] = it.value();
+        }
+
         out << ",\n\n  \"routers\": {\n";
         bool firstRouter = true;
-        for (auto it = m_routerConfigs.begin(); it != m_routerConfigs.end(); ++it) {
+        for (auto it = sortedRouters.begin(); it != sortedRouters.end(); ++it) {
             if (!firstRouter)
                 out << ",\n";
             firstRouter = false;
@@ -340,7 +344,6 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
                     out << ",\n";
                 firstParam = false;
 
-                // 判断是否为数字
                 QString value = paramIt.value();
                 bool isNumber = false;
                 value.toInt(&isNumber);

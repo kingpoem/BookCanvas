@@ -37,12 +37,12 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", toolBar); // 线条权重显示/隐藏按钮
     auto* exportBtn = new ExportButton(ElaIconType::Download,
                                        "Export File",
-                                       toolBar); // 导出网络文件按钮
+                                       toolBar); // 导出网络拓扑按钮
     auto* exportConfigBtn = new ExportButton(ElaIconType::Gear,
                                              "Export Config",
                                              toolBar); // 导出JSON配置按钮
     auto* globalConfigBtn = new ExportButton(ElaIconType::CarWrench,
-                                             "Global Config",
+                                             "Export Global Config",
                                              toolBar); // 全局配置按钮
 
     // 添加到工具栏
@@ -115,7 +115,7 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     // 连接导出JSON配置按钮的信号
     connect(exportConfigBtn, &ExportButton::exportRequested, [scene, this, booksimDir]() {
-        QString defaultFilePath = QDir(booksimDir).filePath("config.json");
+        QString defaultFilePath = QDir(booksimDir).filePath("anynet_config.json");
 
         QString fileName = QFileDialog::getSaveFileName(this,
                                                         "导出JSON配置",
