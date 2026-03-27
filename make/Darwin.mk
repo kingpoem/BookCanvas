@@ -7,4 +7,3 @@ cdb:
 		$(if $(QT_SDK_DIR),-DQT_SDK_DIR=$(QT_SDK_DIR),) \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-	cmake -E create_symlink $(BUILD_DIR)/compile_commands.json $(COMPILE_COMMANDS)

@@ -1,6 +1,5 @@
 BUILD_DIR        := build
 BOOKSIM2_SRC     := 3rdpart/booksim2/src
-COMPILE_COMMANDS := compile_commands.json
 # make clean 时删除的本地可选前缀目录（仅在 cmake 中手动 -DCMAKE_INSTALL_PREFIX 指向此处时使用）
 INSTALL_DIR      := $(abspath $(CURDIR)/Install)
 
@@ -25,7 +24,6 @@ format:
 clean: clean-booksim
 	rm -rf $(BUILD_DIR)
 	rm -rf $(INSTALL_DIR)
-	rm -f $(COMPILE_COMMANDS)
 
 clean-booksim:
 	$(MAKE) -C $(BOOKSIM2_SRC) clean
