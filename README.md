@@ -64,3 +64,105 @@ cmake -Bbuild
 cmake --build build --config Release --parallel 4
 ```
 
+## Install
+
+与 **GNU Make** 相关的命令在仓库根目录执行；Windows 上一般在 **Git Bash / MSYS2** 等提供 `make` 的环境中使用。
+
+说明:
+
+- **`make install`** 等价于对 **`build/`** 执行不带 `--prefix` 的 **`cmake --install`**，文件会安装到**配置工程时**写入 `CMakeCache.txt` 的 **`CMAKE_INSTALL_PREFIX`**。未在 `cmake -B` 阶段指定该变量时，Unix 上通常为 **`/usr/local`**，Windows 上为 CMake 默认路径（多为 **`Program Files` 下的应用程序目录**），具体以 `build/CMakeCache.txt` 为准。
+- **仓库下的 `Install/`** 不再由子模块或 Make 强行指定；仅当你在配置时**手动**传入例如 **`-DCMAKE_INSTALL_PREFIX="$PWD/Install"`**（路径请按本体与平台写绝对路径或你认可的相对解析结果）时，**`make install`** 才会把内容装进该目录。**`make clean`** 仍会删除本地的 **`Install/`** 目录，用于清理这类「固定落在源码树里」的安装前缀。
+- **单次覆盖安装路径**（不改编译缓存中的 `CMAKE_INSTALL_PREFIX`）仍可使用：`cmake --install build ... --prefix <path>`（Windows 多配置需 **`--config Release`**），与 **`make install`** 行为不同，除非你明确传入与缓存一致的前缀。
+- **`make uninstall`** 根据 **`build/install_manifest*.txt`** 删除**最近一次** **`cmake --install` / `make install`** 实际写入的文件；**若需卸载，请先 `make uninstall` 再 `make clean`**，否则会删掉清单，无法再按列表反安装。清单若指向系统目录，**`make uninstall` 会 `rm -rf` 相应路径**，务必确认最近一次安装前缀。
+
+### Windows
+
+在 [上文](#windows) 完成首次 **`cmake -B`** 时即可约定安装位置，例如装到系统区域（示例路径）：
+
+```shell
+cmake -B build -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="C:/Program Files/BookCanvas"
+cmake --build build --config Release --parallel 4
+make install
+```
+
+若希望安装到仓库下 **`Install/`**，仅在配置阶段指定前缀（Git Bash 下示例）：
+
+```shell
+cmake -B build -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$(pwd)/Install"
+cmake --build build --config Release --parallel 4
+make install
+```
+
+本次安装不改编译缓存、直接指定前缀：
+
+```shell
+cmake --install build --config Release --prefix "C:/自定义路径"
+```
+
+卸载（删除最近一次安装对应的文件）：
+
+```shell
+make uninstall
+```
+
+### macOS
+
+配置时指定 **`CMAKE_INSTALL_PREFIX`**（示例为 **`/usr/local`**，可能需要 **`sudo make install`**）：
+
+```shell
+cmake -B build -DQT_SDK_DIR=$(brew --prefix qt) -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build build --config Release --parallel 4
+make install
+```
+
+安装到仓库下 **`Install/`**（仅手动指定该前缀时）：
+
+```shell
+cmake -B build -DQT_SDK_DIR=$(brew --prefix qt) -DCMAKE_INSTALL_PREFIX="$PWD/Install"
+cmake --build build --config Release --parallel 4
+make install
+```
+
+单次覆盖前缀：
+
+```shell
+sudo cmake --install build --prefix /opt/bookcanvas
+```
+
+卸载：
+
+```shell
+make uninstall
+```
+
+### Archlinux
+
+配置时指定（或省略前缀以使用 CMake 默认，一般为 **`/usr/local`**）：
+
+```shell
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build build --config Release --parallel "$(nproc)"
+make install
+```
+
+安装到仓库下 **`Install/`**：
+
+```shell
+cmake -B build -DCMAKE_INSTALL_PREFIX="$PWD/Install"
+cmake --build build --config Release --parallel "$(nproc)"
+make install
+```
+
+单次覆盖前缀：
+
+```shell
+sudo cmake --install build --prefix /usr/local
+```
+
+卸载：
+
+```shell
+make uninstall
+```
+
