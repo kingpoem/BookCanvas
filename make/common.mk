@@ -13,7 +13,14 @@ endif
 
 CMAKE_INSTALL_CONFIG :=
 
-.PHONY: clean clean-booksim cdb install uninstall
+CLANG_FORMAT ?= clang-format
+FORMAT_DIRS    := src
+
+.PHONY: clean clean-booksim cdb format install uninstall
+
+format:
+	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || { echo "未找到 $(CLANG_FORMAT)，请先安装 LLVM/clang-format"; exit 1; }
+	@find $(FORMAT_DIRS) -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.c' -o -name '*.cc' -o -name '*.cxx' \) -exec $(CLANG_FORMAT) -i {} +
 
 clean: clean-booksim
 	rm -rf $(BUILD_DIR)

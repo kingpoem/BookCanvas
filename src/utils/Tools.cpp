@@ -6,8 +6,7 @@ void printObjectTree(QObject* obj, const QString& prefix, bool isLast) { // NOLI
 
     // 打印对象名（空则显示 None）和 qt 类名
     QString name = obj->objectName().isEmpty() ? "None" : obj->objectName();
-    qDebug().noquote() << branch
-                       << "\033[34m" << name << "\033[0m"
+    qDebug().noquote() << branch << "\033[34m" << name << "\033[0m"
                        << " ("
                        << "\033[32m" << obj->metaObject()->className() << "\033[0m"
                        << ")";

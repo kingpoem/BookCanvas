@@ -1,6 +1,6 @@
 # BookCanvas — GNU Make 入口：按平台加载 make/<Platform>.mk
 #
-# 提供: clean, cdb, install, uninstall — 见 README「Install」与仓库内注释
+# 提供: clean, cdb, format, install, uninstall — 见 README「Install」与仓库内注释
 # 需安装: cmake、对应平台工具链（见 README）
 
 UNAME_S := $(shell uname -s 2>/dev/null)
