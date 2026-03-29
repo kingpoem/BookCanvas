@@ -1,6 +1,7 @@
 #pragma once
 
 #include "view/AboutPage.h"
+#include "view/BookSimResultPage.h"
 #include "view/CanvasPage.h"
 #include "view/SettingPage.h"
 #include "view/SimulationPage.h"
@@ -21,6 +22,7 @@ private:
     // pages
     CanvasPage* canvasPage{};
     SimulationPage* simulationPage{};
+    BookSimResultPage* bookSimResultPage{};
     SettingPage* settingPage{};
     AboutPage* aboutPage{};
 

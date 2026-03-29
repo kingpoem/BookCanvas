@@ -28,6 +28,13 @@ void MainWindow::initContent() {
     simulationPage = new SimulationPage(this);
     addPageNode("Simulation", simulationPage, ElaIconType::Play);
 
+    bookSimResultPage = new BookSimResultPage(this);
+    addPageNode(tr("BookSim 结果"), bookSimResultPage, ElaIconType::ChartSimple);
+    connect(simulationPage,
+            &SimulationPage::simulationFinished,
+            bookSimResultPage,
+            &BookSimResultPage::ingestSimulationLog);
+
     aboutPage = new AboutPage(this);
     QString aboutPageKey;
     addFooterNode("About", aboutPage, aboutPageKey, 0, ElaIconType::CircleInfo);

@@ -11,6 +11,9 @@ class SimulationPage : public BasePage {
 public:
     explicit SimulationPage(QWidget* parent = nullptr);
 
+signals:
+    void simulationFinished(const QString& fullConsoleOutput);
+
 private slots:
     void onRunSimulation();
     void onProcessReadyReadStandardOutput();
@@ -25,4 +28,5 @@ private:
     ElaPushButton* m_runButton;
     QPlainTextEdit* m_outputText;
     QProcess* m_process;
+    QString m_capturedOutput;
 };

@@ -63,6 +63,7 @@ void SimulationPage::onRunSimulation() {
 
     // 清空输出
     m_outputText->clear();
+    m_capturedOutput.clear();
 
     // 查找 booksim 可执行文件
     QString booksimExec = findBooksimExecutable();
@@ -109,16 +110,21 @@ void SimulationPage::onRunSimulation() {
 
 void SimulationPage::onProcessReadyReadStandardOutput() {
     QByteArray data = m_process->readAllStandardOutput();
-    appendOutput(QString::fromUtf8(data));
+    const QString chunk = QString::fromUtf8(data);
+    m_capturedOutput += chunk;
+    appendOutput(chunk);
 }
 
 void SimulationPage::onProcessReadyReadStandardError() {
     QByteArray data = m_process->readAllStandardError();
-    appendOutput(QString::fromUtf8(data));
+    const QString chunk = QString::fromUtf8(data);
+    m_capturedOutput += chunk;
+    appendOutput(chunk);
 }
 
 void SimulationPage::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
     m_runButton->setEnabled(true);
+    emit simulationFinished(m_capturedOutput);
 }
 
 void SimulationPage::appendOutput(const QString& text) {
