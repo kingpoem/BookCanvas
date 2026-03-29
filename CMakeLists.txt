@@ -5,6 +5,14 @@ include(Version)
 
 project(BookCanvas VERSION ${VERSION_SEMANTIC} LANGUAGES CXX)
 
+# GUI .app 安装到系统「应用程序」目录；若在 cmake -B 时传入 -DCMAKE_INSTALL_PREFIX=... 则仍以用户指定为准。
+if(APPLE AND NOT IOS)
+  if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "/Applications" CACHE PATH
+      "Directory under which BookCanvas.app is installed" FORCE)
+  endif()
+endif()
+
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)

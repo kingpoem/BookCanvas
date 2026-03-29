@@ -52,9 +52,11 @@ cmake --build build --config Release --parallel 4
 
 ```shell
 git clone --recurse-submodules git@github.com:kingpoem/BookCanvas.git
-cmake -Bbuild -DQT_SDK_DIR=$(brew --prefix qt)
+cmake -B build -DQT_SDK_DIR=$(brew --prefix qt)
 cmake --build build --config Release --parallel 4
 ```
+
+仅需安装到「应用程序」时，见下文 **[Install](#install)** 中 macOS 一节执行 **`sudo make install`**（默认前缀 **`/Applications`**）。
 
 ### Archlinux
 
@@ -70,7 +72,7 @@ cmake --build build --config Release --parallel 4
 
 说明:
 
-- **`make install`** 等价于对 **`build/`** 执行不带 `--prefix` 的 **`cmake --install`**，文件会安装到**配置工程时**写入 `CMakeCache.txt` 的 **`CMAKE_INSTALL_PREFIX`**。未在 `cmake -B` 阶段指定该变量时，Unix 上通常为 **`/usr/local`**，Windows 上为 CMake 默认路径（多为 **`Program Files` 下的应用程序目录**），具体以 `build/CMakeCache.txt` 为准。
+- **`make install`** 等价于对 **`build/`** 执行不带 `--prefix` 的 **`cmake --install`**，文件会安装到**配置工程时**写入 `CMakeCache.txt` 的 **`CMAKE_INSTALL_PREFIX`**。未在 `cmake -B` 阶段指定该变量时，**macOS** 上本仓库默认为 **`/Applications`**（生成 **`BookCanvas.app`**）；其他 Unix 一般为 **`/usr/local`**；Windows 上为 CMake 默认路径（多为 **`Program Files` 下的应用程序目录**），具体以 `build/CMakeCache.txt` 为准。
 - **仓库下的 `Install/`** 不再由子模块或 Make 强行指定；仅当你在配置时**手动**传入例如 **`-DCMAKE_INSTALL_PREFIX="$PWD/Install"`**（路径请按本体与平台写绝对路径或你认可的相对解析结果）时，**`make install`** 才会把内容装进该目录。**`make clean`** 仍会删除本地的 **`Install/`** 目录，用于清理这类「固定落在源码树里」的安装前缀。
 - **单次覆盖安装路径**（不改编译缓存中的 `CMAKE_INSTALL_PREFIX`）仍可使用：`cmake --install build ... --prefix <path>`（Windows 多配置需 **`--config Release`**），与 **`make install`** 行为不同，除非你明确传入与缓存一致的前缀。
 - **`make uninstall`** 根据 **`build/install_manifest*.txt`** 删除**最近一次** **`cmake --install` / `make install`** 实际写入的文件；**若需卸载，请先 `make uninstall` 再 `make clean`**，否则会删掉清单，无法再按列表反安装。清单若指向系统目录，**`make uninstall` 会 `rm -rf` 相应路径**，务必确认最近一次安装前缀。
@@ -108,15 +110,15 @@ make uninstall
 
 ### macOS
 
-配置时指定 **`CMAKE_INSTALL_PREFIX`**（示例为 **`/usr/local`**，可能需要 **`sudo make install`**）：
+未指定前缀时，顶层 **`CMakeLists.txt`** 会把 **`CMAKE_INSTALL_PREFIX`** 设为 **`/Applications`**，安装结果为 **`/Applications/BookCanvas.app`**。若 **`build/`** 很早以前已生成且缓存里仍是其他前缀，请删除 **`build`** 后重新 **`cmake -B ...`**，或在配置时显式传入 **`-DCMAKE_INSTALL_PREFIX=/Applications`**。因系统目录需写权限，一般使用：
 
 ```shell
-cmake -B build -DQT_SDK_DIR=$(brew --prefix qt) -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake -B build -DQT_SDK_DIR=$(brew --prefix qt)
 cmake --build build --config Release --parallel 4
-make install
+sudo make install
 ```
 
-安装到仓库下 **`Install/`**（仅手动指定该前缀时）：
+若希望安装到仓库下 **`Install/`** 或其他路径，在配置阶段显式指定 **`CMAKE_INSTALL_PREFIX`**：
 
 ```shell
 cmake -B build -DQT_SDK_DIR=$(brew --prefix qt) -DCMAKE_INSTALL_PREFIX="$PWD/Install"
@@ -124,16 +126,16 @@ cmake --build build --config Release --parallel 4
 make install
 ```
 
-单次覆盖前缀：
+仍可通过 **`cmake --install`** 单次覆盖前缀（示例，按需加 **`sudo`**）：
 
 ```shell
-sudo cmake --install build --prefix /opt/bookcanvas
+sudo cmake --install build --prefix /Applications
 ```
 
 卸载：
 
 ```shell
-make uninstall
+sudo make uninstall
 ```
 
 ### Archlinux

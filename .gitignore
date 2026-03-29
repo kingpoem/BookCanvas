@@ -55,6 +55,7 @@ compile_commands.json
 .clangd.local
 compile_commands.json
 
+CMakeCache.txt
 build/
 .cache/
 

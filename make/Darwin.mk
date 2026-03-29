@@ -1,4 +1,4 @@
-# macOS：与 README Build 一致，QT 通过 brew 的 qt 传递
+# macOS：与 README Build 一致，QT 通过 brew 的 qt 传递。
 
 QT_SDK_DIR := $(shell brew --prefix qt 2>/dev/null)
 

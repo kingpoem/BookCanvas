@@ -28,16 +28,20 @@ clean: clean-booksim
 clean-booksim:
 	$(MAKE) -C $(BOOKSIM2_SRC) clean
 
-# 使用 $(BUILD_DIR)/CMakeCache.txt 中的 CMAKE_INSTALL_PREFIX，不写 --prefix
 install:
-	@test -f $(BUILD_DIR)/cmake_install.cmake || { echo "请先配置并编译工程（存在 $(BUILD_DIR)/cmake_install.cmake）"; exit 1; }
-	cmake --install $(BUILD_DIR) $(CMAKE_INSTALL_CONFIG)
+	@test -f $(BUILD_DIR)/CMakeCache.txt || { echo "请先配置工程：缺少 $(BUILD_DIR)/CMakeCache.txt"; exit 1; }
+	@test -f $(BUILD_DIR)/cmake_install.cmake || { echo "请先配置工程：缺少 $(BUILD_DIR)/cmake_install.cmake"; exit 1; }
+	@_pfx=$$(sed -n 's/^CMAKE_INSTALL_PREFIX:[^=]*=//p' $(BUILD_DIR)/CMakeCache.txt | head -n1); \
+	if [ -z "$$_pfx" ]; then echo "无法从 $(BUILD_DIR)/CMakeCache.txt 读取 CMAKE_INSTALL_PREFIX"; exit 1; fi; \
+	echo "安装前缀 (CMAKE_INSTALL_PREFIX): $$_pfx"; \
+	cmake --install $(BUILD_DIR) $(CMAKE_INSTALL_CONFIG) --prefix "$$_pfx"
 
-# 按 CMake 安装清单删除「上一次 cmake --install」写入的路径（如 /usr/local 等系统前缀）
+# 按 CMake 生成的 install_manifest*.txt 删除「与上一次 install 相同前缀」安装的文件
+# 清单路径与 cmake --install 所生成的布局一致（含多配置的 install_manifest_<Config>.txt）
 # 需要仍保留 $(BUILD_DIR)；若已 make clean，则清单丢失，无法再用本目标卸载
 uninstall:
 	@found=0; \
-	for m in `find $(BUILD_DIR) -maxdepth 1 -name 'install_manifest*.txt' 2>/dev/null | sort`; do \
+	for m in $$(find $(BUILD_DIR) -name 'install_manifest*.txt' 2>/dev/null | LC_ALL=C sort -u); do \
 		[ -f "$$m" ] || continue; \
 		found=1; \
 		echo "卸载清单: $$m"; \
@@ -51,6 +55,6 @@ uninstall:
 		rm -f -- "$$m"; \
 	done; \
 	if [ "$$found" -eq 0 ]; then \
-		echo "未找到 $(BUILD_DIR)/install_manifest*.txt。请先执行 cmake --install（或保留上次的 build 目录）。"; \
+		echo "未在 $(BUILD_DIR) 下找到 install_manifest*.txt。请先执行 make install / cmake --install（或保留上次的 build 目录）。"; \
 		exit 1; \
 	fi
