@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utils/BooksimPaths.h"
 #include <QSettings>
 #include <QSize>
 #include <filesystem>
@@ -30,4 +31,5 @@ inline void initSettings() {
     if (!settings.contains("micaEffect")) {
         settings.setValue("micaEffect", false);
     }
+    BooksimPaths::ensureDefaultExportPathSettings();
 }

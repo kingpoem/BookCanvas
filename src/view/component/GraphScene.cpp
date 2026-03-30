@@ -288,8 +288,27 @@ void GraphScene::setRouterConfig(const QString& routerId, const QMap<QString, QS
     m_routerConfigs[routerId] = config;
 }
 
+namespace {
+
+[[nodiscard]] QString escapeJsonString(const QString& value) {
+    QString o;
+    o.reserve(value.size() + 8);
+    for (QChar c : value) {
+        if (c == u'\\') {
+            o += QStringLiteral("\\\\");
+        } else if (c == u'"') {
+            o += QStringLiteral("\\\"");
+        } else {
+            o += c;
+        }
+    }
+    return o;
+}
+
+} // namespace
+
 // 导出JSON配置
-void GraphScene::exportJSONConfig(const QString& filePath) {
+void GraphScene::exportJSONConfig(const QString& filePath, const QString& networkFileOverride) {
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return;
@@ -302,24 +321,28 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
     if (globalConfigToExport.isEmpty()) {
         globalConfigToExport = RouterGlobalConfigDialog::getDefaultConfig();
     }
+    if (!networkFileOverride.isEmpty()) {
+        globalConfigToExport.insert(QStringLiteral("network_file"), networkFileOverride);
+    }
 
     bool first = true;
     for (auto it = globalConfigToExport.begin(); it != globalConfigToExport.end(); ++it) {
-        if (!first)
+        if (!first) {
             out << ",\n";
+        }
         first = false;
         const QString& value = it.value();
-        bool isNumber = false;
-        value.toInt(&isNumber);
-        bool isDouble = false;
-        if (!isNumber) {
-            value.toDouble(&isDouble);
+        bool okInt = false;
+        value.toInt(&okInt);
+        bool okDouble = false;
+        if (!okInt) {
+            value.toDouble(&okDouble);
         }
 
-        if (isNumber || isDouble) {
+        if (okInt || okDouble) {
             out << "  \"" << it.key() << "\": " << value;
         } else {
-            out << "  \"" << it.key() << "\": \"" << value << "\"";
+            out << "  \"" << it.key() << "\": \"" << escapeJsonString(value) << "\"";
         }
     }
 
@@ -368,7 +391,8 @@ void GraphScene::exportJSONConfig(const QString& filePath) {
                 if (isNumber || isDouble) {
                     out << "      \"" << paramIt.key() << "\": " << value;
                 } else {
-                    out << "      \"" << paramIt.key() << "\": \"" << value << "\"";
+                    out << "      \"" << paramIt.key() << "\": \"" << escapeJsonString(value)
+                        << "\"";
                 }
             }
 

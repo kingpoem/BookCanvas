@@ -7,6 +7,7 @@
 #include "component/RouterConfigDialog.h"
 #include "component/RouterGlobalConfigDialog.h"
 #include "component/ShowButton.h"
+#include "utils/BooksimPaths.h"
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
 #include <ElaIconButton.h>
@@ -17,7 +18,6 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
-#include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -94,35 +94,42 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     connect(showBtn, &ShowButton::toggled, scene, &GraphScene::setAllEdgeWeightsVisible);
 
-    QString booksimDir = QDir(QCoreApplication::applicationDirPath()).absolutePath();
-
-    QDir buildDir(QDir(QCoreApplication::applicationDirPath()).absolutePath());
-    if (!buildDir.exists("booksim")) {
-        QString possibleBooksimPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath( "../../../../3rdpart/booksim2/src/booksim");
-        QFileInfo booksimInfo(possibleBooksimPath);
-        if (booksimInfo.exists()) {
-            booksimDir = booksimInfo.absolutePath();
+    connect(exportBtn, &ExportButton::exportRequested, [scene, this]() {
+        const QString path = BooksimPaths::topologyExportPathFromSettings();
+        if (path.isEmpty()) {
+            QMessageBox::warning(
+                this,
+                QObject::tr("导出失败"),
+                QObject::tr("未配置拓扑导出路径，请在「设置」中设置 BookSim 拓扑文件路径。"));
+            return;
         }
-    } else {
-        booksimDir = buildDir.absolutePath();
-    }
-
-    connect(exportBtn, &ExportButton::exportRequested, [scene, this, booksimDir]() {
-        QString defaultFilePath = QDir(booksimDir).filePath("anynet_file");
-        QString fileName = QFileDialog::getSaveFileName(this, "导出网络配置文件", defaultFilePath, "All Files (*)");
-        if (!fileName.isEmpty()) {
-            scene->exportGraph(fileName);
-            QMessageBox::information(this, "导出成功", "网络配置文件已导出到: " + fileName);
+        if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
+            QMessageBox::warning(this, QObject::tr("导出失败"), QObject::tr("无法创建目标目录。"));
+            return;
         }
+        scene->exportGraph(path);
+        QMessageBox::information(this, QObject::tr("导出成功"),
+                                 QObject::tr("网络拓扑已导出到:\n%1").arg(path));
     });
 
-    connect(exportConfigBtn, &ExportButton::exportRequested, [scene, this, booksimDir]() {
-        QString defaultFilePath = QDir(booksimDir).filePath("anynet_config.json");
-        QString fileName = QFileDialog::getSaveFileName(this, "导出JSON配置", defaultFilePath, "JSON Files (*.json);;All Files (*)");
-        if (!fileName.isEmpty()) {
-            scene->exportJSONConfig(fileName);
-            QMessageBox::information(this, "导出成功", "JSON配置已导出到: " + fileName);
+    connect(exportConfigBtn, &ExportButton::exportRequested, [scene, this]() {
+        const QString cfgPath = BooksimPaths::configExportPathFromSettings();
+        const QString topoPath = BooksimPaths::topologyExportPathFromSettings();
+        if (cfgPath.isEmpty()) {
+            QMessageBox::warning(
+                this,
+                QObject::tr("导出失败"),
+                QObject::tr("未配置 JSON 导出路径，请在「设置」中设置 BookSim 配置文件路径。"));
+            return;
         }
+        if (!QDir().mkpath(QFileInfo(cfgPath).absolutePath())) {
+            QMessageBox::warning(this, QObject::tr("导出失败"), QObject::tr("无法创建目标目录。"));
+            return;
+        }
+        const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
+        scene->exportJSONConfig(cfgPath, netField);
+        QMessageBox::information(this, QObject::tr("导出成功"),
+                                 QObject::tr("JSON 配置已导出到:\n%1").arg(cfgPath));
     });
 
     connect(globalConfigBtn, &ExportButton::exportRequested, [scene, this]() {

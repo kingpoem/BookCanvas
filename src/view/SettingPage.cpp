@@ -1,11 +1,16 @@
 #include "SettingPage.h"
+#include "utils/BooksimPaths.h"
 #include "utils/Settings.hpp"
 #include <ElaApplication.h>
 #include <ElaComboBox.h>
+#include <ElaLineEdit.h>
+#include <ElaPushButton.h>
 #include <ElaRadioButton.h>
 #include <ElaTheme.h>
 #include <ElaToggleSwitch.h>
 #include <ElaWindow.h>
+#include <QFileDialog>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
 
 SettingPage::SettingPage(QWidget* parent)
@@ -91,6 +96,87 @@ SettingPage::SettingPage(QWidget* parent)
         autoButton->setChecked(true);
     }
 
+    auto* bookSimHeading = new ElaText(tr("BookSim 导出"), this);
+    bookSimHeading->setWordWrap(false);
+    bookSimHeading->setTextPixelSize(18);
+
+    auto* topoEdit = new ElaLineEdit(this);
+    topoEdit->setText(settings.value(QStringLiteral("booksimTopologyExportPath")).toString());
+    topoEdit->setClearButtonEnabled(true);
+    auto* topoBrowse = new ElaPushButton(tr("浏览…"), this);
+    auto* topoBlock = new QWidget(this);
+    auto* topoV = new QVBoxLayout(topoBlock);
+    topoV->setContentsMargins(0, 0, 0, 0);
+    topoV->setSpacing(6);
+    auto* topoLabel = new ElaText(tr("拓扑文件（Canvas「导出拓扑」）"), this);
+    topoLabel->setTextPixelSize(14);
+    topoV->addWidget(topoLabel);
+    auto* topoH = new QHBoxLayout();
+    topoH->addWidget(topoEdit, 1);
+    topoH->addWidget(topoBrowse);
+    topoV->addLayout(topoH);
+
+    auto* cfgEdit = new ElaLineEdit(this);
+    cfgEdit->setText(settings.value(QStringLiteral("booksimConfigExportPath")).toString());
+    cfgEdit->setClearButtonEnabled(true);
+    auto* cfgBrowse = new ElaPushButton(tr("浏览…"), this);
+    auto* cfgBlock = new QWidget(this);
+    auto* cfgV = new QVBoxLayout(cfgBlock);
+    cfgV->setContentsMargins(0, 0, 0, 0);
+    cfgV->setSpacing(6);
+    auto* cfgLabel = new ElaText(tr("JSON 配置（Canvas「导出配置」与仿真）"), this);
+    cfgLabel->setTextPixelSize(14);
+    cfgV->addWidget(cfgLabel);
+    auto* cfgH = new QHBoxLayout();
+    cfgH->addWidget(cfgEdit, 1);
+    cfgH->addWidget(cfgBrowse);
+    cfgV->addLayout(cfgH);
+
+    auto* resetBookSimPaths = new ElaPushButton(tr("恢复为检测到的 BookSim 工作目录中的默认文件名"),
+                                                this);
+
+    connect(topoEdit, &ElaLineEdit::editingFinished, this, [topoEdit]() {
+        settings.setValue(QStringLiteral("booksimTopologyExportPath"), topoEdit->text().trimmed());
+    });
+    connect(cfgEdit, &ElaLineEdit::editingFinished, this, [cfgEdit]() {
+        settings.setValue(QStringLiteral("booksimConfigExportPath"), cfgEdit->text().trimmed());
+    });
+
+    connect(topoBrowse, &ElaPushButton::clicked, this, [this, topoEdit]() {
+        const QString path
+            = QFileDialog::getSaveFileName(this,
+                                           tr("选择拓扑导出路径"),
+                                           topoEdit->text().isEmpty()
+                                               ? BooksimPaths::defaultTopologyExportPath()
+                                               : topoEdit->text(),
+                                           tr("All Files (*)"));
+        if (!path.isEmpty()) {
+            topoEdit->setText(path);
+            settings.setValue(QStringLiteral("booksimTopologyExportPath"), path.trimmed());
+        }
+    });
+    connect(cfgBrowse, &ElaPushButton::clicked, this, [this, cfgEdit]() {
+        const QString path
+            = QFileDialog::getSaveFileName(this,
+                                           tr("选择 JSON 配置导出路径"),
+                                           cfgEdit->text().isEmpty()
+                                               ? BooksimPaths::defaultConfigExportPath()
+                                               : cfgEdit->text(),
+                                           tr("JSON (*.json);;All Files (*)"));
+        if (!path.isEmpty()) {
+            cfgEdit->setText(path);
+            settings.setValue(QStringLiteral("booksimConfigExportPath"), path.trimmed());
+        }
+    });
+    connect(resetBookSimPaths, &ElaPushButton::clicked, this, [topoEdit, cfgEdit]() {
+        const QString td = BooksimPaths::defaultTopologyExportPath();
+        const QString cd = BooksimPaths::defaultConfigExportPath();
+        topoEdit->setText(td);
+        cfgEdit->setText(cd);
+        settings.setValue(QStringLiteral("booksimTopologyExportPath"), td);
+        settings.setValue(QStringLiteral("booksimConfigExportPath"), cd);
+    });
+
     auto centralWidget = new QWidget(this);
     centralWidget->setWindowTitle("Setting");
     auto centerLayout = new QVBoxLayout(centralWidget);
@@ -99,6 +185,12 @@ SettingPage::SettingPage(QWidget* parent)
     centerLayout->addSpacing(10);
     centerLayout->addWidget(themeSwitchArea);
     centerLayout->addWidget(displayModeArea);
+    centerLayout->addSpacing(24);
+    centerLayout->addWidget(bookSimHeading);
+    centerLayout->addSpacing(8);
+    centerLayout->addWidget(topoBlock);
+    centerLayout->addWidget(cfgBlock);
+    centerLayout->addWidget(resetBookSimPaths);
     centerLayout->addSpacing(15);
     centerLayout->addStretch();
     centerLayout->setContentsMargins(0, 0, 20, 0);

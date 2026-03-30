@@ -1,8 +1,8 @@
 #include "SimulationPage.h"
+#include "utils/BooksimPaths.h"
 #include <ElaPushButton.h>
 #include <ElaScrollPageArea.h>
 #include <ElaText.h>
-#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
@@ -65,40 +65,28 @@ void SimulationPage::onRunSimulation() {
     m_outputText->clear();
     m_capturedOutput.clear();
 
-    // 查找 booksim 可执行文件
-    QString booksimExec = findBooksimExecutable();
+    const QString booksimExec = BooksimPaths::findBooksimExecutable();
     if (booksimExec.isEmpty()) {
         appendOutput("错误: 找不到 booksim 可执行文件！\n");
         appendOutput("请确保 booksim 已编译，位于 3rdpart/booksim2/src/booksim\n");
         return;
     }
 
-    // 查找 booksim 目录（配置文件应该在同一目录）
-    QString booksimDir = findBooksimDirectory();
-    if (booksimDir.isEmpty()) {
-        appendOutput("错误: 找不到 booksim 目录！\n");
+    const QString configFile = BooksimPaths::configExportPathFromSettings();
+    if (configFile.isEmpty() || !QFileInfo::exists(configFile)) {
+        appendOutput("错误: 找不到配置文件: " + configFile + "\n");
+        appendOutput("请在「设置」中确认 BookSim JSON 路径，或先在 Canvas 导出配置。\n");
         return;
     }
 
-    QString configFile = QDir(booksimDir).filePath("anynet_config.json");
+    const QFileInfo configInfo(configFile);
+    m_process->setWorkingDirectory(configInfo.absolutePath());
 
-    // 检查配置文件是否存在
-    if (!QFileInfo::exists(configFile)) {
-        appendOutput("错误: 找不到配置文件 " + configFile + "\n");
-        appendOutput("请先在 Canvas 页面导出 JSON 配置文件。\n");
-        return;
-    }
-
-    // 设置工作目录
-    m_process->setWorkingDirectory(booksimDir);
-
-    // 准备命令和参数
     QStringList arguments;
-    arguments << "anynet_config.json";
+    arguments << configInfo.fileName();
 
-    // 显示执行的命令
     appendOutput("执行命令: " + booksimExec + " " + arguments.join(" ") + "\n");
-    appendOutput("工作目录: " + booksimDir + "\n");
+    appendOutput("工作目录: " + configInfo.absolutePath() + "\n");
     appendOutput("----------------------------------------\n");
 
     // 禁用按钮
@@ -133,49 +121,4 @@ void SimulationPage::appendOutput(const QString& text) {
     QTextCursor cursor = m_outputText->textCursor();
     cursor.movePosition(QTextCursor::End);
     m_outputText->setTextCursor(cursor);
-}
-
-QString SimulationPage::findBooksimExecutable() {
-    // 首先尝试从应用程序目录找到
-    QString appDir = QCoreApplication::applicationDirPath();
-
-    // 检查应用程序目录
-    QString possiblePath = QDir(appDir).filePath("booksim");
-    if (QFileInfo::exists(possiblePath)) {
-        return QDir(appDir).absoluteFilePath("booksim");
-    }
-
-    // 尝试从相对路径找到 3rdpart/booksim2/src/booksim
-    QString possibleBooksimPath = QDir(appDir).absoluteFilePath(
-        "../../../../3rdpart/booksim2/src/booksim");
-    if (QFileInfo::exists(possibleBooksimPath)) {
-        return possibleBooksimPath;
-    }
-
-    // 在 Windows 上，尝试添加 .exe 扩展名
-#ifdef Q_OS_WIN
-    QString possiblePathExe = QDir(appDir).filePath("booksim.exe");
-    if (QFileInfo::exists(possiblePathExe)) {
-        return QDir(appDir).absoluteFilePath("booksim.exe");
-    }
-
-    QString possibleBooksimPathExe = QDir(appDir).absoluteFilePath(
-        "../../../../3rdpart/booksim2/src/booksim.exe");
-    if (QFileInfo::exists(possibleBooksimPathExe)) {
-        return possibleBooksimPathExe;
-    }
-#endif
-
-    return {};
-}
-
-QString SimulationPage::findBooksimDirectory() {
-    QString booksimExec = findBooksimExecutable();
-    if (booksimExec.isEmpty()) {
-        return {};
-    }
-
-    // 返回可执行文件所在目录
-    QFileInfo execInfo(booksimExec);
-    return execInfo.absolutePath();
 }

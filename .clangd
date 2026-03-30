@@ -1,4 +1,10 @@
-# .clangd
 CompileFlags:
   Remove: [-mno-direct-extern-access]
-CompilationDatabase: build
+  CompilationDatabase: build
+Index:
+  Background: Build
+InlayHints:
+    Designators: true
+    Enabled: true
+    ParameterNames: true
+    DeducedTypes: true
