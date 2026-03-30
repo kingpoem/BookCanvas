@@ -16,6 +16,29 @@ GraphScene::GraphScene(QObject* parent)
     // (x, y ,sceneX, sceneY) (x, y) 控制画布左上角点 (sceneX, sceneY) 控制宽高
 }
 
+void GraphScene::setPlaceTool(PlaceTool tool) {
+    m_placeTool = tool;
+}
+
+QString GraphScene::allocateNextNodeId(GraphNode::NodeType type) const {
+    if (type == GraphNode::Router) {
+        int routerCount = 0;
+        for (GraphNode* node : m_nodes) {
+            if (node->getType() == GraphNode::Router) {
+                ++routerCount;
+            }
+        }
+        return QStringLiteral("Router_%1").arg(routerCount);
+    }
+    int nodeCount = 0;
+    for (GraphNode* node : m_nodes) {
+        if (node->getType() == GraphNode::Node) {
+            ++nodeCount;
+        }
+    }
+    return QStringLiteral("Node_%1").arg(nodeCount);
+}
+
 GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNode::NodeType type) {
     auto* node = new GraphNode(id, type);
     addItem(node);
@@ -113,29 +136,9 @@ void GraphScene::dragMoveEvent(QGraphicsSceneDragDropEvent* event) {
 // 放置节点的直接逻辑
 void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
     if (!m_pendingToolName.isEmpty()) {
-        QString id;
-        GraphNode::NodeType type;
-
-        if (m_pendingToolName == "Router") {
-            int routerCount = 0;
-            for (GraphNode* node : m_nodes) {
-                if (node->getType() == GraphNode::Router) {
-                    routerCount++;
-                }
-            }
-            id = QString("Router_%1").arg(routerCount);
-            type = GraphNode::Router;
-        } else {
-            int nodeCount = 0;
-            for (GraphNode* node : m_nodes) {
-                if (node->getType() == GraphNode::Node) {
-                    nodeCount++;
-                }
-            }
-            id = QString("Node_%1").arg(nodeCount);
-            type = GraphNode::Node;
-        }
-
+        const GraphNode::NodeType type
+            = (m_pendingToolName == QStringLiteral("Router")) ? GraphNode::Router : GraphNode::Node;
+        const QString id = allocateNextNodeId(type);
         createNode(id, event->scenePos(), type);
         m_pendingToolName.clear();
         event->acceptProposedAction();
@@ -143,6 +146,21 @@ void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
 }
 
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+    if (event->button() == Qt::LeftButton && m_placeTool != PlaceTool::None) {
+        QGraphicsItem* top = itemAt(event->scenePos(), QTransform());
+        if (top == nullptr) {
+            if (m_highlightNode) {
+                m_highlightNode->setNodeState(GraphNode::Normal);
+                m_highlightNode = nullptr;
+            }
+            const GraphNode::NodeType nt
+                = (m_placeTool == PlaceTool::Router) ? GraphNode::Router : GraphNode::Node;
+            createNode(allocateNextNodeId(nt), event->scenePos(), nt);
+            event->accept();
+            return;
+        }
+    }
+
     QGraphicsItem* item = itemAt(event->scenePos(), QTransform());
     auto* node = dynamic_cast<GraphNode*>(item);
 

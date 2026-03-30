@@ -1,5 +1,6 @@
 #include "GraphView.h"
 #include "GraphScene.h"
+#include <QEvent>
 #include <QWheelEvent>
 
 GraphView::GraphView(GraphScene* scene, QWidget* parent)
@@ -8,6 +9,11 @@ GraphView::GraphView(GraphScene* scene, QWidget* parent)
     setDragMode(QGraphicsView::RubberBandDrag); // 使用鼠标拖出“橡皮筋”选择框来选择多个图形项
     setAcceptDrops(true); // 启用拖放功能，让 View 可以接收拖放事件（文件、图形元素等）
     setMouseTracking(true);
+    setFrameShape(QFrame::NoFrame);
+
+    if (scene) {
+        scene->setBackgroundBrush(palette().color(QPalette::Base));
+    }
 }
 
 void GraphView::mouseMoveEvent(QMouseEvent* event) {
@@ -71,13 +77,29 @@ void GraphView::mouseReleaseEvent(QMouseEvent* event) {
     }
 }
 
-// 网格绘制
-void GraphView::drawBackground(QPainter* painter, const QRectF& rect) {
-    const int gridSize = 20;
-    QPen pen(QColor(230, 230, 230));
-    painter->setPen(pen);
+void GraphView::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::PaletteChange) {
+        if (GraphScene* gs = qobject_cast<GraphScene*>(this->scene())) {
+            gs->setBackgroundBrush(palette().color(QPalette::Base));
+        }
+    }
+    ElaGraphicsView::changeEvent(event);
+}
 
-    // 画竖线
+// 网格绘制（与调色板协调的低对比度网格）
+void GraphView::drawBackground(QPainter* painter, const QRectF& rect) {
+    painter->fillRect(rect, palette().color(QPalette::Base));
+
+    const int gridSize = 20;
+    const QColor base = palette().color(QPalette::Base);
+    QColor grid = palette().color(QPalette::Mid);
+    grid.setAlpha(90);
+    if (base.lightness() > 160) {
+        grid = palette().color(QPalette::Midlight);
+        grid.setAlpha(140);
+    }
+    painter->setPen(QPen(grid, 1, Qt::SolidLine));
+
     int left = static_cast<int>(rect.left()) - (static_cast<int>(rect.left()) % gridSize);
     int right = static_cast<int>(rect.right());
     for (int xi = left; xi <= right; xi += gridSize) {
@@ -85,7 +107,6 @@ void GraphView::drawBackground(QPainter* painter, const QRectF& rect) {
         painter->drawLine(QLineF(x, rect.top(), x, rect.bottom()));
     }
 
-    // 画横线
     int top = static_cast<int>(rect.top()) - (static_cast<int>(rect.top()) % gridSize);
     int bottom = static_cast<int>(rect.bottom());
     for (int yi = top; yi <= bottom; yi += gridSize) {

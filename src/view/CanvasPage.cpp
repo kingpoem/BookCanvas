@@ -11,18 +11,15 @@
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
 #include <ElaIconButton.h>
-#include <ElaImageCard.h>
-#include <ElaMessageBar.h>
-#include <ElaText.h>
 #include <ElaToolBar.h>
-#include <QApplication>
-#include <QClipboard>
 #include <QDir>
 #include <QFileInfo>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
-#include <QStandardPaths>
+#include <QShortcut>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 #include <Version.h>
 
@@ -37,7 +34,10 @@ static QWidget* createButtonWithLabel(QWidget* button, const QString& labelText,
 
     auto* label = new QLabel(labelText, container);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet("font-size: 10px; color: #666;");
+    label->setForegroundRole(QPalette::Mid);
+    QFont lf = label->font();
+    lf.setPointSize(9);
+    label->setFont(lf);
     layout->addWidget(label);
 
     container->setLayout(layout);
@@ -49,50 +49,148 @@ CanvasPage::CanvasPage(QWidget* parent)
     : BasePage(parent) {
     setWindowTitle("Canvas");
 
+    auto* scene = new GraphScene(this);
+    auto* view = new GraphView(scene, this);
+
+    auto* mainRow = new QHBoxLayout();
+    mainRow->setSpacing(12);
+
+    auto* buildStrip = new QFrame(this);
+    buildStrip->setFrameShape(QFrame::StyledPanel);
+    buildStrip->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+    buildStrip->setFixedWidth(118);
+    auto* stripLay = new QVBoxLayout(buildStrip);
+    stripLay->setContentsMargins(10, 12, 10, 12);
+    stripLay->setSpacing(10);
+
+    auto* buildTitle = new QLabel(tr("构建"), buildStrip);
+    buildTitle->setForegroundRole(QPalette::WindowText);
+    QFont tf = buildTitle->font();
+    tf.setBold(true);
+    tf.setPointSize(10);
+    buildTitle->setFont(tf);
+    stripLay->addWidget(buildTitle);
+    stripLay->addSpacing(4);
+
+    auto* terminalBtn = new DragButton(ElaIconType::Microchip, QStringLiteral("Circle"), buildStrip);
+    auto* routerBtn = new DragButton(ElaIconType::NetworkWired, QStringLiteral("Router"), buildStrip);
+
+    terminalBtn->setToolTip(
+        tr("拖拽到画布：添加终端（Node）\n或开启右侧「点击放置」后在空白处单击\n快捷键 N 进入点击放置 · Esc 取消"));
+    routerBtn->setToolTip(tr("拖拽到画布：添加路由器\n或开启右侧「点击放置」\n快捷键 R 进入点击放置 · Esc 取消"));
+
+    stripLay->addWidget(createButtonWithLabel(terminalBtn, tr("终端"), buildStrip));
+    stripLay->addWidget(createButtonWithLabel(routerBtn, tr("路由器"), buildStrip));
+
+    auto* placeHint = new QLabel(tr("点击放置"), buildStrip);
+    placeHint->setForegroundRole(QPalette::PlaceholderText);
+    placeHint->setWordWrap(true);
+    stripLay->addWidget(placeHint);
+
+    auto* placeTermPick = new ElaIconButton(ElaIconType::CrosshairsSimple, 18, buildStrip);
+    auto* placeRouterPick = new ElaIconButton(ElaIconType::LocationCrosshairs, 18, buildStrip);
+    placeTermPick->setCheckable(true);
+    placeRouterPick->setCheckable(true);
+    placeTermPick->setToolTip(tr("在画布空白处单击放置终端"));
+    placeRouterPick->setToolTip(tr("在画布空白处单击放置路由器"));
+
+    stripLay->addWidget(createButtonWithLabel(placeTermPick, tr("终端"), buildStrip));
+    stripLay->addWidget(createButtonWithLabel(placeRouterPick, tr("路由器"), buildStrip));
+    stripLay->addStretch(1);
+
+    mainRow->addWidget(buildStrip);
+
+    auto* rightColumn = new QVBoxLayout();
+    rightColumn->setSpacing(12);
+
     auto* toolBar = new ElaToolBar();
 
-    auto* circleBtn = new DragButton(ElaIconType::Circle, "Circle", toolBar);
-    auto* routerBtn = new DragButton(ElaIconType::Square, "Router", toolBar);
     auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", toolBar);
     auto* exportBtn = new ExportButton(ElaIconType::Download, "Export File", toolBar);
     auto* exportConfigBtn = new ExportButton(ElaIconType::Gear, "Export Config", toolBar);
     auto* globalConfigBtn = new ExportButton(ElaIconType::CarWrench, "Export Global Config", toolBar);
 
-    globalConfigBtn->setToolTip("Global Config - Configure global router parameters");
-    exportConfigBtn->setToolTip("Export Config - Export JSON configuration file");
-    exportBtn->setToolTip("Export Topology - Export network topology file (anynet_file)");
-    showBtn->setToolTip("Toggle Weight - Show or hide edge weights");
-    circleBtn->setToolTip("Add Node - Drag to canvas to create a new node");
-    routerBtn->setToolTip("Add Router - Drag to canvas to create a new router");
+    globalConfigBtn->setToolTip(tr("全局路由参数（BookSim JSON）"));
+    exportConfigBtn->setToolTip(tr("导出 JSON 配置文件"));
+    exportBtn->setToolTip(tr("导出网络拓扑（anynet）"));
+    showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
 
-    auto* circleBtnContainer = createButtonWithLabel(circleBtn, "Add Node", toolBar);
-    auto* routerBtnContainer = createButtonWithLabel(routerBtn, "Add Router", toolBar);
-    auto* showBtnContainer = createButtonWithLabel(showBtn, "Toggle Weight", toolBar);
-    auto* exportBtnContainer = createButtonWithLabel(exportBtn, "Export Topology", toolBar);
-    auto* exportConfigBtnContainer = createButtonWithLabel(exportConfigBtn, "Export Config", toolBar);
-    auto* globalConfigBtnContainer = createButtonWithLabel(globalConfigBtn, "Global Config", toolBar);
+    auto* viewGroup = new QLabel(tr("视图"), toolBar);
+    viewGroup->setForegroundRole(QPalette::Mid);
+    auto* booksimGroup = new QLabel(tr("BookSim"), toolBar);
 
-    toolBar->addWidget(circleBtnContainer);
-    toolBar->addWidget(routerBtnContainer);
+    toolBar->addWidget(viewGroup);
+    toolBar->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), toolBar));
     toolBar->addSeparator();
-    toolBar->addWidget(showBtnContainer);
-    toolBar->addSeparator();
-    toolBar->addWidget(globalConfigBtnContainer);
-    toolBar->addSeparator();
-    toolBar->addWidget(exportBtnContainer);
-    toolBar->addWidget(exportConfigBtnContainer);
+    toolBar->addWidget(booksimGroup);
+    toolBar->addWidget(createButtonWithLabel(globalConfigBtn, tr("全局配置"), toolBar));
+    toolBar->addWidget(createButtonWithLabel(exportBtn, tr("导出拓扑"), toolBar));
+    toolBar->addWidget(createButtonWithLabel(exportConfigBtn, tr("导出配置"), toolBar));
     toolBar->setFixedHeight(70);
     toolBar->setSizePolicy(toolBar->sizePolicy().horizontalPolicy(), toolBar->sizePolicy().verticalPolicy());
 
     auto* toolBarLayout = new QHBoxLayout();
     toolBarLayout->addWidget(toolBar);
-    toolBarLayout->addSpacing(20);
-    toolBarLayout->setAlignment(Qt::AlignLeft);
+    toolBarLayout->addStretch(1);
 
-    auto* scene = new GraphScene(this);
-    auto* view = new GraphView(scene, this); // 外部传入 scene 便于控制
+    auto* viewFrame = new QFrame(this);
+    viewFrame->setFrameShape(QFrame::StyledPanel);
+    viewFrame->setObjectName(QStringLiteral("CanvasViewFrame"));
+    viewFrame->setStyleSheet(QStringLiteral(
+        "QFrame#CanvasViewFrame { border: 1px solid palette(mid); border-radius: 8px; background: transparent; }"));
+    auto* viewFrameLay = new QVBoxLayout(viewFrame);
+    viewFrameLay->setContentsMargins(6, 6, 6, 6);
+    viewFrameLay->addWidget(view);
+
+    rightColumn->addLayout(toolBarLayout);
+    rightColumn->addWidget(viewFrame, 1);
+
+    mainRow->addLayout(rightColumn, 1);
 
     connect(showBtn, &ShowButton::toggled, scene, &GraphScene::setAllEdgeWeightsVisible);
+
+    auto clearPlaceUi = [scene, placeTermPick, placeRouterPick]() {
+        placeTermPick->blockSignals(true);
+        placeRouterPick->blockSignals(true);
+        placeTermPick->setChecked(false);
+        placeRouterPick->setChecked(false);
+        placeTermPick->blockSignals(false);
+        placeRouterPick->blockSignals(false);
+        scene->setPlaceTool(GraphScene::PlaceTool::None);
+    };
+
+    connect(placeTermPick, &ElaIconButton::toggled, this, [=](bool on) {
+        if (on) {
+            placeRouterPick->blockSignals(true);
+            placeRouterPick->setChecked(false);
+            placeRouterPick->blockSignals(false);
+            scene->setPlaceTool(GraphScene::PlaceTool::Terminal);
+        } else if (!placeRouterPick->isChecked()) {
+            scene->setPlaceTool(GraphScene::PlaceTool::None);
+        }
+    });
+    connect(placeRouterPick, &ElaIconButton::toggled, this, [=](bool on) {
+        if (on) {
+            placeTermPick->blockSignals(true);
+            placeTermPick->setChecked(false);
+            placeTermPick->blockSignals(false);
+            scene->setPlaceTool(GraphScene::PlaceTool::Router);
+        } else if (!placeTermPick->isChecked()) {
+            scene->setPlaceTool(GraphScene::PlaceTool::None);
+        }
+    });
+
+    auto* escShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(escShortcut, &QShortcut::activated, this, clearPlaceUi);
+
+    auto* placeTermShortcut = new QShortcut(QKeySequence(Qt::Key_N), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(placeTermShortcut, &QShortcut::activated, this, [=]() {
+        placeTermPick->setChecked(true);
+    });
+    auto* placeRouterShortcut = new QShortcut(QKeySequence(Qt::Key_R), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(placeRouterShortcut, &QShortcut::activated, this, [=]() {
+        placeRouterPick->setChecked(true);
+    });
 
     connect(exportBtn, &ExportButton::exportRequested, [scene, this]() {
         const QString path = BooksimPaths::topologyExportPathFromSettings();
@@ -153,9 +251,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto centralWidget = new QWidget(this);
     centralWidget->setWindowTitle("Canvas");
     auto centerLayout = new QVBoxLayout(centralWidget);
-    centerLayout->addLayout(toolBarLayout);
-    centerLayout->addSpacing(15);
-    centerLayout->addWidget(view);
+    centerLayout->addLayout(mainRow);
     centerLayout->setContentsMargins(0, 0, 20, 0);
     addCentralWidget(centralWidget, true, true, 0);
 }

@@ -1,9 +1,25 @@
 #include "GraphNode.h"
 #include <QDebug>
+#include <QFont>
 #include <QGraphicsSceneContextMenuEvent>
+#include <QGuiApplication>
 #include <QMenu>
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
+
+namespace {
+
+QString abbrevForId(const QString& id, GraphNode::NodeType type) {
+    if (type == GraphNode::Router && id.startsWith(QLatin1String("Router_"))) {
+        return QLatin1String("R") + id.mid(7);
+    }
+    if (type == GraphNode::Node && id.startsWith(QLatin1String("Node_"))) {
+        return QLatin1String("T") + id.mid(5);
+    }
+    return id.size() > 5 ? id.left(5) : id;
+}
+
+} // namespace
 
 GraphNode::GraphNode(QString id, NodeType type, QGraphicsItem* parent)
     : ElaGraphicsItem(parent)
@@ -21,57 +37,78 @@ QRectF GraphNode::boundingRect() const {
 
 void GraphNode::paint(QPainter* painter,
                       const QStyleOptionGraphicsItem* option,
-                      QWidget* /*widget*/) {
-    QPen pen(Qt::black, 2);
-    QBrush brush;
+                      QWidget* widget) {
+    painter->setRenderHint(QPainter::Antialiasing, true);
 
-    // 根据节点类型设置不同的颜色和形状
-    if (m_type == Router) {
-        brush.setColor(Qt::blue); // 路由器用蓝色
-    } else {
-        brush.setColor(Qt::yellow); // 普通节点用黄色
-    }
+    const QPalette& pal = widget ? widget->palette() : QGuiApplication::palette();
+    const QColor baseBg = pal.color(QPalette::Base);
+    const bool dark = baseBg.lightness() < 140;
 
-    // 设置高亮状态的样式
+    QColor termFill = dark ? QColor(0x3d4d68) : QColor(0xd8, 0xdf, 0xf2);
+    QColor routFill = dark ? QColor(0x3d5c48) : QColor(0xd0, 0xe5, 0xd5);
+    QColor stroke = dark ? QColor(0xa8, 0xb8, 0xd0) : QColor(0x45, 0x50, 0x60);
+
+    QColor labelColor = dark ? QColor(0xe8, 0xec, 0xf4) : pal.color(QPalette::WindowText);
+
+    int penW = 2;
     if (m_state == Highlighted) {
-        pen.setColor(Qt::red);
-        pen.setWidth(3);
-        if (m_type == Router) {
-            brush.setColor(Qt::cyan);
-        } else {
-            brush.setColor(Qt::lightGray);
-        }
+        stroke = QColor(0xff, 0x8a, 0x65);
+        penW = 3;
+        termFill = termFill.lighter(125);
+        routFill = routFill.lighter(125);
     } else if (option->state & QStyle::State_Selected) {
-        pen.setColor(Qt::red);
-        pen.setWidth(3);
-        if (m_type == Router) {
-            brush.setColor(QColor(173, 216, 230)); // lightBlue 的 RGB 值
-        } else {
-            brush.setColor(Qt::yellow);
-        }
+        stroke = pal.color(QPalette::Highlight);
+        penW = 3;
     }
 
-    painter->setPen(pen);
-    painter->setBrush(brush);
+    QPen outline(stroke, penW);
 
-    // 根据类型绘制不同形状
     if (m_type == Router) {
-        painter->drawRect(m_rect); // 路由器绘制方形
-        // 在中心绘制路由器标识文本
-        painter->setPen(Qt::white);
-        QFont font = painter->font();
-        font.setPointSize(8);
-        painter->setFont(font);
-        painter->drawText(m_rect, Qt::AlignCenter, "R");
+        const QRectF rr = m_rect.adjusted(6, 6, -6, -6);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(routFill);
+        painter->drawRoundedRect(rr, 6, 6);
+
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(outline);
+        painter->drawRoundedRect(rr, 6, 6);
+
+        const qreal stub = 5;
+        const qreal half = 1.0;
+        painter->setPen(QPen(stroke, half + 0.5));
+        painter->drawLine(QLineF(rr.center().x() - stub, rr.top(), rr.center().x() + stub, rr.top()));
+        painter->drawLine(
+            QLineF(rr.center().x() - stub, rr.bottom(), rr.center().x() + stub, rr.bottom()));
+        painter->drawLine(QLineF(rr.left(), rr.center().y() - stub, rr.left(), rr.center().y() + stub));
+        painter->drawLine(QLineF(rr.right(), rr.center().y() - stub, rr.right(), rr.center().y() + stub));
     } else {
-        painter->drawEllipse(m_rect); // 普通节点绘制圆形
-        // 在中心绘制节点标识文本
-        painter->setPen(Qt::black);
-        QFont font = painter->font();
-        font.setPointSize(8);
-        painter->setFont(font);
-        painter->drawText(m_rect, Qt::AlignCenter, "N");
+        const QRectF rr = m_rect.adjusted(6, 6, -6, -14);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(termFill);
+        painter->drawRoundedRect(rr, 8, 8);
+
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(outline);
+        painter->drawRoundedRect(rr, 8, 8);
+
+        const qreal pinW = 4;
+        const qreal pinH = 5;
+        const qreal pinTop = rr.bottom() + 1;
+        const qreal cx = rr.center().x();
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(stroke.darker(dark ? 115 : 85));
+        painter->drawRect(QRectF(cx - 12 - pinW / 2, pinTop, pinW, pinH));
+        painter->drawRect(QRectF(cx - pinW / 2, pinTop, pinW, pinH));
+        painter->drawRect(QRectF(cx + 12 - pinW / 2, pinTop, pinW, pinH));
     }
+
+    painter->setPen(QPen(labelColor, 1));
+    QFont font = painter->font();
+    font.setPointSize(8);
+    font.setBold(true);
+    painter->setFont(font);
+    const QString abbrev = abbrevForId(m_id, m_type);
+    painter->drawText(m_rect.adjusted(0, 2, 0, -12), Qt::AlignHCenter | Qt::AlignTop, abbrev);
 }
 
 // 捕捉选中状态变化

@@ -1,6 +1,7 @@
 #include "GraphEdge.h"
 #include "GraphScene.h"
 #include <QBrush>
+#include <QGuiApplication>
 #include <QInputDialog>
 #include <QMenu>
 #include <QPen>
@@ -21,7 +22,7 @@ GraphEdge::GraphEdge(GraphNode* startNode, GraphNode* endNode, QGraphicsItem* pa
 
     // 权重文本
     m_weightText = new QGraphicsTextItem(this);
-    m_weightText->setDefaultTextColor(Qt::red);
+    m_weightText->setDefaultTextColor(QGuiApplication::palette().color(QPalette::Link));
     m_weightText->setVisible(false);
 
     // scene::createEdge addItem 后调用
@@ -32,6 +33,7 @@ void GraphEdge::setWeight(double w) {
     m_weight = w;
 
     if (m_weight != 1.0) {
+        m_weightText->setDefaultTextColor(QGuiApplication::palette().color(QPalette::Link));
         m_weightText->setPlainText(QString::number(m_weight));
         m_weightText->setVisible(true);
 
@@ -95,7 +97,13 @@ QRectF GraphEdge::boundingRect() const {
 }
 
 void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
-    painter->setPen(QPen(Qt::black, 2));
+    const QColor line = QGuiApplication::palette().color(QPalette::Mid);
+    const QColor bg = QGuiApplication::palette().color(QPalette::Base);
+    QColor c = line.lightness() > bg.lightness() ? line.darker(120) : line.lighter(150);
+    if (qAbs(c.lightness() - bg.lightness()) < 25) {
+        c = (bg.lightness() < 128) ? QColor(200, 210, 230) : QColor(70, 75, 85);
+    }
+    painter->setPen(QPen(c, 2));
     painter->drawLine(m_line);
 }
 void GraphEdge::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {

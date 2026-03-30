@@ -18,13 +18,15 @@ DragButton::DragButton(ElaIconType::IconName awesome, int pixelSize, QString too
 // clang-format on
 
 void DragButton::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        m_startPos = event->pos();
+    }
     ElaIconButton::mousePressEvent(event); // 调用基类
 }
 
 void DragButton::mouseMoveEvent(QMouseEvent* event) {
     // 检查左键是否按住
     if (!(event->buttons() & Qt::LeftButton)) {
-        qDebug() << event->buttons() << Qt::LeftButton;
         return;
     }
 

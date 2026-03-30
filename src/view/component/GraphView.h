@@ -15,6 +15,7 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     void drawBackground(QPainter* painter, const QRectF& rect) override;
     void mouseMoveEvent(QMouseEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private:
     double m_scale = 1.0;

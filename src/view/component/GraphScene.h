@@ -10,7 +10,14 @@
 class GraphScene : public ElaGraphicsScene {
     Q_OBJECT
 public:
+    enum class PlaceTool { None, Terminal, Router };
+
     explicit GraphScene(QObject* parent = nullptr);
+
+    void setPlaceTool(PlaceTool tool);
+    [[nodiscard]] PlaceTool placeTool() const {
+        return m_placeTool;
+    }
 
     // 信号：节点配置请求
     Q_SIGNAL void nodeConfigureRequested(GraphNode* node);
@@ -62,6 +69,7 @@ protected:
 
 private:
     static int extractNumberId(const QString& id); // 辅助函数
+    [[nodiscard]] QString allocateNextNodeId(GraphNode::NodeType type) const;
 
     QList<GraphNode*> m_nodes; // 存放所有节点
     QList<GraphEdge*> m_edges; // 存放所有边
@@ -72,6 +80,8 @@ private:
 
     // 工具栏拖拽生成节点
     QString m_pendingToolName;
+
+    PlaceTool m_placeTool = PlaceTool::None;
 
     GraphNode* m_highlightNode = nullptr;
 
