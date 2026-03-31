@@ -1,5 +1,4 @@
 #include "CanvasDebugLog.h"
-
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>

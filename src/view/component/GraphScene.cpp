@@ -96,8 +96,8 @@ void GraphScene::removeNode(GraphNode* node) {
                        .arg(incident.size())
                        .arg(node->getId()));
     for (GraphEdge* e : incident) {
-        canvasDebugLog(QStringLiteral("GraphScene::removeNode [foreach] removeEdge e=0x%1").arg(
-            quintptr(e), 0, 16));
+        canvasDebugLog(QStringLiteral("GraphScene::removeNode [foreach] removeEdge e=0x%1")
+                           .arg(quintptr(e), 0, 16));
         removeEdge(e);
     }
     // ElaGraphicsScene::removeItem(ElaGraphicsItem*) 内部已 delete item，禁止再 delete/deleteLater
@@ -148,7 +148,8 @@ void GraphScene::removeEdge(GraphEdge* edge) {
     if (eN) {
         disconnect(eN, &GraphNode::posChanged, edge, &GraphEdge::updatePosition);
     }
-    canvasDebugLog(QStringLiteral("GraphScene::removeEdge [m_edges.removeAll before Ela removeItem]"));
+    canvasDebugLog(
+        QStringLiteral("GraphScene::removeEdge [m_edges.removeAll before Ela removeItem]"));
     m_edges.removeAll(edge);
     canvasDebugLog(QStringLiteral(
         "GraphScene::removeEdge [call ElaGraphicsScene::removeItem edge] (Ela 实现会 delete 边)"));
