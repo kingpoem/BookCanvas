@@ -34,7 +34,8 @@ static QWidget* createButtonWithLabel(QWidget* button, const QString& labelText,
 
     auto* label = new QLabel(labelText, container);
     label->setAlignment(Qt::AlignCenter);
-    label->setForegroundRole(QPalette::Mid);
+    label->setForegroundRole(QPalette::WindowText);
+    label->setTextInteractionFlags(Qt::NoTextInteraction);
     QFont lf = label->font();
     lf.setPointSize(9);
     label->setFont(lf);
@@ -83,7 +84,10 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addWidget(createButtonWithLabel(routerBtn, tr("路由器"), buildStrip));
 
     auto* placeHint = new QLabel(tr("点击放置"), buildStrip);
-    placeHint->setForegroundRole(QPalette::PlaceholderText);
+    placeHint->setForegroundRole(QPalette::WindowText);
+    QFont ph = placeHint->font();
+    ph.setPointSize(9);
+    placeHint->setFont(ph);
     placeHint->setWordWrap(true);
     stripLay->addWidget(placeHint);
 
@@ -116,8 +120,14 @@ CanvasPage::CanvasPage(QWidget* parent)
     showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
 
     auto* viewGroup = new QLabel(tr("视图"), toolBar);
-    viewGroup->setForegroundRole(QPalette::Mid);
+    viewGroup->setForegroundRole(QPalette::WindowText);
+    QFont hg = viewGroup->font();
+    hg.setBold(true);
+    hg.setPointSize(9);
+    viewGroup->setFont(hg);
     auto* booksimGroup = new QLabel(tr("BookSim"), toolBar);
+    booksimGroup->setForegroundRole(QPalette::WindowText);
+    booksimGroup->setFont(hg);
 
     toolBar->addWidget(viewGroup);
     toolBar->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), toolBar));

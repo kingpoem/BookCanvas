@@ -15,9 +15,7 @@ public:
     explicit GraphScene(QObject* parent = nullptr);
 
     void setPlaceTool(PlaceTool tool);
-    [[nodiscard]] PlaceTool placeTool() const {
-        return m_placeTool;
-    }
+    [[nodiscard]] PlaceTool placeTool() const { return m_placeTool; }
 
     // 信号：节点配置请求
     Q_SIGNAL void nodeConfigureRequested(GraphNode* node);

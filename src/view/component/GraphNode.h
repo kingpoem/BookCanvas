@@ -28,6 +28,7 @@ public:
 signals:
     void posChanged(const QPointF& localPos, const QPointF& scenePos);
     void configureRequested(GraphNode* node); // 配置请求信号
+    void deleteRequested(GraphNode* node);
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;

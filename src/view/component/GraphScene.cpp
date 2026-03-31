@@ -1,6 +1,7 @@
 #include "GraphScene.h"
 #include "RouterConfigDialog.h"
 #include "RouterGlobalConfigDialog.h"
+#include "utils/CanvasDebugLog.h"
 #include <QBrush>
 #include <QFile>
 #include <QGraphicsLineItem>
@@ -8,7 +9,10 @@
 #include <QMap>
 #include <QMimeData>
 #include <QPen>
+#include <QPointer>
 #include <QTextStream>
+#include <QTimer>
+#include <QVector>
 
 GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
@@ -48,21 +52,61 @@ GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNo
     // 连接节点的配置请求信号到场景
     connect(node, &GraphNode::configureRequested, this, &GraphScene::nodeConfigureRequested);
 
+    connect(node, &GraphNode::deleteRequested, this, [this](GraphNode* n) {
+        if (!n) {
+            return;
+        }
+        canvasDebugLog(QStringLiteral("GraphScene.cpp: deleteRequested slot id=%1 n=0x%2")
+                           .arg(n->getId())
+                           .arg(quintptr(n), 0, 16));
+        const QPointer<GraphNode> guard(n);
+        QTimer::singleShot(0, this, [this, guard]() {
+            canvasDebugLog(QStringLiteral("GraphScene.cpp: singleShot before removeNode guard=0x%1")
+                               .arg(quintptr(guard.data()), 0, 16));
+            if (guard) {
+                removeNode(guard.data());
+            }
+        });
+    });
+
     return node;
 }
 
 void GraphScene::removeNode(GraphNode* node) {
-    if (!node)
+    canvasDebugLog(QStringLiteral("GraphScene::removeNode [enter] ptr=0x%1 edges=%2")
+                       .arg(quintptr(node), 0, 16)
+                       .arg(m_edges.size()));
+    if (!node) {
         return;
-    // 删除关联边
-    for (auto i = m_edges.size() - 1; i >= 0; --i) {
-        if (m_edges[i]->startNode() == node || m_edges[i]->endNode() == node) {
-            removeEdge(m_edges[i]);
+    }
+
+    if (m_highlightNode == node) {
+        m_highlightNode = nullptr;
+    }
+    m_routerConfigs.remove(node->getId());
+
+    QVector<GraphEdge*> incident;
+    incident.reserve(m_edges.size());
+    for (GraphEdge* e : m_edges) {
+        if (e && (e->startNode() == node || e->endNode() == node)) {
+            incident.append(e);
         }
     }
-    removeItem(node);
+    canvasDebugLog(QStringLiteral("GraphScene::removeNode [before incident loop] count=%1 id=%2")
+                       .arg(incident.size())
+                       .arg(node->getId()));
+    for (GraphEdge* e : incident) {
+        canvasDebugLog(QStringLiteral("GraphScene::removeNode [foreach] removeEdge e=0x%1").arg(
+            quintptr(e), 0, 16));
+        removeEdge(e);
+    }
+    // ElaGraphicsScene::removeItem(ElaGraphicsItem*) 内部已 delete item，禁止再 delete/deleteLater
+    canvasDebugLog(QStringLiteral("GraphScene::removeNode [before m_nodes.removeAll]"));
     m_nodes.removeAll(node);
-    delete node;
+    canvasDebugLog(QStringLiteral("GraphScene::removeNode [call ElaGraphicsScene::removeItem node] "
+                                  "(Ela 实现会 delete 节点)"));
+    removeItem(node);
+    canvasDebugLog(QStringLiteral("GraphScene::removeNode [return] ptr invalid"));
 }
 
 GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weight) {
@@ -90,12 +134,26 @@ GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weigh
 }
 
 void GraphScene::removeEdge(GraphEdge* edge) {
-    if (!edge)
+    canvasDebugLog(QStringLiteral("GraphScene::removeEdge [enter] ptr=0x%1 listSize=%2")
+                       .arg(quintptr(edge), 0, 16)
+                       .arg(m_edges.size()));
+    if (!edge) {
         return;
-    removeItem(edge);
-    qDebug() << m_edges.size() << ' ';
+    }
+    GraphNode* s = edge->startNode();
+    GraphNode* eN = edge->endNode();
+    if (s) {
+        disconnect(s, &GraphNode::posChanged, edge, &GraphEdge::updatePosition);
+    }
+    if (eN) {
+        disconnect(eN, &GraphNode::posChanged, edge, &GraphEdge::updatePosition);
+    }
+    canvasDebugLog(QStringLiteral("GraphScene::removeEdge [m_edges.removeAll before Ela removeItem]"));
     m_edges.removeAll(edge);
-    // delete edge; NOTE: add this line will contribute to segmentation fault;
+    canvasDebugLog(QStringLiteral(
+        "GraphScene::removeEdge [call ElaGraphicsScene::removeItem edge] (Ela 实现会 delete 边)"));
+    removeItem(edge);
+    canvasDebugLog(QStringLiteral("GraphScene::removeEdge [return] ptr invalid"));
 }
 
 void GraphScene::setAllEdgeWeightsVisible(bool visible) {
@@ -136,8 +194,9 @@ void GraphScene::dragMoveEvent(QGraphicsSceneDragDropEvent* event) {
 // 放置节点的直接逻辑
 void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
     if (!m_pendingToolName.isEmpty()) {
-        const GraphNode::NodeType type
-            = (m_pendingToolName == QStringLiteral("Router")) ? GraphNode::Router : GraphNode::Node;
+        const GraphNode::NodeType type = (m_pendingToolName == QStringLiteral("Router"))
+                                             ? GraphNode::Router
+                                             : GraphNode::Node;
         const QString id = allocateNextNodeId(type);
         createNode(id, event->scenePos(), type);
         m_pendingToolName.clear();
@@ -153,9 +212,10 @@ void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
                 m_highlightNode->setNodeState(GraphNode::Normal);
                 m_highlightNode = nullptr;
             }
-            const GraphNode::NodeType nt
-                = (m_placeTool == PlaceTool::Router) ? GraphNode::Router : GraphNode::Node;
-            createNode(allocateNextNodeId(nt), event->scenePos(), nt);
+            const GraphNode::NodeType nt = (m_placeTool == PlaceTool::Router) ? GraphNode::Router
+                                                                              : GraphNode::Node;
+            const QString nid = allocateNextNodeId(nt);
+            createNode(nid, event->scenePos(), nt);
             event->accept();
             return;
         }
@@ -212,8 +272,8 @@ void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
             m_tempEdge->updatePosition();
             m_edges.append(m_tempEdge);
         } else {
+            // ElaGraphicsScene::removeItem 会 delete 图形项
             removeItem(m_tempEdge);
-            delete m_tempEdge;
         }
         m_tempEdge = nullptr;
         m_lineStartNode = nullptr;

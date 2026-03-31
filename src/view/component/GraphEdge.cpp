@@ -5,6 +5,8 @@
 #include <QInputDialog>
 #include <QMenu>
 #include <QPen>
+#include <QPointer>
+#include <QTimer>
 
 GraphEdge::GraphEdge(GraphNode* startNode, GraphNode* endNode, QGraphicsItem* parent)
     : ElaGraphicsItem(parent)
@@ -136,8 +138,14 @@ void GraphEdge::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
     } else if (selected == deleteAction) {
         if (scene()) {
             auto* gscene = dynamic_cast<GraphScene*>(scene());
-            if (gscene)
-                gscene->removeEdge(this);
+            if (gscene) {
+                QPointer<GraphEdge> edgeGuard(this);
+                QTimer::singleShot(0, gscene, [gscene, edgeGuard]() {
+                    if (gscene && edgeGuard) {
+                        gscene->removeEdge(edgeGuard.data());
+                    }
+                });
+            }
         }
     }
 }

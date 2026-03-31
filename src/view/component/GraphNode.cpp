@@ -1,4 +1,5 @@
 #include "GraphNode.h"
+#include "utils/CanvasDebugLog.h"
 #include <QDebug>
 #include <QFont>
 #include <QGraphicsSceneContextMenuEvent>
@@ -35,9 +36,7 @@ QRectF GraphNode::boundingRect() const {
     return m_rect;
 }
 
-void GraphNode::paint(QPainter* painter,
-                      const QStyleOptionGraphicsItem* option,
-                      QWidget* widget) {
+void GraphNode::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     const QPalette& pal = widget ? widget->palette() : QGuiApplication::palette();
@@ -48,7 +47,7 @@ void GraphNode::paint(QPainter* painter,
     QColor routFill = dark ? QColor(0x3d5c48) : QColor(0xd0, 0xe5, 0xd5);
     QColor stroke = dark ? QColor(0xa8, 0xb8, 0xd0) : QColor(0x45, 0x50, 0x60);
 
-    QColor labelColor = dark ? QColor(0xe8, 0xec, 0xf4) : pal.color(QPalette::WindowText);
+    const QColor labelColor(0, 0, 0);
 
     int penW = 2;
     if (m_state == Highlighted) {
@@ -76,11 +75,14 @@ void GraphNode::paint(QPainter* painter,
         const qreal stub = 5;
         const qreal half = 1.0;
         painter->setPen(QPen(stroke, half + 0.5));
-        painter->drawLine(QLineF(rr.center().x() - stub, rr.top(), rr.center().x() + stub, rr.top()));
+        painter->drawLine(
+            QLineF(rr.center().x() - stub, rr.top(), rr.center().x() + stub, rr.top()));
         painter->drawLine(
             QLineF(rr.center().x() - stub, rr.bottom(), rr.center().x() + stub, rr.bottom()));
-        painter->drawLine(QLineF(rr.left(), rr.center().y() - stub, rr.left(), rr.center().y() + stub));
-        painter->drawLine(QLineF(rr.right(), rr.center().y() - stub, rr.right(), rr.center().y() + stub));
+        painter->drawLine(
+            QLineF(rr.left(), rr.center().y() - stub, rr.left(), rr.center().y() + stub));
+        painter->drawLine(
+            QLineF(rr.right(), rr.center().y() - stub, rr.right(), rr.center().y() + stub));
     } else {
         const QRectF rr = m_rect.adjusted(6, 6, -6, -14);
         painter->setPen(Qt::NoPen);
@@ -127,13 +129,21 @@ QVariant GraphNode::itemChange(GraphicsItemChange change, const QVariant& value)
 
 // 右键菜单事件
 void GraphNode::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
+    QMenu menu;
+    QAction* configAction = nullptr;
     if (m_type == Router) {
-        QMenu menu;
-        QAction* configAction = menu.addAction("配置参数");
+        configAction = menu.addAction(tr("配置参数"));
+    }
+    QAction* deleteAction = menu.addAction(tr("删除"));
 
-        QAction* selected = menu.exec(event->screenPos());
-        if (selected == configAction) {
-            emit configureRequested(this);
-        }
+    QAction* selected = menu.exec(event->screenPos());
+    if (selected == configAction) {
+        emit configureRequested(this);
+    } else if (selected == deleteAction) {
+        canvasDebugLog(QStringLiteral("GraphNode.cpp: menu 删除 id=%1 ptr=0x%2 before emit")
+                           .arg(m_id)
+                           .arg(quintptr(this), 0, 16));
+        emit deleteRequested(this);
+        canvasDebugLog(QStringLiteral("GraphNode.cpp: after deleteRequested emit (same stack)"));
     }
 }

@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "utils/CanvasDebugLog.h"
 #include "utils/Settings.hpp"
 
 MainWindow::MainWindow(QWidget* parent)
@@ -14,6 +15,10 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::initWindow() {
+    canvasDebugLog(QStringLiteral(
+        "=== BookCanvas session start | 删除/画布调试日志见程序目录下 logs/bookcanvas_canvas_debug.log "
+        "绝对路径: %1 ===")
+                       .arg(canvasDebugLogFilePath()));
     resize(settings.value("windowSize").toSize());
     setUserInfoCardVisible(false);
     setWindowTitle("BookCanvas");
