@@ -11,6 +11,7 @@
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
 #include <ElaIconButton.h>
+#include <ElaTheme.h>
 #include <ElaToolBar.h>
 #include <QApplication>
 #include <QDir>
@@ -26,6 +27,35 @@
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <Version.h>
+
+namespace {
+
+void bindLabelToElaBasicText(QLabel* label) {
+    if (!label) {
+        return;
+    }
+    const auto apply = [label]() {
+        QPalette pal = label->palette();
+        pal.setColor(QPalette::WindowText, ElaThemeColor(eTheme->getThemeMode(), BasicText));
+        label->setPalette(pal);
+    };
+    apply();
+    QObject::connect(eTheme, &ElaTheme::themeModeChanged, label, [apply](ElaThemeType::ThemeMode) {
+        apply();
+    });
+}
+
+bool canvasWidgetIsDescendantOf(QWidget* w, QWidget* ancestor) {
+    while (w) {
+        if (w == ancestor) {
+            return true;
+        }
+        w = w->parentWidget();
+    }
+    return false;
+}
+
+} // namespace
 
 static QWidget* createButtonWithLabel(QWidget* button, const QString& labelText, QWidget* parent) {
     auto* container = new QWidget(parent);
@@ -43,25 +73,12 @@ static QWidget* createButtonWithLabel(QWidget* button, const QString& labelText,
     QFont lf = label->font();
     lf.setPointSize(9);
     label->setFont(lf);
+    bindLabelToElaBasicText(label);
     layout->addWidget(label);
 
     container->setLayout(layout);
     return container;
 }
-
-namespace {
-
-bool canvasWidgetIsDescendantOf(QWidget* w, QWidget* ancestor) {
-    while (w) {
-        if (w == ancestor) {
-            return true;
-        }
-        w = w->parentWidget();
-    }
-    return false;
-}
-
-} // namespace
 
 // clang-format off
 CanvasPage::CanvasPage(QWidget* parent)
@@ -84,6 +101,7 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     auto* buildTitle = new QLabel(tr("构建"), buildStrip);
     buildTitle->setForegroundRole(QPalette::WindowText);
+    bindLabelToElaBasicText(buildTitle);
     QFont tf = buildTitle->font();
     tf.setBold(true);
     tf.setPointSize(10);
@@ -103,6 +121,7 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     auto* placeHint = new QLabel(tr("点击放置"), buildStrip);
     placeHint->setForegroundRole(QPalette::WindowText);
+    bindLabelToElaBasicText(placeHint);
     QFont ph = placeHint->font();
     ph.setPointSize(9);
     placeHint->setFont(ph);
@@ -143,12 +162,14 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     auto* viewGroup = new QLabel(tr("视图"), toolBar);
     viewGroup->setForegroundRole(QPalette::WindowText);
+    bindLabelToElaBasicText(viewGroup);
     QFont hg = viewGroup->font();
     hg.setBold(true);
     hg.setPointSize(9);
     viewGroup->setFont(hg);
     auto* booksimGroup = new QLabel(tr("BookSim"), toolBar);
     booksimGroup->setForegroundRole(QPalette::WindowText);
+    bindLabelToElaBasicText(booksimGroup);
     booksimGroup->setFont(hg);
 
     toolBar->addWidget(viewGroup);
