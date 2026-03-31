@@ -12,13 +12,17 @@
 #include <ElaGraphicsView.h>
 #include <ElaIconButton.h>
 #include <ElaToolBar.h>
+#include <QApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QLabel>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QShortcut>
+#include <QShowEvent>
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <Version.h>
@@ -45,13 +49,27 @@ static QWidget* createButtonWithLabel(QWidget* button, const QString& labelText,
     return container;
 }
 
+namespace {
+
+bool canvasWidgetIsDescendantOf(QWidget* w, QWidget* ancestor) {
+    while (w) {
+        if (w == ancestor) {
+            return true;
+        }
+        w = w->parentWidget();
+    }
+    return false;
+}
+
+} // namespace
+
 // clang-format off
 CanvasPage::CanvasPage(QWidget* parent)
     : BasePage(parent) {
     setWindowTitle("Canvas");
 
-    auto* scene = new GraphScene(this);
-    auto* view = new GraphView(scene, this);
+    m_scene = new GraphScene(this);
+    m_graphView = new GraphView(m_scene, this);
 
     auto* mainRow = new QHBoxLayout();
     mainRow->setSpacing(12);
@@ -91,15 +109,19 @@ CanvasPage::CanvasPage(QWidget* parent)
     placeHint->setWordWrap(true);
     stripLay->addWidget(placeHint);
 
-    auto* placeTermPick = new ElaIconButton(ElaIconType::CrosshairsSimple, 18, buildStrip);
-    auto* placeRouterPick = new ElaIconButton(ElaIconType::LocationCrosshairs, 18, buildStrip);
-    placeTermPick->setCheckable(true);
-    placeRouterPick->setCheckable(true);
-    placeTermPick->setToolTip(tr("在画布空白处单击放置终端"));
-    placeRouterPick->setToolTip(tr("在画布空白处单击放置路由器"));
+    m_placeTermPick = new ElaIconButton(ElaIconType::CrosshairsSimple, 18, buildStrip);
+    m_placeRouterPick = new ElaIconButton(ElaIconType::LocationCrosshairs, 18, buildStrip);
+    m_placeTermPick->setCheckable(true);
+    m_placeRouterPick->setCheckable(true);
+    m_placeTermPick->setBorderRadius(8);
+    m_placeRouterPick->setBorderRadius(8);
+    m_placeTermPick->setToolTip(tr("在画布空白处单击放置终端"));
+    m_placeRouterPick->setToolTip(tr("在画布空白处单击放置路由器"));
 
-    stripLay->addWidget(createButtonWithLabel(placeTermPick, tr("终端"), buildStrip));
-    stripLay->addWidget(createButtonWithLabel(placeRouterPick, tr("路由器"), buildStrip));
+    m_placeTermHost = createButtonWithLabel(m_placeTermPick, tr("终端"), buildStrip);
+    m_placeRouterHost = createButtonWithLabel(m_placeRouterPick, tr("路由器"), buildStrip);
+    stripLay->addWidget(m_placeTermHost);
+    stripLay->addWidget(m_placeRouterHost);
     stripLay->addStretch(1);
 
     mainRow->addWidget(buildStrip);
@@ -150,59 +172,59 @@ CanvasPage::CanvasPage(QWidget* parent)
         "QFrame#CanvasViewFrame { border: 1px solid palette(mid); border-radius: 8px; background: transparent; }"));
     auto* viewFrameLay = new QVBoxLayout(viewFrame);
     viewFrameLay->setContentsMargins(6, 6, 6, 6);
-    viewFrameLay->addWidget(view);
+    viewFrameLay->addWidget(m_graphView);
 
     rightColumn->addLayout(toolBarLayout);
     rightColumn->addWidget(viewFrame, 1);
 
     mainRow->addLayout(rightColumn, 1);
 
-    connect(showBtn, &ShowButton::toggled, scene, &GraphScene::setAllEdgeWeightsVisible);
+    connect(showBtn, &ShowButton::toggled, m_scene, &GraphScene::setAllEdgeWeightsVisible);
 
-    auto clearPlaceUi = [scene, placeTermPick, placeRouterPick]() {
-        placeTermPick->blockSignals(true);
-        placeRouterPick->blockSignals(true);
-        placeTermPick->setChecked(false);
-        placeRouterPick->setChecked(false);
-        placeTermPick->blockSignals(false);
-        placeRouterPick->blockSignals(false);
-        scene->setPlaceTool(GraphScene::PlaceTool::None);
-    };
-
-    connect(placeTermPick, &ElaIconButton::toggled, this, [=](bool on) {
+    connect(m_placeTermPick, &ElaIconButton::toggled, this, [this](bool on) {
         if (on) {
-            placeRouterPick->blockSignals(true);
-            placeRouterPick->setChecked(false);
-            placeRouterPick->blockSignals(false);
-            scene->setPlaceTool(GraphScene::PlaceTool::Terminal);
-        } else if (!placeRouterPick->isChecked()) {
-            scene->setPlaceTool(GraphScene::PlaceTool::None);
+            m_placeRouterPick->blockSignals(true);
+            m_placeRouterPick->setChecked(false);
+            m_placeRouterPick->setIsSelected(false);
+            m_placeRouterPick->blockSignals(false);
+            m_placeTermPick->setIsSelected(true);
+            m_scene->setPlaceTool(GraphScene::PlaceTool::Terminal);
+        } else {
+            m_placeTermPick->setIsSelected(false);
+            if (!m_placeRouterPick->isChecked()) {
+                m_scene->setPlaceTool(GraphScene::PlaceTool::None);
+            }
         }
     });
-    connect(placeRouterPick, &ElaIconButton::toggled, this, [=](bool on) {
+    connect(m_placeRouterPick, &ElaIconButton::toggled, this, [this](bool on) {
         if (on) {
-            placeTermPick->blockSignals(true);
-            placeTermPick->setChecked(false);
-            placeTermPick->blockSignals(false);
-            scene->setPlaceTool(GraphScene::PlaceTool::Router);
-        } else if (!placeTermPick->isChecked()) {
-            scene->setPlaceTool(GraphScene::PlaceTool::None);
+            m_placeTermPick->blockSignals(true);
+            m_placeTermPick->setChecked(false);
+            m_placeTermPick->setIsSelected(false);
+            m_placeTermPick->blockSignals(false);
+            m_placeRouterPick->setIsSelected(true);
+            m_scene->setPlaceTool(GraphScene::PlaceTool::Router);
+        } else {
+            m_placeRouterPick->setIsSelected(false);
+            if (!m_placeTermPick->isChecked()) {
+                m_scene->setPlaceTool(GraphScene::PlaceTool::None);
+            }
         }
     });
 
     auto* escShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this, nullptr, nullptr, Qt::WindowShortcut);
-    connect(escShortcut, &QShortcut::activated, this, clearPlaceUi);
+    connect(escShortcut, &QShortcut::activated, this, &CanvasPage::clearPlaceMode);
 
     auto* placeTermShortcut = new QShortcut(QKeySequence(Qt::Key_N), this, nullptr, nullptr, Qt::WindowShortcut);
-    connect(placeTermShortcut, &QShortcut::activated, this, [=]() {
-        placeTermPick->setChecked(true);
+    connect(placeTermShortcut, &QShortcut::activated, this, [this]() {
+        m_placeTermPick->setChecked(true);
     });
     auto* placeRouterShortcut = new QShortcut(QKeySequence(Qt::Key_R), this, nullptr, nullptr, Qt::WindowShortcut);
-    connect(placeRouterShortcut, &QShortcut::activated, this, [=]() {
-        placeRouterPick->setChecked(true);
+    connect(placeRouterShortcut, &QShortcut::activated, this, [this]() {
+        m_placeRouterPick->setChecked(true);
     });
 
-    connect(exportBtn, &ExportButton::exportRequested, [scene, this]() {
+    connect(exportBtn, &ExportButton::exportRequested, [this]() {
         const QString path = BooksimPaths::topologyExportPathFromSettings();
         if (path.isEmpty()) {
             QMessageBox::warning(
@@ -215,12 +237,12 @@ CanvasPage::CanvasPage(QWidget* parent)
             QMessageBox::warning(this, QObject::tr("导出失败"), QObject::tr("无法创建目标目录。"));
             return;
         }
-        scene->exportGraph(path);
+        m_scene->exportGraph(path);
         QMessageBox::information(this, QObject::tr("导出成功"),
                                  QObject::tr("网络拓扑已导出到:\n%1").arg(path));
     });
 
-    connect(exportConfigBtn, &ExportButton::exportRequested, [scene, this]() {
+    connect(exportConfigBtn, &ExportButton::exportRequested, [this]() {
         const QString cfgPath = BooksimPaths::configExportPathFromSettings();
         const QString topoPath = BooksimPaths::topologyExportPathFromSettings();
         if (cfgPath.isEmpty()) {
@@ -235,25 +257,25 @@ CanvasPage::CanvasPage(QWidget* parent)
             return;
         }
         const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
-        scene->exportJSONConfig(cfgPath, netField);
+        m_scene->exportJSONConfig(cfgPath, netField);
         QMessageBox::information(this, QObject::tr("导出成功"),
                                  QObject::tr("JSON 配置已导出到:\n%1").arg(cfgPath));
     });
 
-    connect(globalConfigBtn, &ExportButton::exportRequested, [scene, this]() {
+    connect(globalConfigBtn, &ExportButton::exportRequested, [this]() {
         RouterGlobalConfigDialog dialog(this);
-        dialog.setConfig(scene->getGlobalConfig());
+        dialog.setConfig(m_scene->getGlobalConfig());
         if (dialog.exec() == QDialog::Accepted) {
-            scene->setGlobalConfig(dialog.getConfig());
+            m_scene->setGlobalConfig(dialog.getConfig());
         }
     });
 
-    connect(scene, &GraphScene::nodeConfigureRequested, [scene, this](GraphNode* node) {
+    connect(m_scene, &GraphScene::nodeConfigureRequested, [this](GraphNode* node) {
         if (node && node->getType() == GraphNode::Router) {
             RouterConfigDialog dialog(node->getId(), this);
-            dialog.setConfig(scene->getRouterConfig(node->getId()));
+            dialog.setConfig(m_scene->getRouterConfig(node->getId()));
             if (dialog.exec() == QDialog::Accepted) {
-                scene->setRouterConfig(node->getId(), dialog.getConfig());
+                m_scene->setRouterConfig(node->getId(), dialog.getConfig());
             }
         }
     });
@@ -264,5 +286,51 @@ CanvasPage::CanvasPage(QWidget* parent)
     centerLayout->addLayout(mainRow);
     centerLayout->setContentsMargins(0, 0, 20, 0);
     addCentralWidget(centralWidget, true, true, 0);
+}
+
+CanvasPage::~CanvasPage() {
+    qApp->removeEventFilter(this);
+}
+
+void CanvasPage::clearPlaceMode() {
+    if (!m_placeTermPick || !m_placeRouterPick || !m_scene) {
+        return;
+    }
+    m_placeTermPick->blockSignals(true);
+    m_placeRouterPick->blockSignals(true);
+    m_placeTermPick->setChecked(false);
+    m_placeRouterPick->setChecked(false);
+    m_placeTermPick->setIsSelected(false);
+    m_placeRouterPick->setIsSelected(false);
+    m_placeTermPick->blockSignals(false);
+    m_placeRouterPick->blockSignals(false);
+    m_scene->setPlaceTool(GraphScene::PlaceTool::None);
+}
+
+void CanvasPage::showEvent(QShowEvent* event) {
+    BasePage::showEvent(event);
+    qApp->installEventFilter(this);
+}
+
+void CanvasPage::hideEvent(QHideEvent* event) {
+    qApp->removeEventFilter(this);
+    BasePage::hideEvent(event);
+}
+
+bool CanvasPage::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::MouseButtonPress && m_scene && m_graphView && m_placeTermHost && m_placeRouterHost) {
+        auto* mouseEvent = dynamic_cast<QMouseEvent*>(event);
+        if (mouseEvent && mouseEvent->button() == Qt::LeftButton &&
+            m_scene->placeTool() != GraphScene::PlaceTool::None) {
+            auto* w = qobject_cast<QWidget*>(watched);
+            if (w && !canvasWidgetIsDescendantOf(w, m_graphView)) {
+                if (!canvasWidgetIsDescendantOf(w, m_placeTermHost) &&
+                    !canvasWidgetIsDescendantOf(w, m_placeRouterHost)) {
+                    clearPlaceMode();
+                }
+            }
+        }
+    }
+    return BasePage::eventFilter(watched, event);
 }
 // clang-format on
