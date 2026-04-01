@@ -382,20 +382,17 @@ QPainterPath GraphEdge::shape() const {
     return stroker.createStroke(centerline);
 }
 
-void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
-    const QColor sceneBg = QGuiApplication::palette().color(QPalette::Base);
+void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget* widget) {
+    // 与 GraphView 一致：用正在绘制的 viewport 调色板判断画布深浅（勿用 QGuiApplication，
+    // 否则可能与实际白底不一致，误入「深色画布」分支并用 Light 的 BasicBaseLine，lighter 后近白）
+    const QPalette& pal = widget ? widget->palette() : QGuiApplication::palette();
+    const QColor sceneBg = pal.color(QPalette::Base);
     const bool lightCanvas = sceneBg.lightness() > 128;
-    const auto mode = eTheme->getThemeMode();
-    QColor c;
-    if (lightCanvas) {
-        // 白天主题：连线固定为黑色，不随 Ela 主题色变化
-        c = QColor(0, 0, 0);
-    } else {
-        c = ElaThemeColor(mode, BasicBaseLine);
-        c = c.lighter(150);
-        if (qAbs(c.lightness() - sceneBg.lightness()) < 45) {
-            c = QColor(208, 216, 228);
-        }
+    // 连线颜色始终按「暗色主题」的基准线色计算，与夜间画布下观感一致（避免浅色主题 Light BaseLine 过亮）
+    QColor c = ElaThemeColor(ElaThemeType::Dark, BasicBaseLine);
+    c = c.lighter(150);
+    if (qAbs(c.lightness() - sceneBg.lightness()) < 45) {
+        c = lightCanvas ? QColor(52, 72, 92) : QColor(208, 216, 228);
     }
 
     painter->setRenderHint(QPainter::Antialiasing, true);

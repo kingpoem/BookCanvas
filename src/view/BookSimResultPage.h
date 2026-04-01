@@ -28,16 +28,22 @@ public slots:
 private:
     void rebuildContent(const BookSimParseResult& result);
     void setStatus(const QString& message, bool isError);
+    void applyResultPageChrome();
     QWidget* buildClassPanel(QWidget* host, const BookSimTrafficClassStats& stats);
     QFrame* createCategoryCard(QWidget* host,
                                const QString& title,
                                const QString& subtitle,
                                const QVector<BookSimMetricRow>& rows,
-                               QWidget* extraWidget = nullptr);
+                               QWidget* extraWidget = nullptr,
+                               const QString& accentColor = QString(),
+                               bool primaryEmphasis = false);
 
     ElaText* m_statusText{};
     ElaPushButton* m_pasteButton{};
     QScrollArea* m_scroll{};
     QWidget* m_scrollInner{};
     QVBoxLayout* m_bodyLayout{};
+    QWidget* m_pageRoot{};
+    /// 用于切换亮/暗主题后按同一份日志重绘样式
+    QString m_lastSimulationLog;
 };
