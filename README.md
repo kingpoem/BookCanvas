@@ -37,13 +37,13 @@ Design, customize, and simulate irregular NoC topologies with a drag-and-drop in
 
 1. 使用[Visual Studio Installer](https://visualstudio.microsoft.com/zh-hans/downloads)安装 Visual Studio
 2. 配置环境变量，在 `Path` 中添加 `C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\<version>\bin\Hostx64\x64`，
-版本号替换为自己的，视具体情况更改，在命令行中输入 `cl` 检验是否安装成功
+版本号替换为自己的，视具体情况更改，在 `powershell` 中输入 `cl` 检验是否安装成功
 3. 不使用`-G "Ninja"`，目前 Ninja 构建有问题，请指定`-G "Visual Studio 17 2022"`
 
 从源码构建：
 
 ```shell
-git clone --recurse-submodules git@github.com:kingpoem/BookCanvas.git
+git clone --recurse-submodules --depth 1 --shadow-submodules git@github.com:kingpoem/BookCanvas.git
 cmake -Bbuild -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 4
 ```
