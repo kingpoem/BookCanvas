@@ -386,11 +386,16 @@ void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
     const QColor sceneBg = QGuiApplication::palette().color(QPalette::Base);
     const bool lightCanvas = sceneBg.lightness() > 128;
     const auto mode = eTheme->getThemeMode();
-    QColor c = lightCanvas ? ElaThemeColor(mode, BasicBorderDeep)
-                           : ElaThemeColor(mode, BasicBaseLine);
-    c = lightCanvas ? c.darker(142) : c.lighter(150);
-    if (qAbs(c.lightness() - sceneBg.lightness()) < 45) {
-        c = lightCanvas ? QColor(52, 72, 92) : QColor(208, 216, 228);
+    QColor c;
+    if (lightCanvas) {
+        // 白天主题：连线固定为黑色，不随 Ela 主题色变化
+        c = QColor(0, 0, 0);
+    } else {
+        c = ElaThemeColor(mode, BasicBaseLine);
+        c = c.lighter(150);
+        if (qAbs(c.lightness() - sceneBg.lightness()) < 45) {
+            c = QColor(208, 216, 228);
+        }
     }
 
     painter->setRenderHint(QPainter::Antialiasing, true);
