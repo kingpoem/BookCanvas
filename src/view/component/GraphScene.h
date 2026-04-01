@@ -5,6 +5,7 @@
 #include "GraphNode.h"
 #include <QList>
 #include <QMap>
+#include <QPointer>
 #include <QString>
 
 class GraphTopologyBlock;
@@ -23,6 +24,7 @@ public:
     /// 对话框确认后进入「单击画布放置」模式（与终端/路由器互斥）
     void beginPlaceBooksimTopology(const BooksimTopologyParams& params);
     void clearBooksimTopologyPlacePending();
+    void updateTopologyBlockParams(GraphTopologyBlock* block, const BooksimTopologyParams& params);
 
     [[nodiscard]] int topologyBlockCount() const {
         return static_cast<int>(m_topologyBlocks.size());
@@ -88,6 +90,8 @@ private:
     [[nodiscard]] QString allocateNextTopologyBlockId() const;
     void createTopologyBlockAt(const QPointF& pos);
     void removeTopologyBlock(GraphTopologyBlock* block);
+    void rebuildManagedMesh(GraphTopologyBlock* block);
+    void clearManagedMesh(GraphTopologyBlock* block);
 
     QList<GraphNode*> m_nodes; // 存放所有节点
     QList<GraphEdge*> m_edges; // 存放所有边
@@ -107,6 +111,13 @@ private:
     GraphNode* m_highlightNode = nullptr;
 
     QList<GraphTopologyBlock*> m_topologyBlocks;
+    struct ManagedTopologyState {
+        BooksimTopologyParams params;
+        QList<QPointer<GraphNode>> routers;
+        QList<QPointer<GraphNode>> terminals;
+        QList<QPointer<GraphEdge>> edges;
+    };
+    QMap<GraphTopologyBlock*, ManagedTopologyState> m_managedTopologies;
 
     // 每个路由器的独立配置（routerId -> config）
     QMap<QString, QMap<QString, QString>> m_routerConfigs;

@@ -3,6 +3,7 @@
 #include "BooksimTopologyParams.h"
 #include "ElaGraphicsItem.h"
 #include <QGraphicsSceneContextMenuEvent>
+#include <QGraphicsSceneMouseEvent>
 
 /// 画布上的 BookSim 内置拓扑示意块（导出 JSON 时可合并 topology / k / n / c / routing_function）
 class GraphTopologyBlock final : public ElaGraphicsItem {
@@ -25,6 +26,7 @@ Q_SIGNALS:
 
 protected:
     void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
 
 private:
     QString m_blockId;

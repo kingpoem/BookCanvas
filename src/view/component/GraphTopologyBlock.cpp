@@ -87,3 +87,12 @@ void GraphTopologyBlock::contextMenuEvent(QGraphicsSceneContextMenuEvent* event)
         emit deleteRequested(this);
     }
 }
+
+void GraphTopologyBlock::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
+    if (event && event->button() == Qt::LeftButton) {
+        emit configureRequested(this);
+        event->accept();
+        return;
+    }
+    ElaGraphicsItem::mouseDoubleClickEvent(event);
+}

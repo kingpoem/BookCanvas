@@ -429,7 +429,7 @@ CanvasPage::CanvasPage(QWidget* parent)
         BooksimTopologyPlaceDialog dlg(cur.topologyId, cur.displayLabel, this);
         dlg.setParams(cur);
         if (dlg.exec() == QDialog::Accepted) {
-            block->setParams(dlg.getParams());
+            m_scene->updateTopologyBlockParams(block, dlg.getParams());
         }
     });
 

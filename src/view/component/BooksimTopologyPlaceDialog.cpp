@@ -20,9 +20,13 @@ BooksimTopologyPlaceDialog::BooksimTopologyPlaceDialog(const QString& topologyId
 
 void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     auto* root = new QVBoxLayout(this);
-    auto* hint = new QLabel(tr("确认参数后，在画布空白处单击一次即可放置该拓扑块。\n配置将随「导出"
-                               "配置」写入 JSON（画布上仅一块时生效）。"),
-                            this);
+    const QString hintText
+        = (m_topologyId == QLatin1String("mesh"))
+              ? tr("确认参数后，在画布空白处单击一次会放置 mesh 组件，并自动生成"
+                   "路由器、终端与内部连线。\n你仍可与现有节点继续手动连线。")
+              : tr("确认参数后，在画布空白处单击一次即可放置该拓扑块。\n配置将随「导"
+                   "出配置」写入 JSON（画布上仅一块时生效）。");
+    auto* hint = new QLabel(hintText, this);
     hint->setWordWrap(true);
     root->addWidget(hint);
 

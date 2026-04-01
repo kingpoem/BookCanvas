@@ -17,6 +17,63 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QVector>
+#include <cmath>
+
+namespace {
+
+constexpr int kMeshMaxRouters = 400;
+constexpr int kMeshMaxTerminals = 4000;
+
+[[nodiscard]] bool safePowInt(int base, int exp, int maxValue, int& out) {
+    if (exp < 0 || base < 0) {
+        return false;
+    }
+    long long v = 1;
+    for (int i = 0; i < exp; ++i) {
+        v *= base;
+        if (v > maxValue) {
+            return false;
+        }
+    }
+    out = static_cast<int>(v);
+    return true;
+}
+
+[[nodiscard]] QVector<int> decodeRouterCoords(int routerIndex, int k, int n) {
+    QVector<int> coords;
+    coords.resize(n);
+    int x = routerIndex;
+    for (int d = 0; d < n; ++d) {
+        coords[d] = x % k;
+        x /= k;
+    }
+    return coords;
+}
+
+[[nodiscard]] int encodeRouterCoords(const QVector<int>& coords, int k) {
+    int idx = 0;
+    int mul = 1;
+    for (int d = 0; d < coords.size(); ++d) {
+        idx += coords[d] * mul;
+        mul *= k;
+    }
+    return idx;
+}
+
+[[nodiscard]] int planeIndexForCoords(const QVector<int>& coords, int k) {
+    if (coords.size() <= 2) {
+        return 0;
+    }
+    int idx = 0;
+    int mul = 1;
+    for (int d = 2; d < coords.size(); ++d) {
+        idx += coords[d] * mul;
+        mul *= k;
+    }
+    return idx;
+}
+
+} // namespace
 
 GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
@@ -44,6 +101,17 @@ void GraphScene::clearBooksimTopologyPlacePending() {
     }
 }
 
+void GraphScene::updateTopologyBlockParams(GraphTopologyBlock* block,
+                                           const BooksimTopologyParams& params) {
+    if (!block) {
+        return;
+    }
+    block->setParams(params);
+    if (params.topologyId == QLatin1String("mesh")) {
+        rebuildManagedMesh(block);
+    }
+}
+
 QString GraphScene::allocateNextTopologyBlockId() const {
     return QStringLiteral("TopoBlock_%1").arg(m_topologyBlocks.size());
 }
@@ -54,6 +122,13 @@ void GraphScene::createTopologyBlockAt(const QPointF& pos) {
     addItem(block);
     block->setPos(pos);
     m_topologyBlocks.append(block);
+
+    if (m_pendingBooksimTopology.topologyId == QLatin1String("mesh")) {
+        ManagedTopologyState st;
+        st.params = m_pendingBooksimTopology;
+        m_managedTopologies.insert(block, st);
+        rebuildManagedMesh(block);
+    }
 
     connect(block, &GraphTopologyBlock::configureRequested, this, [this](GraphTopologyBlock* b) {
         emit topologyBlockConfigureRequested(b);
@@ -75,8 +150,142 @@ void GraphScene::removeTopologyBlock(GraphTopologyBlock* block) {
     if (!block) {
         return;
     }
+    clearManagedMesh(block);
+    m_managedTopologies.remove(block);
     m_topologyBlocks.removeAll(block);
     removeItem(block);
+}
+
+void GraphScene::clearManagedMesh(GraphTopologyBlock* block) {
+    auto it = m_managedTopologies.find(block);
+    if (it == m_managedTopologies.end()) {
+        return;
+    }
+    ManagedTopologyState& st = it.value();
+    const QList<QPointer<GraphEdge>> edges = st.edges;
+    for (const QPointer<GraphEdge>& e : edges) {
+        if (e) {
+            removeEdge(e.data());
+        }
+    }
+    st.edges.clear();
+
+    const QList<QPointer<GraphNode>> terminals = st.terminals;
+    for (const QPointer<GraphNode>& n : terminals) {
+        if (n) {
+            removeNode(n.data());
+        }
+    }
+    st.terminals.clear();
+
+    const QList<QPointer<GraphNode>> routers = st.routers;
+    for (const QPointer<GraphNode>& r : routers) {
+        if (r) {
+            removeNode(r.data());
+        }
+    }
+    st.routers.clear();
+}
+
+void GraphScene::rebuildManagedMesh(GraphTopologyBlock* block) {
+    auto it = m_managedTopologies.find(block);
+    if (it == m_managedTopologies.end()) {
+        return;
+    }
+    ManagedTopologyState& st = it.value();
+    st.params = block->params();
+    clearManagedMesh(block);
+
+    const int k = qMax(2, st.params.k);
+    const int n = qMax(1, st.params.n);
+    const int c = qMax(1, st.params.c);
+
+    int routerCount = 0;
+    if (!safePowInt(k, n, kMeshMaxRouters, routerCount)) {
+        QMessageBox::warning(nullptr,
+                             tr("Mesh 规模过大"),
+                             tr("当前参数 k=%1, n=%2 生成的路由器数量过大。\n"
+                                "为保证画布可用性，当前最多支持 %3 个路由器。")
+                                 .arg(k)
+                                 .arg(n)
+                                 .arg(kMeshMaxRouters));
+        return;
+    }
+    if (routerCount * c > kMeshMaxTerminals) {
+        QMessageBox::warning(nullptr,
+                             tr("Mesh 规模过大"),
+                             tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。\n"
+                                "请减小 k / n / c 后重试。")
+                                 .arg(routerCount * c)
+                                 .arg(kMeshMaxTerminals));
+        return;
+    }
+
+    int planeCount = 1;
+    if (!safePowInt(k, qMax(0, n - 2), kMeshMaxRouters, planeCount)) {
+        planeCount = 1;
+    }
+    const int planeCols = qMax(1,
+                               static_cast<int>(
+                                   std::ceil(std::sqrt(static_cast<double>(planeCount)))));
+
+    const qreal routerStepX = 110.0;
+    const qreal routerStepY = 90.0;
+    const qreal planeGapX = 120.0;
+    const qreal planeGapY = 120.0;
+    const qreal layerSpanX = (k - 1) * routerStepX + planeGapX;
+    const qreal layerSpanY = ((n >= 2 ? (k - 1) : 0) * routerStepY) + planeGapY;
+
+    const QPointF base = block->pos() + QPointF(0.0, 120.0);
+    QVector<GraphNode*> routers;
+    routers.resize(routerCount);
+
+    for (int idx = 0; idx < routerCount; ++idx) {
+        const QVector<int> coords = decodeRouterCoords(idx, k, n);
+        const int plane = planeIndexForCoords(coords, k);
+        const int planeCol = plane % planeCols;
+        const int planeRow = plane / planeCols;
+        const qreal x = base.x() + planeCol * layerSpanX + coords[0] * routerStepX;
+        const qreal y = base.y() + planeRow * layerSpanY + ((n >= 2 ? coords[1] : 0) * routerStepY);
+        GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
+                                       QPointF(x, y),
+                                       GraphNode::Router);
+        routers[idx] = router;
+        st.routers.append(router);
+    }
+
+    for (int idx = 0; idx < routerCount; ++idx) {
+        const QVector<int> coords = decodeRouterCoords(idx, k, n);
+        for (int d = 0; d < n; ++d) {
+            if (coords[d] + 1 >= k) {
+                continue;
+            }
+            QVector<int> next = coords;
+            next[d] += 1;
+            const int nb = encodeRouterCoords(next, k);
+            GraphEdge* e = createEdge(routers[idx], routers[nb], 1.0);
+            if (e) {
+                st.edges.append(e);
+            }
+        }
+    }
+
+    for (int idx = 0; idx < routerCount; ++idx) {
+        GraphNode* router = routers[idx];
+        const QPointF rPos = router->pos();
+        for (int i = 0; i < c; ++i) {
+            const qreal x = rPos.x() - ((c - 1) * 18.0 / 2.0) + i * 18.0;
+            const qreal y = rPos.y() + 68.0;
+            GraphNode* node = createNode(allocateNextNodeId(GraphNode::Node),
+                                         QPointF(x, y),
+                                         GraphNode::Node);
+            st.terminals.append(node);
+            GraphEdge* e = createEdge(node, router, 1.0);
+            if (e) {
+                st.edges.append(e);
+            }
+        }
+    }
 }
 
 QString GraphScene::allocateNextNodeId(GraphNode::NodeType type) const {
@@ -252,6 +461,20 @@ void GraphScene::removeNode(GraphNode* node) {
     canvasDebugLog(QStringLiteral("GraphScene::removeNode [call ElaGraphicsScene::removeItem node] "
                                   "(Ela 实现会 delete 节点)"));
     removeItem(node);
+    for (auto it = m_managedTopologies.begin(); it != m_managedTopologies.end(); ++it) {
+        auto& routers = it.value().routers;
+        for (qsizetype i = routers.size() - 1; i >= 0; --i) {
+            if (!routers[i] || routers[i].data() == node) {
+                routers.removeAt(i);
+            }
+        }
+        auto& terminals = it.value().terminals;
+        for (qsizetype i = terminals.size() - 1; i >= 0; --i) {
+            if (!terminals[i] || terminals[i].data() == node) {
+                terminals.removeAt(i);
+            }
+        }
+    }
     canvasDebugLog(QStringLiteral("GraphScene::removeNode [return] ptr invalid"));
 }
 
@@ -300,6 +523,14 @@ void GraphScene::removeEdge(GraphEdge* edge) {
     canvasDebugLog(QStringLiteral(
         "GraphScene::removeEdge [call ElaGraphicsScene::removeItem edge] (Ela 实现会 delete 边)"));
     removeItem(edge);
+    for (auto it = m_managedTopologies.begin(); it != m_managedTopologies.end(); ++it) {
+        auto& edges = it.value().edges;
+        for (qsizetype i = edges.size() - 1; i >= 0; --i) {
+            if (!edges[i] || edges[i].data() == edge) {
+                edges.removeAt(i);
+            }
+        }
+    }
     canvasDebugLog(QStringLiteral("GraphScene::removeEdge [return] ptr invalid"));
 }
 
