@@ -50,6 +50,7 @@ private:
     void placeWeightLabel();
     void syncBendHandlePos();
     void onBendHandleMoved(const QPointF& handleTopLeft);
+    [[nodiscard]] QPointF clampedHandleTopLeft(const QPointF& handleTopLeft) const;
 
     GraphNode* m_startNode;
     GraphNode* m_endNode;

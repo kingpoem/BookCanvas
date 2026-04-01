@@ -17,6 +17,78 @@ namespace {
 constexpr qreal kHitStrokeWidth = 14.0;
 constexpr qreal kHandleRadius = 6.0;
 constexpr qreal kHandleDiameter = kHandleRadius * 2;
+/// 拐点允许偏离端点包络盒的距离；超出后曼哈顿拼接易产生「探出」多余线段
+constexpr qreal kBendCorridorMargin = 52.0;
+
+[[nodiscard]] QRectF bendCorridorRect(const QPointF& sceneA, const QPointF& sceneB) {
+    QRectF r = QRectF(sceneA, sceneB)
+                   .normalized()
+                   .adjusted(-kBendCorridorMargin,
+                             -kBendCorridorMargin,
+                             kBendCorridorMargin,
+                             kBendCorridorMargin);
+    constexpr qreal kMinSpan = 28.0;
+    if (r.width() < kMinSpan) {
+        const qreal cx = r.center().x();
+        r.setLeft(cx - kMinSpan * 0.5);
+        r.setRight(cx + kMinSpan * 0.5);
+    }
+    if (r.height() < kMinSpan) {
+        const qreal cy = r.center().y();
+        r.setTop(cy - kMinSpan * 0.5);
+        r.setBottom(cy + kMinSpan * 0.5);
+    }
+    return r;
+}
+
+[[nodiscard]] QPointF clampBendToCorridor(const QPointF& sceneA,
+                                          const QPointF& sceneB,
+                                          const QPointF& bend) {
+    const QRectF r = bendCorridorRect(sceneA, sceneB);
+    return QPointF(qBound(r.left(), bend.x(), r.right()), qBound(r.top(), bend.y(), r.bottom()));
+}
+
+[[nodiscard]] QVector<QPointF> dedupeConsecutivePoints(const QVector<QPointF>& pts) {
+    QVector<QPointF> o;
+    o.reserve(pts.size());
+    for (const QPointF& p : pts) {
+        if (o.isEmpty() || QLineF(o.last(), p).length() > 1e-3) {
+            o.append(p);
+        }
+    }
+    return o;
+}
+
+[[nodiscard]] bool orthoCollinear3(const QPointF& a, const QPointF& b, const QPointF& c) {
+    const bool vert = qAbs(a.x() - b.x()) < 1e-3 && qAbs(b.x() - c.x()) < 1e-3;
+    const bool horiz = qAbs(a.y() - b.y()) < 1e-3 && qAbs(b.y() - c.y()) < 1e-3;
+    return vert || horiz;
+}
+
+/// b 落在 a–c 的正交闭线段上（三点共线为正交线）
+[[nodiscard]] bool orthoMiddleRedundant(const QPointF& a, const QPointF& b, const QPointF& c) {
+    if (!orthoCollinear3(a, b, c)) {
+        return false;
+    }
+    return b.x() >= qMin(a.x(), c.x()) - 1e-3 && b.x() <= qMax(a.x(), c.x()) + 1e-3
+           && b.y() >= qMin(a.y(), c.y()) - 1e-3 && b.y() <= qMax(a.y(), c.y()) + 1e-3;
+}
+
+[[nodiscard]] QVector<QPointF> simplifyOrthoScenePolyline(QVector<QPointF> pts) {
+    pts = dedupeConsecutivePoints(pts);
+    if (pts.size() < 3) {
+        return pts;
+    }
+    QVector<QPointF> out;
+    out.append(pts.first());
+    for (int i = 1; i < pts.size(); ++i) {
+        while (out.size() >= 2 && orthoMiddleRedundant(out[out.size() - 2], out.last(), pts.at(i))) {
+            out.removeLast();
+        }
+        out.append(pts.at(i));
+    }
+    return out;
+}
 
 QVector<QPointF> orthoPolyline(const QPointF& a, const QPointF& b) {
     QVector<QPointF> pts;
@@ -124,6 +196,9 @@ public:
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override {
+        if (change == ItemPositionChange && m_edge) {
+            return QVariant::fromValue(m_edge->clampedHandleTopLeft(value.toPointF()));
+        }
         if (change == ItemPositionHasChanged && m_edge) {
             m_edge->onBendHandleMoved(pos());
         }
@@ -179,8 +254,10 @@ void GraphEdge::setWeightVisible(bool visible) {
 }
 
 void GraphEdge::applyPathThroughBendScene(const QPointF& sceneA, const QPointF& sceneB) {
-    const QVector<QPointF> merged = mergeOrthoPath(orthoPolyline(sceneA, m_bendScene),
-                                                   orthoPolyline(m_bendScene, sceneB));
+    m_bendScene = clampBendToCorridor(sceneA, sceneB, m_bendScene);
+    QVector<QPointF> merged = mergeOrthoPath(orthoPolyline(sceneA, m_bendScene),
+                                             orthoPolyline(m_bendScene, sceneB));
+    merged = simplifyOrthoScenePolyline(merged);
     m_polylineLocal.clear();
     m_polylineLocal.reserve(merged.size());
     for (const QPointF& p : merged) {
@@ -189,6 +266,19 @@ void GraphEdge::applyPathThroughBendScene(const QPointF& sceneA, const QPointF& 
     if (m_polylineLocal.size() >= 2) {
         m_line = QLineF(m_polylineLocal.first(), m_polylineLocal.last());
     }
+}
+
+QPointF GraphEdge::clampedHandleTopLeft(const QPointF& handleTopLeft) const {
+    if (!m_startNode || !m_endNode || !scene()) {
+        return handleTopLeft;
+    }
+    const QPointF sceneA = m_startNode->connectionAnchorToward(
+        m_endNode->sceneBoundingRect().center());
+    const QPointF sceneB = m_endNode->connectionAnchorToward(
+        m_startNode->sceneBoundingRect().center());
+    const QPointF centerLocal = handleTopLeft + QPointF(kHandleRadius, kHandleRadius);
+    const QPointF bend = clampBendToCorridor(sceneA, sceneB, mapToScene(centerLocal));
+    return mapFromScene(bend) - QPointF(kHandleRadius, kHandleRadius);
 }
 
 void GraphEdge::rebuildPolylineFromAnchors() {
