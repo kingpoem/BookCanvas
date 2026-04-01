@@ -44,8 +44,11 @@ Design, customize, and simulate irregular NoC topologies with a drag-and-drop in
 
 ```shell
 git clone --recurse-submodules --depth 1 --shallow-submodules git@github.com:kingpoem/BookCanvas.git
+make clean
 cmake -Bbuild -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 4
+& "C:\Qt\qt6\6.7.0\msvc2019_64\bin\windeployqt.exe" --release .\build\Release\BookCanvas.exe
+.\build\Release\BookCanvas.exe
 ```
 
 ### macOS
