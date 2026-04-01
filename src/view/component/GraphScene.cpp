@@ -7,10 +7,13 @@
 #include <QFile>
 #include <QGraphicsLineItem>
 #include <QGraphicsSceneMouseEvent>
+#include <QInputDialog>
 #include <QMap>
+#include <QMessageBox>
 #include <QMimeData>
 #include <QPen>
 #include <QPointer>
+#include <QSet>
 #include <QTextStream>
 #include <QTimer>
 #include <QVector>
@@ -77,22 +80,111 @@ void GraphScene::removeTopologyBlock(GraphTopologyBlock* block) {
 }
 
 QString GraphScene::allocateNextNodeId(GraphNode::NodeType type) const {
-    if (type == GraphNode::Router) {
-        int routerCount = 0;
-        for (GraphNode* node : m_nodes) {
-            if (node->getType() == GraphNode::Router) {
-                ++routerCount;
-            }
-        }
-        return QStringLiteral("Router_%1").arg(routerCount);
-    }
-    int nodeCount = 0;
+    QSet<int> used;
     for (GraphNode* node : m_nodes) {
-        if (node->getType() == GraphNode::Node) {
-            ++nodeCount;
+        if (node->getType() == type) {
+            used.insert(extractNumberId(node->getId()));
         }
     }
-    return QStringLiteral("Node_%1").arg(nodeCount);
+    int k = 0;
+    while (used.contains(k)) {
+        ++k;
+    }
+    if (type == GraphNode::Router) {
+        return QStringLiteral("Router_%1").arg(k);
+    }
+    return QStringLiteral("Node_%1").arg(k);
+}
+
+QString GraphScene::canonicalIdFromUserInput(GraphNode::NodeType type, const QString& raw) {
+    QString s = raw.trimmed();
+    if (s.isEmpty()) {
+        return {};
+    }
+    if (type == GraphNode::Node) {
+        if (s.startsWith(QLatin1String("Node_"), Qt::CaseInsensitive)) {
+            s = s.mid(5);
+        } else if (s.startsWith(u'T', Qt::CaseInsensitive)) {
+            s = s.mid(1);
+        }
+        bool ok = false;
+        const int n = s.toInt(&ok);
+        if (!ok || n < 0) {
+            return {};
+        }
+        return QStringLiteral("Node_%1").arg(n);
+    }
+    if (s.startsWith(QLatin1String("Router_"), Qt::CaseInsensitive)) {
+        s = s.mid(7);
+    } else if (s.startsWith(u'R', Qt::CaseInsensitive)) {
+        s = s.mid(1);
+    }
+    bool ok = false;
+    const int n = s.toInt(&ok);
+    if (!ok || n < 0) {
+        return {};
+    }
+    return QStringLiteral("Router_%1").arg(n);
+}
+
+bool GraphScene::renameNodeToId(GraphNode* node, const QString& newId) {
+    if (!node || newId.isEmpty()) {
+        return false;
+    }
+    for (GraphNode* n : m_nodes) {
+        if (n != node && n->getId() == newId) {
+            return false;
+        }
+    }
+    const QString oldId = node->getId();
+    if (oldId == newId) {
+        return true;
+    }
+    if (node->getType() == GraphNode::Router && m_routerConfigs.contains(oldId)) {
+        const auto cfg = m_routerConfigs.take(oldId);
+        m_routerConfigs.insert(newId, cfg);
+    }
+    node->setGraphId(newId);
+    return true;
+}
+
+void GraphScene::promptRenameNode(GraphNode* node) {
+    if (!node) {
+        return;
+    }
+    const bool isRouter = node->getType() == GraphNode::Router;
+    QString suggest;
+    const QString id = node->getId();
+    if (isRouter && id.startsWith(QLatin1String("Router_"))) {
+        suggest = id.mid(7);
+    } else if (!isRouter && id.startsWith(QLatin1String("Node_"))) {
+        suggest = id.mid(5);
+    } else {
+        suggest = id;
+    }
+
+    bool ok = false;
+    const QString text
+        = QInputDialog::getText(nullptr,
+                                tr("重命名节点"),
+                                isRouter ? tr("路由器编号（非负整数，或 R0 / Router_0）：")
+                                         : tr("终端编号（非负整数，或 T0 / Node_0）："),
+                                QLineEdit::Normal,
+                                suggest,
+                                &ok);
+    if (!ok) {
+        return;
+    }
+    const QString newId = canonicalIdFromUserInput(node->getType(), text);
+    if (newId.isEmpty()) {
+        QMessageBox::warning(nullptr,
+                             tr("无效编号"),
+                             tr("请输入非负整数，或使用 T0、Node_1、R0、Router_1 等形式。"));
+        return;
+    }
+    if (!renameNodeToId(node, newId)) {
+        QMessageBox::warning(nullptr, tr("重命名失败"), tr("该编号已被其他节点使用。"));
+    }
 }
 
 GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNode::NodeType type) {
@@ -103,6 +195,8 @@ GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNo
 
     // 连接节点的配置请求信号到场景
     connect(node, &GraphNode::configureRequested, this, &GraphScene::nodeConfigureRequested);
+
+    connect(node, &GraphNode::renameRequested, this, [this](GraphNode* n) { promptRenameNode(n); });
 
     connect(node, &GraphNode::deleteRequested, this, [this](GraphNode* n) {
         if (!n) {

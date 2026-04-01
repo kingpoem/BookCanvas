@@ -80,6 +80,11 @@ protected:
 private:
     static int extractNumberId(const QString& id); // 辅助函数
     [[nodiscard]] QString allocateNextNodeId(GraphNode::NodeType type) const;
+    /// 将用户输入规范为 Router_%d / Node_%d；无效则返回空字符串
+    [[nodiscard]] static QString canonicalIdFromUserInput(GraphNode::NodeType type,
+                                                          const QString& raw);
+    bool renameNodeToId(GraphNode* node, const QString& newId);
+    void promptRenameNode(GraphNode* node);
     [[nodiscard]] QString allocateNextTopologyBlockId() const;
     void createTopologyBlockAt(const QPointF& pos);
     void removeTopologyBlock(GraphTopologyBlock* block);

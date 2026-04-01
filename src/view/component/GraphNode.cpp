@@ -166,11 +166,14 @@ void GraphNode::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
     if (m_type == Router) {
         configAction = menu.addAction(tr("配置参数"));
     }
+    QAction* renameAction = menu.addAction(tr("重命名"));
     QAction* deleteAction = menu.addAction(tr("删除"));
 
     QAction* selected = menu.exec(event->screenPos());
     if (selected == configAction) {
         emit configureRequested(this);
+    } else if (selected == renameAction) {
+        emit renameRequested(this);
     } else if (selected == deleteAction) {
         canvasDebugLog(QStringLiteral("GraphNode.cpp: menu 删除 id=%1 ptr=0x%2 before emit")
                            .arg(m_id)
@@ -178,4 +181,18 @@ void GraphNode::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
         emit deleteRequested(this);
         canvasDebugLog(QStringLiteral("GraphNode.cpp: after deleteRequested emit (same stack)"));
     }
+}
+
+void GraphNode::setGraphId(QString id) {
+    m_id = std::move(id);
+    update();
+}
+
+void GraphNode::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
+    if (event->button() == Qt::LeftButton) {
+        emit renameRequested(this);
+        event->accept();
+        return;
+    }
+    ElaGraphicsItem::mouseDoubleClickEvent(event);
 }

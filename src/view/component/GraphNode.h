@@ -28,14 +28,19 @@ public:
     // 相对另一端的场景坐标，取本节点上的连线附着点（端口侧 / 引脚侧）
     [[nodiscard]] QPointF connectionAnchorToward(const QPointF& sceneTarget) const;
 
+    /// 由 GraphScene 在校验唯一性后设置，会触发重绘
+    void setGraphId(QString id);
+
 signals:
     void posChanged(const QPointF& localPos, const QPointF& scenePos);
     void configureRequested(GraphNode* node); // 配置请求信号
     void deleteRequested(GraphNode* node);
+    void renameRequested(GraphNode* node);
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
     void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override; // 右键菜单
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
 
 private:
     QString m_id;
