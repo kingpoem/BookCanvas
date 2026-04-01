@@ -6,6 +6,22 @@
 
 namespace BooksimPaths {
 
+#ifdef Q_OS_WIN
+QString findInWindowsAncestors(const QString& appDir, const QString& relativePath) {
+    QDir dir(appDir);
+    for (int i = 0; i < 10; ++i) {
+        const QString candidate = dir.absoluteFilePath(relativePath);
+        if (QFileInfo::exists(candidate)) {
+            return QFileInfo(candidate).absoluteFilePath();
+        }
+        if (!dir.cdUp()) {
+            break;
+        }
+    }
+    return {};
+}
+#endif
+
 QString findBooksimExecutable() {
     const QString appDir = QCoreApplication::applicationDirPath();
 
@@ -24,6 +40,13 @@ QString findBooksimExecutable() {
     const QString pathExe = QDir(appDir).filePath(QStringLiteral("booksim.exe"));
     if (QFileInfo::exists(pathExe)) {
         return QDir(appDir).absoluteFilePath(QStringLiteral("booksim.exe"));
+    }
+
+    const QString scannedExe = findInWindowsAncestors(appDir,
+                                                      QStringLiteral(
+                                                          "3rdpart/booksim2/src/booksim.exe"));
+    if (!scannedExe.isEmpty()) {
+        return scannedExe;
     }
 
     const QString nestedExe = QDir(appDir).absoluteFilePath(
@@ -59,6 +82,14 @@ QString booksimWorkingDirectory() {
     if (QDir(srcRel).exists()) {
         return QDir(srcRel).canonicalPath();
     }
+
+#ifdef Q_OS_WIN
+    const QString scannedSrc = findInWindowsAncestors(appDir,
+                                                      QStringLiteral("3rdpart/booksim2/src"));
+    if (!scannedSrc.isEmpty() && QDir(scannedSrc).exists()) {
+        return QDir(scannedSrc).canonicalPath();
+    }
+#endif
 
     if (QDir(appDir).exists(QStringLiteral("booksim"))) {
         return appDir;
