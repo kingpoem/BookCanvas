@@ -1,73 +1,79 @@
-# C++ objects and libs
-*.slo
-*.lo
-*.o
+# ========================
+# Build outputs & binaries
+# ========================
 *.a
-*.la
-*.lai
-*.so
-*.so.*
 *.dll
 *.dylib
+*.la
+*.lai
+*.lo
+*.o
+*.slo
+*.so
+*.so.*
+build/
+cmake-build-*/
+Install/
 
-# Qt-es
-object_script.*.Release
-object_script.*.Debug
+# ========================
+# CMake / compilation cache
+# ========================
+CMakeCache.txt
+compile_commands.json
+.cache/
+
+# ========================
+# Qt generated files
+# ========================
+*.jsc
+*.moc
+*.prl
+*.qm
+*.qmlc
 *_plugin_import.cpp
+*_qmlcache.qrc
 /.qmake.cache
 /.qmake.stash
+moc_*.cpp
+moc_*.h
+object_script.*.Debug
+object_script.*.Release
+qrc_*.cpp
+ui_*.h
+
+# ========================
+# IDE / editor local files
+# ========================
+*.autosave
 *.pro.user
 *.pro.user.*
 *.qbs.user
 *.qbs.user.*
-*.moc
-moc_*.cpp
-moc_*.h
-qrc_*.cpp
-ui_*.h
-*.qmlc
-*.jsc
-*.qm
-*.prl
-
-# Qt unit tests
-target_wrapper.*
-
-# QtCreator
-*.autosave
-
-# QtCreator Qml
 *.qmlproject.user
 *.qmlproject.user.*
-
-# QtCreator CMake
-CMakeLists.txt.user*
-
-# QtCreator 4.8< compilation database
-compile_commands.json
-
-# QtCreator local machine specific files for imported projects
 *creator.user*
-
-*_qmlcache.qrc
-
-# Clangd
+CMakeLists.txt.user*
 .clangd.local
-compile_commands.json
+.cursor/
 
-CMakeCache.txt
-build/
-.cache/
-
-network_config.txt
-Install/
+# ========================
+# Local runtime/config files
+# ========================
 .qt/
-anynet_config.txt
 anynet_config
-anynet_file.txt
+anynet_config.txt
 anynet_file
+anynet_file.txt
+network_config.txt
 
+# ========================
+# OS junk
+# ========================
 .DS_Store
 
-.cursor/
+# ========================
+# Project-specific generated files
+# ========================
+BookCanvas.rc
+action-cli/
 doc/
