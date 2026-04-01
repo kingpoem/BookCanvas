@@ -1,4 +1,5 @@
 #include "GraphScene.h"
+#include "GraphTopologyBlock.h"
 #include "RouterConfigDialog.h"
 #include "RouterGlobalConfigDialog.h"
 #include "utils/CanvasDebugLog.h"
@@ -22,6 +23,57 @@ GraphScene::GraphScene(QObject* parent)
 
 void GraphScene::setPlaceTool(PlaceTool tool) {
     m_placeTool = tool;
+    if (tool != PlaceTool::TopologyBlock) {
+        m_pendingBooksimTopologyActive = false;
+    }
+}
+
+void GraphScene::beginPlaceBooksimTopology(const BooksimTopologyParams& params) {
+    m_pendingBooksimTopology = params;
+    m_pendingBooksimTopologyActive = true;
+    setPlaceTool(PlaceTool::TopologyBlock);
+}
+
+void GraphScene::clearBooksimTopologyPlacePending() {
+    m_pendingBooksimTopologyActive = false;
+    if (m_placeTool == PlaceTool::TopologyBlock) {
+        m_placeTool = PlaceTool::None;
+    }
+}
+
+QString GraphScene::allocateNextTopologyBlockId() const {
+    return QStringLiteral("TopoBlock_%1").arg(m_topologyBlocks.size());
+}
+
+void GraphScene::createTopologyBlockAt(const QPointF& pos) {
+    const QString bid = allocateNextTopologyBlockId();
+    auto* block = new GraphTopologyBlock(bid, m_pendingBooksimTopology);
+    addItem(block);
+    block->setPos(pos);
+    m_topologyBlocks.append(block);
+
+    connect(block, &GraphTopologyBlock::configureRequested, this, [this](GraphTopologyBlock* b) {
+        emit topologyBlockConfigureRequested(b);
+    });
+    connect(block, &GraphTopologyBlock::deleteRequested, this, [this](GraphTopologyBlock* b) {
+        if (!b) {
+            return;
+        }
+        const QPointer<GraphTopologyBlock> guard(b);
+        QTimer::singleShot(0, this, [this, guard]() {
+            if (guard) {
+                removeTopologyBlock(guard.data());
+            }
+        });
+    });
+}
+
+void GraphScene::removeTopologyBlock(GraphTopologyBlock* block) {
+    if (!block) {
+        return;
+    }
+    m_topologyBlocks.removeAll(block);
+    removeItem(block);
 }
 
 QString GraphScene::allocateNextNodeId(GraphNode::NodeType type) const {
@@ -208,7 +260,20 @@ void GraphScene::dropEvent(QGraphicsSceneDragDropEvent* event) {
 void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     if (event->button() == Qt::LeftButton && m_placeTool != PlaceTool::None) {
         QGraphicsItem* top = itemAt(event->scenePos(), QTransform());
-        if (top == nullptr) {
+        if (m_placeTool == PlaceTool::TopologyBlock && m_pendingBooksimTopologyActive
+            && top == nullptr) {
+            if (m_highlightNode) {
+                m_highlightNode->setNodeState(GraphNode::Normal);
+                m_highlightNode = nullptr;
+            }
+            createTopologyBlockAt(event->scenePos());
+            m_pendingBooksimTopologyActive = false;
+            m_placeTool = PlaceTool::None;
+            event->accept();
+            return;
+        }
+        if ((m_placeTool == PlaceTool::Terminal || m_placeTool == PlaceTool::Router)
+            && top == nullptr) {
             if (m_highlightNode) {
                 m_highlightNode->setNodeState(GraphNode::Normal);
                 m_highlightNode = nullptr;
@@ -257,8 +322,8 @@ void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 
 void GraphScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     if (m_tempEdge && m_lineStartNode) {
-        QLineF line(m_lineStartNode->sceneBoundingRect().center(), event->scenePos());
-        m_tempEdge->setLine(line);
+        const QPointF from = m_lineStartNode->connectionAnchorToward(event->scenePos());
+        m_tempEdge->setLine(QLineF(from, event->scenePos()));
     }
     ElaGraphicsScene::mouseMoveEvent(event);
 }
@@ -402,6 +467,15 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
     }
     if (!networkFileOverride.isEmpty()) {
         globalConfigToExport.insert(QStringLiteral("network_file"), networkFileOverride);
+    }
+
+    if (m_topologyBlocks.size() == 1) {
+        const BooksimTopologyParams p = m_topologyBlocks.first()->params();
+        globalConfigToExport.insert(QStringLiteral("topology"), p.topologyId);
+        globalConfigToExport.insert(QStringLiteral("k"), QString::number(p.k));
+        globalConfigToExport.insert(QStringLiteral("n"), QString::number(p.n));
+        globalConfigToExport.insert(QStringLiteral("c"), QString::number(p.c));
+        globalConfigToExport.insert(QStringLiteral("routing_function"), p.routingFunction);
     }
 
     bool first = true;

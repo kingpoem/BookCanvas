@@ -25,6 +25,9 @@ public:
     [[nodiscard]] QString getId() const { return m_id; };
     [[nodiscard]] NodeType getType() const { return m_type; }; // 获取节点类型
 
+    // 相对另一端的场景坐标，取本节点上的连线附着点（端口侧 / 引脚侧）
+    [[nodiscard]] QPointF connectionAnchorToward(const QPointF& sceneTarget) const;
+
 signals:
     void posChanged(const QPointF& localPos, const QPointF& scenePos);
     void configureRequested(GraphNode* node); // 配置请求信号

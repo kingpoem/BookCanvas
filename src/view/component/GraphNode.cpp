@@ -113,11 +113,43 @@ void GraphNode::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
     painter->drawText(m_rect.adjusted(0, 2, 0, -12), Qt::AlignHCenter | Qt::AlignTop, abbrev);
 }
 
-// 捕捉选中状态变化
+QPointF GraphNode::connectionAnchorToward(const QPointF& sceneTarget) const {
+    const QPointF targetLocal = mapFromScene(sceneTarget);
+    if (m_type == Node) {
+        const QRectF rr = m_rect.adjusted(6, 6, -6, -14);
+        const qreal pinTop = rr.bottom() + 1;
+        const qreal pinH = 5;
+        const QPointF pinCenter(rr.center().x(), pinTop + pinH / 2);
+        return mapToScene(pinCenter);
+    }
+    const QRectF rr = m_rect.adjusted(6, 6, -6, -6);
+    const QPointF c = rr.center();
+    const QPointF candidates[4] = {
+        QPointF(c.x(), rr.top()),
+        QPointF(c.x(), rr.bottom()),
+        QPointF(rr.left(), c.y()),
+        QPointF(rr.right(), c.y()),
+    };
+    int best = 0;
+    qreal bestDot = -1e20;
+    const QPointF dir = targetLocal - c;
+    for (int i = 0; i < 4; ++i) {
+        const QPointF outward = candidates[i] - c;
+        const qreal dot = outward.x() * dir.x() + outward.y() * dir.y();
+        if (dot > bestDot) {
+            bestDot = dot;
+            best = i;
+        }
+    }
+    return mapToScene(candidates[best]);
+}
+
 QVariant GraphNode::itemChange(GraphicsItemChange change, const QVariant& value) {
+    if (change == ItemPositionHasChanged) {
+        emit posChanged(pos(), scenePos());
+    }
     if (change == ItemSelectedChange) {
-        emit posChanged(this->pos(), this->scenePos());
-        bool selected = value.toBool();
+        const bool selected = value.toBool();
         if (selected) {
             qDebug() << "节点被选中:" << m_id;
         } else {

@@ -26,6 +26,5 @@ private:
     GraphView* m_graphView = nullptr;
     ElaIconButton* m_placeTermPick = nullptr;
     ElaIconButton* m_placeRouterPick = nullptr;
-    QWidget* m_placeTermHost = nullptr;
-    QWidget* m_placeRouterHost = nullptr;
+    QWidget* m_leftBuildPanel = nullptr;
 };

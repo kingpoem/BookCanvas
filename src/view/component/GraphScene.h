@@ -1,4 +1,5 @@
 #pragma once
+#include "BooksimTopologyParams.h"
 #include "ElaGraphicsScene.h"
 #include "GraphEdge.h"
 #include "GraphNode.h"
@@ -6,19 +7,30 @@
 #include <QMap>
 #include <QString>
 
+class GraphTopologyBlock;
+
 // 提供了节点/边的创建、删除，以及与拖拽交互、鼠标事件相关的逻辑
 class GraphScene : public ElaGraphicsScene {
     Q_OBJECT
 public:
-    enum class PlaceTool { None, Terminal, Router };
+    enum class PlaceTool { None, Terminal, Router, TopologyBlock };
 
     explicit GraphScene(QObject* parent = nullptr);
 
     void setPlaceTool(PlaceTool tool);
     [[nodiscard]] PlaceTool placeTool() const { return m_placeTool; }
 
+    /// 对话框确认后进入「单击画布放置」模式（与终端/路由器互斥）
+    void beginPlaceBooksimTopology(const BooksimTopologyParams& params);
+    void clearBooksimTopologyPlacePending();
+
+    [[nodiscard]] int topologyBlockCount() const {
+        return static_cast<int>(m_topologyBlocks.size());
+    }
+
     // 信号：节点配置请求
     Q_SIGNAL void nodeConfigureRequested(GraphNode* node);
+    Q_SIGNAL void topologyBlockConfigureRequested(GraphTopologyBlock* block);
 
     GraphNode* createNode(const QString& id,
                           const QPointF& pos,
@@ -68,6 +80,9 @@ protected:
 private:
     static int extractNumberId(const QString& id); // 辅助函数
     [[nodiscard]] QString allocateNextNodeId(GraphNode::NodeType type) const;
+    [[nodiscard]] QString allocateNextTopologyBlockId() const;
+    void createTopologyBlockAt(const QPointF& pos);
+    void removeTopologyBlock(GraphTopologyBlock* block);
 
     QList<GraphNode*> m_nodes; // 存放所有节点
     QList<GraphEdge*> m_edges; // 存放所有边
@@ -81,7 +96,12 @@ private:
 
     PlaceTool m_placeTool = PlaceTool::None;
 
+    BooksimTopologyParams m_pendingBooksimTopology;
+    bool m_pendingBooksimTopologyActive = false;
+
     GraphNode* m_highlightNode = nullptr;
+
+    QList<GraphTopologyBlock*> m_topologyBlocks;
 
     // 每个路由器的独立配置（routerId -> config）
     QMap<QString, QMap<QString, QString>> m_routerConfigs;

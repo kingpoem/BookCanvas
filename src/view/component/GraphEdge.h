@@ -5,7 +5,11 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsTextItem>
 #include <QObject>
+#include <QPainterPath>
 #include <QPen>
+#include <QVector>
+
+class GraphEdgeBendHandle;
 
 class GraphEdge : public ElaGraphicsItem {
     Q_OBJECT
@@ -26,6 +30,7 @@ public:
     [[nodiscard]] const QLineF& line() const { return m_line; }
 
     [[nodiscard]] QRectF boundingRect() const override;
+    [[nodiscard]] QPainterPath shape() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
 public slots:
@@ -34,15 +39,26 @@ public slots:
     void updatePosition(); // 根据节点位置更新线段
 
 protected:
-    // 鼠标双击事件：
-    // 例如双击边可以弹出对话框修改权重，或者实现其它交互功能
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
-    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override; // 右键菜单
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent* event) override;
+    [[nodiscard]] QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
 
 private:
-    GraphNode* m_startNode;            // 起点节点指针
-    GraphNode* m_endNode;              // 终点节点指针
-    double m_weight = 1.0;             // 边的权重（默认 1.0）
-    QLineF m_line;                     // 保存边的线段
-    QGraphicsTextItem* m_weightText{}; // 显示权重的文本对象（通常放在线条中点）
+    friend class GraphEdgeBendHandle;
+    void rebuildPolylineFromAnchors();
+    void applyPathThroughBendScene(const QPointF& sceneA, const QPointF& sceneB);
+    void placeWeightLabel();
+    void syncBendHandlePos();
+    void onBendHandleMoved(const QPointF& handleTopLeft);
+
+    GraphNode* m_startNode;
+    GraphNode* m_endNode;
+    double m_weight = 1.0;
+    QLineF m_line;
+    QVector<QPointF> m_polylineLocal;
+    QGraphicsTextItem* m_weightText{};
+    GraphEdgeBendHandle* m_bendHandle = nullptr;
+    QPointF m_bendScene;
+    bool m_bendUserEdited = false;
+    bool m_syncingBendHandle = false;
 };

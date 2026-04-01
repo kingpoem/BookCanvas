@@ -1,12 +1,138 @@
 #include "GraphEdge.h"
 #include "GraphScene.h"
+#include <ElaDef.h>
+#include <ElaTheme.h>
 #include <QBrush>
 #include <QGuiApplication>
 #include <QInputDialog>
 #include <QMenu>
+#include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QPen>
 #include <QPointer>
 #include <QTimer>
+
+namespace {
+
+constexpr qreal kHitStrokeWidth = 14.0;
+constexpr qreal kHandleRadius = 6.0;
+constexpr qreal kHandleDiameter = kHandleRadius * 2;
+
+QVector<QPointF> orthoPolyline(const QPointF& a, const QPointF& b) {
+    QVector<QPointF> pts;
+    pts.append(a);
+    const qreal dx = b.x() - a.x();
+    const qreal dy = b.y() - a.y();
+    if (qFuzzyIsNull(dx) || qFuzzyIsNull(dy)) {
+        pts.append(b);
+        return pts;
+    }
+    if (qAbs(dx) >= qAbs(dy)) {
+        pts.append(QPointF(b.x(), a.y()));
+    } else {
+        pts.append(QPointF(a.x(), b.y()));
+    }
+    pts.append(b);
+    return pts;
+}
+
+QVector<QPointF> mergeOrthoPath(const QVector<QPointF>& first, const QVector<QPointF>& second) {
+    if (first.isEmpty()) {
+        return second;
+    }
+    if (second.isEmpty()) {
+        return first;
+    }
+    QVector<QPointF> out = first;
+    int start = 0;
+    if (QLineF(out.last(), second.first()).length() < 1e-3) {
+        start = 1;
+    }
+    for (int i = start; i < second.size(); ++i) {
+        out.append(second.at(i));
+    }
+    return out;
+}
+
+QPointF midAlongPolyline(const QVector<QPointF>& pts) {
+    if (pts.isEmpty()) {
+        return {};
+    }
+    if (pts.size() == 1) {
+        return pts[0];
+    }
+    qreal total = 0;
+    for (int i = 0; i + 1 < pts.size(); ++i) {
+        total += QLineF(pts[i], pts[i + 1]).length();
+    }
+    if (total <= 1e-9) {
+        return pts.first();
+    }
+    qreal half = total * 0.5;
+    for (int i = 0; i + 1 < pts.size(); ++i) {
+        QLineF seg(pts[i], pts[i + 1]);
+        const qreal len = seg.length();
+        if (len <= 1e-9) {
+            continue;
+        }
+        if (half <= len) {
+            return seg.pointAt(half / len);
+        }
+        half -= len;
+    }
+    return pts.last();
+}
+
+QPainterPath polylinePath(const QVector<QPointF>& pts) {
+    QPainterPath path;
+    if (pts.size() < 2) {
+        return path;
+    }
+    path.moveTo(pts.first());
+    for (int i = 1; i < pts.size(); ++i) {
+        path.lineTo(pts.at(i));
+    }
+    return path;
+}
+
+} // namespace
+
+class GraphEdgeBendHandle : public QGraphicsEllipseItem {
+public:
+    explicit GraphEdgeBendHandle(GraphEdge* edge)
+        : QGraphicsEllipseItem(-kHandleRadius, -kHandleRadius, kHandleDiameter, kHandleDiameter, edge)
+        , m_edge(edge) {
+        setFlag(QGraphicsItem::ItemIsMovable, true);
+        setFlag(QGraphicsItem::ItemIsSelectable, false);
+        setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
+        setAcceptHoverEvents(true);
+        setCursor(Qt::SizeAllCursor);
+        setZValue(2);
+        const auto mode = eTheme->getThemeMode();
+        QColor stroke = ElaThemeColor(mode, PrimaryNormal);
+        setPen(QPen(stroke.darker(110), 1.25));
+        setBrush(ElaThemeColor(mode, BasicBase));
+        hide();
+    }
+
+    void applyThemeChrome() {
+        const auto mode = eTheme->getThemeMode();
+        QColor stroke = ElaThemeColor(mode, PrimaryNormal);
+        setPen(QPen(stroke.darker(110), 1.25));
+        setBrush(ElaThemeColor(mode, BasicBase));
+    }
+
+protected:
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override {
+        if (change == ItemPositionHasChanged && m_edge) {
+            m_edge->onBendHandleMoved(pos());
+        }
+        return QGraphicsEllipseItem::itemChange(change, value);
+    }
+
+private:
+    GraphEdge* m_edge;
+};
 
 GraphEdge::GraphEdge(GraphNode* startNode, GraphNode* endNode, QGraphicsItem* parent)
     : ElaGraphicsItem(parent)
@@ -14,21 +140,23 @@ GraphEdge::GraphEdge(GraphNode* startNode, GraphNode* endNode, QGraphicsItem* pa
     , m_endNode(endNode) {
     setZValue(-1); // 线在节点下方
 
-    // 禁止拖动这条边
     setFlag(QGraphicsItem::ItemIsMovable, false);
     setFlag(QGraphicsItem::ItemIsSelectable, true);
 
-    // 右键/双击能被接受
     setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
     setAcceptHoverEvents(true);
 
-    // 权重文本
     m_weightText = new QGraphicsTextItem(this);
     m_weightText->setDefaultTextColor(QGuiApplication::palette().color(QPalette::Link));
     m_weightText->setVisible(false);
 
-    // scene::createEdge addItem 后调用
-    // updatePosition();
+    m_bendHandle = new GraphEdgeBendHandle(this);
+    QObject::connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
+        if (m_bendHandle) {
+            m_bendHandle->applyThemeChrome();
+        }
+        update();
+    });
 }
 
 void GraphEdge::setWeight(double w) {
@@ -38,13 +166,7 @@ void GraphEdge::setWeight(double w) {
         m_weightText->setDefaultTextColor(QGuiApplication::palette().color(QPalette::Link));
         m_weightText->setPlainText(QString::number(m_weight));
         m_weightText->setVisible(true);
-
-        // 设置文本位置在线段中点
-        // mid 是局部坐标
-        QPointF mid = (m_line.p1() + m_line.p2()) / 2;
-        m_weightText->setPos(mid
-                             - QPointF(m_weightText->boundingRect().width() / 2,
-                                       m_weightText->boundingRect().height() / 2));
+        placeWeightLabel();
     } else {
         m_weightText->setVisible(false);
     }
@@ -56,6 +178,74 @@ void GraphEdge::setWeightVisible(bool visible) {
     }
 }
 
+void GraphEdge::applyPathThroughBendScene(const QPointF& sceneA, const QPointF& sceneB) {
+    const QVector<QPointF> merged = mergeOrthoPath(orthoPolyline(sceneA, m_bendScene),
+                                                   orthoPolyline(m_bendScene, sceneB));
+    m_polylineLocal.clear();
+    m_polylineLocal.reserve(merged.size());
+    for (const QPointF& p : merged) {
+        m_polylineLocal.append(mapFromScene(p));
+    }
+    if (m_polylineLocal.size() >= 2) {
+        m_line = QLineF(m_polylineLocal.first(), m_polylineLocal.last());
+    }
+}
+
+void GraphEdge::rebuildPolylineFromAnchors() {
+    if (!m_startNode || !m_endNode || !scene()) {
+        return;
+    }
+    const QPointF sceneA = m_startNode->connectionAnchorToward(
+        m_endNode->sceneBoundingRect().center());
+    const QPointF sceneB = m_endNode->connectionAnchorToward(
+        m_startNode->sceneBoundingRect().center());
+
+    if (!m_bendUserEdited) {
+        const QVector<QPointF> autoPts = orthoPolyline(sceneA, sceneB);
+        m_bendScene = (autoPts.size() >= 3) ? autoPts.at(1) : QLineF(sceneA, sceneB).pointAt(0.5);
+    }
+
+    applyPathThroughBendScene(sceneA, sceneB);
+}
+
+void GraphEdge::placeWeightLabel() {
+    if (!m_weightText || m_weight == 1.0) {
+        return;
+    }
+    const QPointF mid = midAlongPolyline(m_polylineLocal);
+    m_weightText->setPos(mid
+                         - QPointF(m_weightText->boundingRect().width() / 2,
+                                   m_weightText->boundingRect().height() / 2));
+}
+
+void GraphEdge::syncBendHandlePos() {
+    if (!m_bendHandle || !scene()) {
+        return;
+    }
+    m_syncingBendHandle = true;
+    const QPointF bl = mapFromScene(m_bendScene);
+    m_bendHandle->setPos(bl - QPointF(kHandleRadius, kHandleRadius));
+    m_syncingBendHandle = false;
+}
+
+void GraphEdge::onBendHandleMoved(const QPointF& handleTopLeft) {
+    if (m_syncingBendHandle || !m_startNode || !m_endNode || !scene()) {
+        return;
+    }
+    const QPointF centerLocal = handleTopLeft + QPointF(kHandleRadius, kHandleRadius);
+    m_bendScene = mapToScene(centerLocal);
+    m_bendUserEdited = true;
+
+    prepareGeometryChange();
+    const QPointF sceneA = m_startNode->connectionAnchorToward(
+        m_endNode->sceneBoundingRect().center());
+    const QPointF sceneB = m_endNode->connectionAnchorToward(
+        m_startNode->sceneBoundingRect().center());
+    applyPathThroughBendScene(sceneA, sceneB);
+    placeWeightLabel();
+    update();
+}
+
 void GraphEdge::updatePosition() {
     if (!m_startNode || !m_endNode) {
         return;
@@ -64,50 +254,89 @@ void GraphEdge::updatePosition() {
         return;
     }
 
-    // 用节点的 圆心（scene 坐标）
-    QPointF sceneP1 = m_startNode->sceneBoundingRect().center();
-    QPointF sceneP2 = m_endNode->sceneBoundingRect().center();
-
-    // 将 scene 坐标映射为本 item 的局部坐标
-    QPointF localP1 = mapFromScene(sceneP1);
-    QPointF localP2 = mapFromScene(sceneP2);
-
     prepareGeometryChange();
-
-    // m_line = QLineF(m_startNode->sceneBoundingRect().center(),
-    //                 m_endNode->sceneBoundingRect().center());
-    m_line = QLineF(localP1, localP2);
-
-    // 更新权重位置
-    if (m_weight != 1.0 && m_weightText) {
-        QPointF mid = (m_line.p1() + m_line.p2()) / 2;
-        m_weightText->setPos(mid
-                             - QPointF(m_weightText->boundingRect().width() / 2,
-                                       m_weightText->boundingRect().height() / 2));
-    }
-
+    rebuildPolylineFromAnchors();
+    placeWeightLabel();
     update();
-    // prepareGeometryChange(); // 通知Qt边界更新
+    if (isSelected()) {
+        syncBendHandlePos();
+    }
 }
 
 QRectF GraphEdge::boundingRect() const {
-    // m_line 已经是局部坐标
-    QRectF r = QRectF(m_line.p1(), m_line.p2()).normalized();
-    // 扩一点以容纳 pen 宽度与点击容差
-    const qreal pad = 4.0;
+    QRectF r;
+    if (m_polylineLocal.isEmpty()) {
+        r = QRectF(m_line.p1(), m_line.p2()).normalized();
+    } else {
+        for (const QPointF& p : m_polylineLocal) {
+            r |= QRectF(p, QSizeF(1, 1));
+        }
+    }
+    if (m_weightText && m_weight != 1.0 && m_weightText->isVisible()) {
+        r |= m_weightText->sceneBoundingRect();
+    }
+    const qreal pad = 8.0;
     return r.adjusted(-pad, -pad, pad, pad);
 }
 
-void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
-    const QColor line = QGuiApplication::palette().color(QPalette::Mid);
-    const QColor bg = QGuiApplication::palette().color(QPalette::Base);
-    QColor c = line.lightness() > bg.lightness() ? line.darker(120) : line.lighter(150);
-    if (qAbs(c.lightness() - bg.lightness()) < 25) {
-        c = (bg.lightness() < 128) ? QColor(200, 210, 230) : QColor(70, 75, 85);
+QPainterPath GraphEdge::shape() const {
+    QPainterPath centerline = polylinePath(m_polylineLocal);
+    if (centerline.isEmpty() && m_line.length() > 1e-6) {
+        centerline.moveTo(m_line.p1());
+        centerline.lineTo(m_line.p2());
     }
-    painter->setPen(QPen(c, 2));
-    painter->drawLine(m_line);
+    QPainterPathStroker stroker;
+    stroker.setWidth(kHitStrokeWidth);
+    stroker.setCapStyle(Qt::RoundCap);
+    stroker.setJoinStyle(Qt::RoundJoin);
+    return stroker.createStroke(centerline);
 }
+
+void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
+    const QColor sceneBg = QGuiApplication::palette().color(QPalette::Base);
+    const bool lightCanvas = sceneBg.lightness() > 128;
+    const auto mode = eTheme->getThemeMode();
+    QColor c = lightCanvas ? ElaThemeColor(mode, BasicBorderDeep)
+                           : ElaThemeColor(mode, BasicBaseLine);
+    c = lightCanvas ? c.darker(142) : c.lighter(150);
+    if (qAbs(c.lightness() - sceneBg.lightness()) < 45) {
+        c = lightCanvas ? QColor(52, 72, 92) : QColor(208, 216, 228);
+    }
+
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    QColor halo = c;
+    halo.setAlpha(lightCanvas ? 50 : 65);
+    QPen haloPen(halo, 4.25, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    painter->setPen(haloPen);
+    if (m_polylineLocal.size() >= 2) {
+        painter->drawPolyline(m_polylineLocal.constData(), static_cast<int>(m_polylineLocal.size()));
+    } else {
+        painter->drawLine(m_line);
+    }
+
+    QPen corePen(c, 1.08, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    painter->setPen(corePen);
+    if (m_polylineLocal.size() >= 2) {
+        painter->drawPolyline(m_polylineLocal.constData(), static_cast<int>(m_polylineLocal.size()));
+    } else {
+        painter->drawLine(m_line);
+    }
+}
+
+QVariant GraphEdge::itemChange(GraphicsItemChange change, const QVariant& value) {
+    if (change == ItemSelectedHasChanged) {
+        const bool sel = value.toBool();
+        if (m_bendHandle) {
+            m_bendHandle->setVisible(sel);
+            if (sel) {
+                syncBendHandlePos();
+            }
+        }
+    }
+    return ElaGraphicsItem::itemChange(change, value);
+}
+
 void GraphEdge::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
     bool ok;
     double newWeight
@@ -115,11 +344,13 @@ void GraphEdge::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
     if (ok) {
         setWeight(newWeight);
     }
+    Q_UNUSED(event);
 }
 
 void GraphEdge::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
     QMenu menu;
     QAction* editAction = menu.addAction("Edit Weight");
+    QAction* resetRouteAction = menu.addAction(tr("恢复自动布线"));
     QAction* deleteAction = menu.addAction("Delete Edge");
 
     QAction* selected = menu.exec(event->screenPos());
@@ -133,8 +364,12 @@ void GraphEdge::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
                                                    1000,
                                                    2,
                                                    &ok);
-        if (ok)
+        if (ok) {
             setWeight(newWeight);
+        }
+    } else if (selected == resetRouteAction) {
+        m_bendUserEdited = false;
+        updatePosition();
     } else if (selected == deleteAction) {
         if (scene()) {
             auto* gscene = dynamic_cast<GraphScene*>(scene());
@@ -151,13 +386,15 @@ void GraphEdge::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
 }
 
 void GraphEdge::setLine(const QLineF& line) {
-    if (scene()) {
-        QPointF p1 = mapFromScene(line.p1());
-        QPointF p2 = mapFromScene(line.p2());
-        prepareGeometryChange();
-        m_line = QLineF(p1, p2);
+    prepareGeometryChange();
+    const QPointF lp1 = scene() ? mapFromScene(line.p1()) : line.p1();
+    const QPointF lp2 = scene() ? mapFromScene(line.p2()) : line.p2();
+    m_polylineLocal = orthoPolyline(lp1, lp2);
+    if (m_polylineLocal.size() >= 2) {
+        m_line = QLineF(m_polylineLocal.first(), m_polylineLocal.last());
     } else {
-        m_line = line;
+        m_line = QLineF(lp1, lp2);
     }
+    placeWeightLabel();
     update();
 }
