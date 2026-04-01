@@ -43,7 +43,7 @@ Design, customize, and simulate irregular NoC topologies with a drag-and-drop in
 从源码构建：
 
 ```shell
-git clone --recurse-submodules --depth 1 --shadow-submodules git@github.com:kingpoem/BookCanvas.git
+git clone --recurse-submodules --depth 1 --shallow-submodules git@github.com:kingpoem/BookCanvas.git
 cmake -Bbuild -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel 4
 ```
