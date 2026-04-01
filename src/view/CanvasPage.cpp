@@ -16,7 +16,6 @@
 #include <ElaIconButton.h>
 #include <ElaPushButton.h>
 #include <ElaTheme.h>
-#include <ElaToolBar.h>
 #include <QApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -112,6 +111,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     setWindowTitle("Canvas");
 
     m_scene = new GraphScene(this);
+    m_scene->setGlobalConfig(RouterGlobalConfigDialog::getDefaultConfig());
     m_graphView = new GraphView(m_scene, this);
 
     auto* mainRow = new QHBoxLayout();
@@ -240,48 +240,27 @@ CanvasPage::CanvasPage(QWidget* parent)
     addTopoButton(QStringLiteral("dragonflynew"), QStringLiteral("dragonflynew"));
     addTopoButton(QStringLiteral("anynet"), QStringLiteral("anynet"));
 
+    auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", stripInner);
+    auto* exportBtn = new ExportButton(ElaIconType::Download, "Export File", stripInner);
+    showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
+    exportBtn->setToolTip(tr("导出网络拓扑（anynet）"));
+
+    auto* actionsTitle = new QLabel(tr("BookSim 操作"), stripInner);
+    actionsTitle->setForegroundRole(QPalette::WindowText);
+    bindLabelToElaBasicText(actionsTitle);
+    QFont at = actionsTitle->font();
+    at.setBold(true);
+    at.setPointSize(10);
+    actionsTitle->setFont(at);
+    stripLay->addWidget(actionsTitle);
+    stripLay->addSpacing(4);
+    stripLay->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), stripInner));
+    stripLay->addWidget(createButtonWithLabel(exportBtn, tr("导出拓扑"), stripInner));
+
     stripLay->addStretch(1);
 
     auto* rightColumn = new QVBoxLayout();
     rightColumn->setSpacing(12);
-
-    auto* toolBar = new ElaToolBar();
-
-    auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", toolBar);
-    auto* exportBtn = new ExportButton(ElaIconType::Download, "Export File", toolBar);
-    auto* exportConfigBtn = new ExportButton(ElaIconType::Gear, "Export Config", toolBar);
-    auto* globalConfigBtn = new ExportButton(ElaIconType::CarWrench, "Export Global Config", toolBar);
-
-    globalConfigBtn->setToolTip(tr("全局路由参数（BookSim JSON）"));
-    exportConfigBtn->setToolTip(tr("导出 JSON 配置文件"));
-    exportBtn->setToolTip(tr("导出网络拓扑（anynet）"));
-    showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
-
-    auto* viewGroup = new QLabel(tr("视图"), toolBar);
-    viewGroup->setForegroundRole(QPalette::WindowText);
-    bindLabelToElaBasicText(viewGroup);
-    QFont hg = viewGroup->font();
-    hg.setBold(true);
-    hg.setPointSize(9);
-    viewGroup->setFont(hg);
-    auto* booksimGroup = new QLabel(tr("BookSim"), toolBar);
-    booksimGroup->setForegroundRole(QPalette::WindowText);
-    bindLabelToElaBasicText(booksimGroup);
-    booksimGroup->setFont(hg);
-
-    toolBar->addWidget(viewGroup);
-    toolBar->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), toolBar));
-    toolBar->addSeparator();
-    toolBar->addWidget(booksimGroup);
-    toolBar->addWidget(createButtonWithLabel(globalConfigBtn, tr("全局配置"), toolBar));
-    toolBar->addWidget(createButtonWithLabel(exportBtn, tr("导出拓扑"), toolBar));
-    toolBar->addWidget(createButtonWithLabel(exportConfigBtn, tr("导出配置"), toolBar));
-    toolBar->setFixedHeight(70);
-    toolBar->setSizePolicy(toolBar->sizePolicy().horizontalPolicy(), toolBar->sizePolicy().verticalPolicy());
-
-    auto* toolBarLayout = new QHBoxLayout();
-    toolBarLayout->addWidget(toolBar);
-    toolBarLayout->addStretch(1);
 
     auto* viewFrame = new QFrame(this);
     viewFrame->setFrameShape(QFrame::StyledPanel);
@@ -292,7 +271,6 @@ CanvasPage::CanvasPage(QWidget* parent)
     viewFrameLay->setContentsMargins(6, 6, 6, 6);
     viewFrameLay->addWidget(m_graphView);
 
-    rightColumn->addLayout(toolBarLayout);
     rightColumn->addWidget(viewFrame, 1);
 
     auto* rightWrap = new QWidget(this);
@@ -376,41 +354,6 @@ CanvasPage::CanvasPage(QWidget* parent)
                                  QObject::tr("网络拓扑已导出到:\n%1").arg(path));
     });
 
-    connect(exportConfigBtn, &ExportButton::exportRequested, [this]() {
-        const QString cfgPath = BooksimPaths::configExportPathFromSettings();
-        const QString topoPath = BooksimPaths::topologyExportPathFromSettings();
-        if (cfgPath.isEmpty()) {
-            QMessageBox::warning(
-                this,
-                QObject::tr("导出失败"),
-                QObject::tr("未配置 JSON 导出路径，请在「设置」中设置 BookSim 配置文件路径。"));
-            return;
-        }
-        if (!QDir().mkpath(QFileInfo(cfgPath).absolutePath())) {
-            QMessageBox::warning(this, QObject::tr("导出失败"), QObject::tr("无法创建目标目录。"));
-            return;
-        }
-        if (m_scene->topologyBlockCount() > 1) {
-            QMessageBox::warning(
-                this,
-                tr("导出提示"),
-                tr("画布上存在多个 BookSim 拓扑块。仅当恰好有一个拓扑块时，「导出配置」才会把该块的 "
-                   "topology / k / n / c / routing_function 写入 JSON；本次将保留全局配置中的对应字段。"));
-        }
-        const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
-        m_scene->exportJSONConfig(cfgPath, netField);
-        QMessageBox::information(this, QObject::tr("导出成功"),
-                                 QObject::tr("JSON 配置已导出到:\n%1").arg(cfgPath));
-    });
-
-    connect(globalConfigBtn, &ExportButton::exportRequested, [this]() {
-        RouterGlobalConfigDialog dialog(this);
-        dialog.setConfig(m_scene->getGlobalConfig());
-        if (dialog.exec() == QDialog::Accepted) {
-            m_scene->setGlobalConfig(dialog.getConfig());
-        }
-    });
-
     connect(m_scene, &GraphScene::nodeConfigureRequested, [this](GraphNode* node) {
         if (node && node->getType() == GraphNode::Router) {
             RouterConfigDialog dialog(node->getId(), this);
@@ -439,6 +382,44 @@ CanvasPage::CanvasPage(QWidget* parent)
     centerLayout->addLayout(mainRow);
     centerLayout->setContentsMargins(0, 0, 20, 0);
     addCentralWidget(centralWidget, true, true, 0);
+}
+
+QMap<QString, QString> CanvasPage::globalConfig() const {
+    return m_scene ? m_scene->getGlobalConfig() : QMap<QString, QString>{};
+}
+
+void CanvasPage::setGlobalConfig(const QMap<QString, QString>& config) {
+    if (m_scene) {
+        m_scene->setGlobalConfig(config);
+    }
+}
+
+void CanvasPage::exportConfigJson() {
+    const QString cfgPath = BooksimPaths::configExportPathFromSettings();
+    const QString topoPath = BooksimPaths::topologyExportPathFromSettings();
+    if (cfgPath.isEmpty()) {
+        QMessageBox::warning(this,
+                             QObject::tr("导出失败"),
+                             QObject::tr("未配置 JSON 导出路径，请在「设置」中设置 BookSim 配置文件路径。"));
+        return;
+    }
+    if (!QDir().mkpath(QFileInfo(cfgPath).absolutePath())) {
+        QMessageBox::warning(this, QObject::tr("导出失败"), QObject::tr("无法创建目标目录。"));
+        return;
+    }
+    if (m_scene && m_scene->topologyBlockCount() > 1) {
+        QMessageBox::warning(
+            this,
+            tr("导出提示"),
+            tr("画布上存在多个 BookSim 拓扑块。仅当恰好有一个拓扑块时，「导出配置」才会把该块的 "
+               "topology / k / n / c / routing_function 写入 JSON；本次将保留全局配置中的对应字段。"));
+    }
+    if (!m_scene) {
+        return;
+    }
+    const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
+    m_scene->exportJSONConfig(cfgPath, netField);
+    QMessageBox::information(this, QObject::tr("导出成功"), QObject::tr("JSON 配置已导出到:\n%1").arg(cfgPath));
 }
 
 CanvasPage::~CanvasPage() {

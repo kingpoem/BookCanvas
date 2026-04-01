@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BasePage.h"
+#include <QMap>
 
 class QHideEvent;
 class QShowEvent;
@@ -13,6 +14,9 @@ class CanvasPage : public BasePage {
 public:
     explicit CanvasPage(QWidget* parent = nullptr);
     ~CanvasPage() override;
+    [[nodiscard]] QMap<QString, QString> globalConfig() const;
+    void setGlobalConfig(const QMap<QString, QString>& config);
+    void exportConfigJson();
 
 protected:
     void showEvent(QShowEvent* event) override;

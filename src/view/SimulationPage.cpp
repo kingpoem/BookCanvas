@@ -112,6 +112,16 @@ void SimulationPage::onProcessReadyReadStandardError() {
 
 void SimulationPage::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
     m_runButton->setEnabled(true);
+    if (m_capturedOutput.contains(QStringLiteral("Invalid routing function:"),
+                                  Qt::CaseInsensitive)) {
+        appendOutput("\n[参数提示]\n");
+        appendOutput("检测到 routing_function 与 topology 不匹配。\n");
+        appendOutput("请在 Canvas 的拓扑参数中检查 routing_function：\n");
+        appendOutput("- mesh 推荐 dor / dim_order / xy_yx\n");
+        appendOutput("- cmesh 推荐 dor_no_express / xy_yx_no_express\n");
+        appendOutput("- anynet 使用 min\n");
+        appendOutput("注意不要手动填写 *_mesh / *_anynet 后缀，BookSim 会自动拼接。\n");
+    }
     emit simulationFinished(m_capturedOutput);
 }
 

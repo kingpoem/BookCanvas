@@ -4,8 +4,89 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QLabel>
+#include <QSet>
 #include <QSpinBox>
 #include <QVBoxLayout>
+
+namespace {
+
+[[nodiscard]] QString defaultRoutingForTopology(const QString& topologyId) {
+    const QString topo = topologyId.trimmed().toLower();
+    if (topo == QLatin1String("mesh")) {
+        return QStringLiteral("dor");
+    }
+    if (topo == QLatin1String("torus")) {
+        return QStringLiteral("dim_order");
+    }
+    if (topo == QLatin1String("cmesh")) {
+        return QStringLiteral("dor_no_express");
+    }
+    if (topo == QLatin1String("dragonflynew")) {
+        return QStringLiteral("min");
+    }
+    if (topo == QLatin1String("flatfly")) {
+        return QStringLiteral("ran_min");
+    }
+    if (topo == QLatin1String("fattree")) {
+        return QStringLiteral("nca");
+    }
+    return QStringLiteral("min");
+}
+
+[[nodiscard]] bool routingAllowedForTopology(const QString& routingFunction,
+                                             const QString& topologyId) {
+    const QString rf = routingFunction.trimmed().toLower();
+    const QString topo = topologyId.trimmed().toLower();
+    if (rf.isEmpty()) {
+        return false;
+    }
+    if (topo == QLatin1String("mesh")) {
+        static const QSet<QString> allowed = {QStringLiteral("dor"),
+                                              QStringLiteral("dim_order"),
+                                              QStringLiteral("dim_order_ni"),
+                                              QStringLiteral("dim_order_pni"),
+                                              QStringLiteral("xy_yx"),
+                                              QStringLiteral("adaptive_xy_yx"),
+                                              QStringLiteral("romm"),
+                                              QStringLiteral("romm_ni"),
+                                              QStringLiteral("min_adapt"),
+                                              QStringLiteral("planar_adapt"),
+                                              QStringLiteral("valiant"),
+                                              QStringLiteral("chaos")};
+        return allowed.contains(rf);
+    }
+    if (topo == QLatin1String("cmesh")) {
+        static const QSet<QString> allowed = {QStringLiteral("dor"),
+                                              QStringLiteral("dor_no_express"),
+                                              QStringLiteral("xy_yx"),
+                                              QStringLiteral("xy_yx_no_express")};
+        return allowed.contains(rf);
+    }
+    return true;
+}
+
+[[nodiscard]] QString normalizeRoutingFunction(const QString& routingFunction,
+                                               const QString& topologyId) {
+    const QString topo = topologyId.trimmed().toLower();
+    QString rf = routingFunction.trimmed().toLower();
+    const QString suffix = QStringLiteral("_") + topo;
+    if (rf.endsWith(suffix)) {
+        rf.chop(suffix.size());
+    }
+    if (rf.isEmpty()) {
+        rf = defaultRoutingForTopology(topo);
+    }
+    if (topo == QLatin1String("mesh") && rf == QLatin1String("min")) {
+        // BookSim 会拼成 "min_mesh"，该函数不存在；mesh 下统一转到 dor。
+        rf = QStringLiteral("dor");
+    }
+    if (!routingAllowedForTopology(rf, topo)) {
+        rf = defaultRoutingForTopology(topo);
+    }
+    return rf;
+}
+
+} // namespace
 
 BooksimTopologyPlaceDialog::BooksimTopologyPlaceDialog(const QString& topologyId,
                                                        const QString& displayLabel,
@@ -37,7 +118,7 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     auto* form = new QFormLayout();
     m_kSpin = new QSpinBox(this);
     m_kSpin->setRange(2, 128);
-    m_kSpin->setValue(8);
+    m_kSpin->setValue(m_topologyId == QLatin1String("mesh") ? 4 : 8);
     m_kSpin->setToolTip(tr("k：每维路由器数量（基数）"));
 
     m_nSpin = new QSpinBox(this);
@@ -51,8 +132,8 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     m_cSpin->setToolTip(tr("c：每台路由器连接的终端/节点数（集中度）"));
 
     m_rfEdit = new ElaLineEdit(this);
-    m_rfEdit->setText(QStringLiteral("min"));
-    m_rfEdit->setPlaceholderText(QStringLiteral("min / dim_order / ..."));
+    m_rfEdit->setText(defaultRoutingForTopology(m_topologyId));
+    m_rfEdit->setPlaceholderText(QStringLiteral("dor / dim_order / min / ..."));
     m_rfEdit->setToolTip(tr("routing_function：BookSim 中与路由函数注册名一致"));
 
     form->addRow(tr("k"), m_kSpin);
@@ -60,20 +141,18 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     form->addRow(tr("c"), m_cSpin);
     form->addRow(tr("路由函数"), m_rfEdit);
     root->addLayout(form);
+    if (m_topologyId == QLatin1String("mesh")) {
+        auto* tips = new QLabel(tr("mesh 推荐：dor（默认）/ dim_order / xy_yx。\n"
+                                   "无需填写 *_mesh 后缀，系统会自动处理。"),
+                                this);
+        tips->setWordWrap(true);
+        root->addWidget(tips);
+    }
 
     auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     root->addWidget(box);
     connect(box, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
-
-    if (m_topologyId == QLatin1String("anynet")) {
-        m_kSpin->setEnabled(false);
-        m_nSpin->setEnabled(false);
-        m_cSpin->setEnabled(false);
-        m_kSpin->setToolTip(tr("anynet 拓扑由导出的 network_file 描述，k/n/c 由列表文件决定。"));
-        m_nSpin->setToolTip(m_kSpin->toolTip());
-        m_cSpin->setToolTip(m_kSpin->toolTip());
-    }
 }
 
 BooksimTopologyParams BooksimTopologyPlaceDialog::getParams() const {
@@ -83,10 +162,8 @@ BooksimTopologyParams BooksimTopologyPlaceDialog::getParams() const {
     p.k = m_kSpin ? m_kSpin->value() : 8;
     p.n = m_nSpin ? m_nSpin->value() : 2;
     p.c = m_cSpin ? m_cSpin->value() : 1;
-    p.routingFunction = m_rfEdit ? m_rfEdit->text().trimmed() : QStringLiteral("min");
-    if (p.routingFunction.isEmpty()) {
-        p.routingFunction = QStringLiteral("min");
-    }
+    p.routingFunction = normalizeRoutingFunction(m_rfEdit ? m_rfEdit->text() : QString(),
+                                                 m_topologyId);
     return p;
 }
 
@@ -103,6 +180,6 @@ void BooksimTopologyPlaceDialog::setParams(const BooksimTopologyParams& p) {
         m_cSpin->setValue(p.c);
     }
     if (m_rfEdit) {
-        m_rfEdit->setText(p.routingFunction);
+        m_rfEdit->setText(normalizeRoutingFunction(p.routingFunction, p.topologyId));
     }
 }

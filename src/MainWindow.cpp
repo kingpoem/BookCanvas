@@ -33,12 +33,26 @@ void MainWindow::initContent() {
     simulationPage = new SimulationPage(this);
     addPageNode("Simulation", simulationPage, ElaIconType::Play);
 
+    globalConfigPage = new GlobalConfigPage(this);
+    addPageNode(tr("全局配置"), globalConfigPage, ElaIconType::CarWrench);
+    globalConfigPage->setConfig(canvasPage->globalConfig());
+    connect(globalConfigPage,
+            &GlobalConfigPage::globalConfigChanged,
+            canvasPage,
+            [this](const QMap<QString, QString>& cfg) {
+                canvasPage->setGlobalConfig(cfg);
+                canvasPage->exportConfigJson();
+            });
+
     bookSimResultPage = new BookSimResultPage(this);
     addPageNode(tr("BookSim 结果"), bookSimResultPage, ElaIconType::ChartSimple);
     connect(simulationPage,
             &SimulationPage::simulationFinished,
             bookSimResultPage,
             &BookSimResultPage::ingestSimulationLog);
+
+    usageGuidePage = new UsageGuidePage(this);
+    addPageNode(tr("使用说明"), usageGuidePage, ElaIconType::CircleInfo);
 
     aboutPage = new AboutPage(this);
     QString aboutPageKey;
