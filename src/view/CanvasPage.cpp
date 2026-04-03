@@ -40,9 +40,15 @@ void bindLabelToElaBasicText(QLabel* label) {
         return;
     }
     const auto apply = [label]() {
+        const QColor text = ElaThemeColor(eTheme->getThemeMode(), BasicText);
         QPalette pal = label->palette();
-        pal.setColor(QPalette::WindowText, ElaThemeColor(eTheme->getThemeMode(), BasicText));
+        pal.setColor(QPalette::WindowText, text);
         label->setPalette(pal);
+#ifdef Q_OS_WINDOWS
+        // Windows 下部分控件在透明/自绘容器里可能不跟随调色板前景色，显式设置 color 保证深色主题可读性。
+        label->setStyleSheet(
+            QStringLiteral("background: transparent; color: %1;").arg(text.name(QColor::HexRgb)));
+#endif
     };
     apply();
     QObject::connect(eTheme, &ElaTheme::themeModeChanged, label, [apply](ElaThemeType::ThemeMode) {
@@ -62,6 +68,11 @@ void bindWidgetToElaPanelChrome(QWidget* w) {
         pal.setColor(QPalette::Window, bg);
         pal.setColor(QPalette::Base, bg);
         w->setPalette(pal);
+#ifdef Q_OS_WINDOWS
+        // Windows 下显式回填背景，避免透明链路导致面板保持深色底。
+        w->setAttribute(Qt::WA_StyledBackground, true);
+        w->setStyleSheet(QStringLiteral("background-color: %1;").arg(bg.name(QColor::HexRgb)));
+#endif
     };
     apply();
     QObject::connect(eTheme, &ElaTheme::themeModeChanged, w, [apply](ElaThemeType::ThemeMode) {
