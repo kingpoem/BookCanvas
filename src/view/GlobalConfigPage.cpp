@@ -5,15 +5,22 @@
 #include <ElaPushButton.h>
 #include <ElaTheme.h>
 #include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPalette>
+#include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
 #include <QSet>
+#include <QTextStream>
 #include <QVBoxLayout>
 
 namespace {
@@ -168,6 +175,45 @@ struct InputSpec {
         return combo->currentData().toString().trimmed();
     }
     return QString();
+}
+
+[[nodiscard]] QString stripInlineComment(const QString& line) {
+    bool inSingleQuote = false;
+    bool inDoubleQuote = false;
+    const int lineLength = static_cast<int>(line.size());
+    for (int i = 0; i < lineLength; ++i) {
+        const QChar ch = line.at(i);
+        if (ch == QLatin1Char('"') && !inSingleQuote) {
+            inDoubleQuote = !inDoubleQuote;
+            continue;
+        }
+        if (ch == QLatin1Char('\'') && !inDoubleQuote) {
+            inSingleQuote = !inSingleQuote;
+            continue;
+        }
+        if (!inSingleQuote && !inDoubleQuote) {
+            if (ch == QLatin1Char('#')) {
+                return line.left(i).trimmed();
+            }
+            if (ch == QLatin1Char('/') && i + 1 < lineLength && line.at(i + 1) == QLatin1Char('/')) {
+                return line.left(i).trimmed();
+            }
+        }
+    }
+    return line.trimmed();
+}
+
+[[nodiscard]] QString unquote(const QString& value) {
+    if (value.size() < 2) {
+        return value;
+    }
+    const QChar first = value.front();
+    const QChar last = value.back();
+    if ((first == QLatin1Char('"') && last == QLatin1Char('"'))
+        || (first == QLatin1Char('\'') && last == QLatin1Char('\''))) {
+        return value.mid(1, value.size() - 2).trimmed();
+    }
+    return value;
 }
 } // namespace
 
@@ -344,12 +390,21 @@ void GlobalConfigPage::setupUi() {
     root->addWidget(m_scrollArea);
 
     auto* buttonRow = new QHBoxLayout();
-    buttonRow->addStretch();
+    m_viewRawBtn = new ElaPushButton(tr("查看原始配置文件"), this);
+    m_importBtn = new ElaPushButton(tr("导入配置"), this);
     m_resetBtn = new ElaPushButton(tr("恢复默认"), this);
+    buttonRow->addWidget(m_viewRawBtn);
+    buttonRow->addWidget(m_importBtn);
+    buttonRow->addStretch();
     buttonRow->addWidget(m_resetBtn);
     root->addLayout(buttonRow);
     root->addSpacing(6);
 
+    connect(m_viewRawBtn,
+            &ElaPushButton::clicked,
+            this,
+            &GlobalConfigPage::onViewRawConfigFileClicked);
+    connect(m_importBtn, &ElaPushButton::clicked, this, &GlobalConfigPage::onImportConfigClicked);
     connect(m_resetBtn, &ElaPushButton::clicked, this, [this]() {
         const auto answer = QMessageBox::question(this,
                                                   tr("恢复默认"),
@@ -494,6 +549,120 @@ QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
 QMap<QString, QString> GlobalConfigPage::collectCurrentConfig() {
     m_config = collectConfigFromUi();
     return m_config;
+}
+
+void GlobalConfigPage::onViewRawConfigFileClicked() {
+    const QMap<QString, QString> currentConfig = collectConfigFromUi();
+    QStringList rawLines;
+    rawLines.reserve(static_cast<int>(currentConfig.size()));
+    for (auto it = currentConfig.begin(); it != currentConfig.end(); ++it) {
+        rawLines.append(QStringLiteral("%1 = %2;").arg(it.key(), it.value()));
+    }
+    showRawConfigContent(tr("当前全局配置（原始文本）"), rawLines.join(QLatin1Char('\n')));
+}
+
+void GlobalConfigPage::onImportConfigClicked() {
+    const QString filePath
+        = QFileDialog::getOpenFileName(this,
+                                       tr("导入配置文件"),
+                                       QString(),
+                                       tr("配置文件 (*.cfg *.txt *.conf);;所有文件 (*)"));
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::warning(this,
+                             tr("导入失败"),
+                             tr("无法打开配置文件：\n%1").arg(QFileInfo(filePath).fileName()));
+        return;
+    }
+    QTextStream stream(&file);
+    const QString content = stream.readAll();
+    file.close();
+
+    const QMap<QString, QString> parsedConfig = parseRawConfigText(content);
+    if (parsedConfig.isEmpty()) {
+        QMessageBox::information(this,
+                                 tr("导入配置"),
+                                 tr("未解析到有效参数。请检查文件格式是否为 key = value;"));
+        return;
+    }
+
+    QMap<QString, QString> merged = collectConfigFromUi();
+    int appliedCount = 0;
+    int ignoredCount = 0;
+    for (auto it = parsedConfig.begin(); it != parsedConfig.end(); ++it) {
+        if (m_inputs.contains(it.key())) {
+            merged[it.key()] = it.value();
+            ++appliedCount;
+        } else {
+            ++ignoredCount;
+        }
+    }
+
+    if (appliedCount <= 0) {
+        QMessageBox::information(this, tr("导入配置"), tr("未匹配到当前页面支持的参数。"));
+        return;
+    }
+
+    setConfig(merged);
+    QMessageBox::information(this,
+                             tr("导入成功"),
+                             tr("已导入 %1 个参数，忽略 %2 个未支持参数。")
+                                 .arg(appliedCount)
+                                 .arg(ignoredCount));
+}
+
+void GlobalConfigPage::showRawConfigContent(const QString& title, const QString& content) {
+    auto* dialog = new QDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(title);
+    dialog->resize(860, 620);
+
+    auto* layout = new QVBoxLayout(dialog);
+    auto* editor = new QPlainTextEdit(dialog);
+    editor->setReadOnly(true);
+    editor->setPlainText(content);
+    layout->addWidget(editor);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+    layout->addWidget(buttons);
+    dialog->open();
+}
+
+QMap<QString, QString> GlobalConfigPage::parseRawConfigText(const QString& text) {
+    QMap<QString, QString> parsed;
+    const QStringList lines = text.split(QRegularExpression(QStringLiteral("[\r\n]+")),
+                                         Qt::SkipEmptyParts);
+    for (const QString& rawLine : lines) {
+        const QString line = stripInlineComment(rawLine).trimmed();
+        if (line.isEmpty()) {
+            continue;
+        }
+        const qsizetype eqPos = line.indexOf(QLatin1Char('='));
+        if (eqPos <= 0) {
+            continue;
+        }
+        const QString key = line.left(eqPos).trimmed();
+        if (key.isEmpty()) {
+            continue;
+        }
+        QString value = line.mid(eqPos + 1).trimmed();
+        while (!value.isEmpty()
+               && (value.endsWith(QLatin1Char(';')) || value.endsWith(QLatin1Char(',')))) {
+            value.chop(1);
+            value = value.trimmed();
+        }
+        value = unquote(value);
+        if (value.isEmpty()) {
+            continue;
+        }
+        parsed.insert(key, value);
+    }
+    return parsed;
 }
 
 void GlobalConfigPage::applyTheme() {

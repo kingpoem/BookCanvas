@@ -28,11 +28,17 @@ private:
     void addSectionTitle(const QString& title);
     void addConfigItem(const QString& key, const QString& label, const QString& defaultValue);
     [[nodiscard]] QMap<QString, QString> collectConfigFromUi() const;
+    void onViewRawConfigFileClicked();
+    void onImportConfigClicked();
+    void showRawConfigContent(const QString& title, const QString& content);
+    [[nodiscard]] static QMap<QString, QString> parseRawConfigText(const QString& text);
 
     QMap<QString, QString> m_config;
     QVBoxLayout* m_formLayout = nullptr;
     QScrollArea* m_scrollArea = nullptr;
     QMap<QString, QWidget*> m_inputs;
+    ElaPushButton* m_viewRawBtn = nullptr;
+    ElaPushButton* m_importBtn = nullptr;
     ElaPushButton* m_resetBtn = nullptr;
     QWidget* m_pageRoot = nullptr;
 };
