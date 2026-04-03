@@ -370,6 +370,45 @@ CanvasPage::CanvasPage(QWidget* parent)
     centerLayout->addLayout(mainRow);
     centerLayout->setContentsMargins(0, 0, 20, 0);
     addCentralWidget(centralWidget, true, true, 0);
+
+#ifdef Q_OS_WINDOWS
+    const auto applyWindowsCanvasChrome = [centralWidget, splitter]() {
+        const auto mode = eTheme->getThemeMode();
+        const QColor pageBg = ElaThemeColor(mode, WindowBase);
+        const QColor handleBg = ElaThemeColor(mode, BasicBase);
+        const QColor handleBorder = ElaThemeColor(mode, BasicBorderDeep);
+
+        // ElaScrollPage 默认把中央页设为透明；在 Windows 下显式回填背景，避免透出深色底。
+        centralWidget->setAttribute(Qt::WA_StyledBackground, true);
+        centralWidget->setStyleSheet(
+            QStringLiteral("#ElaScrollPage_CentralPage { background-color: %1; }")
+                .arg(pageBg.name(QColor::HexRgb)));
+        if (QWidget* outerVp = centralWidget->parentWidget()) {
+            outerVp->setAutoFillBackground(true);
+            QPalette op = outerVp->palette();
+            op.setColor(QPalette::Window, pageBg);
+            outerVp->setPalette(op);
+        }
+
+        splitter->setStyleSheet(
+            QStringLiteral(
+                "QSplitter::handle:horizontal {"
+                "  background: %1;"
+                "  border-left: 1px solid %2;"
+                "  border-right: 1px solid %2;"
+                "}"
+                "QSplitter::handle:horizontal:hover {"
+                "  background: %3;"
+                "}")
+                .arg(handleBg.name(QColor::HexRgb),
+                     handleBorder.name(QColor::HexRgb),
+                     handleBg.lighter(105).name(QColor::HexRgb)));
+    };
+    applyWindowsCanvasChrome();
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [applyWindowsCanvasChrome](ElaThemeType::ThemeMode) {
+        applyWindowsCanvasChrome();
+    });
+#endif
 }
 
 QMap<QString, QString> CanvasPage::globalConfig() const {
