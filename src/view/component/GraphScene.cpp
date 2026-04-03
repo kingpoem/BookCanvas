@@ -19,11 +19,11 @@
 #include <QUndoCommand>
 #include <QVector>
 #include <cmath>
+#include <limits>
 
 namespace {
 
-constexpr int kMeshMaxRouters = 400;
-constexpr int kMeshMaxTerminals = 4000;
+constexpr int kPowIntMax = std::numeric_limits<int>::max();
 
 [[nodiscard]] bool safePowInt(int base, int exp, int maxValue, int& out) {
     if (exp < 0 || base < 0) {
@@ -542,26 +542,13 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
         const int flyK = qMax(2, k);
         const int flyN = qMax(1, n);
         int perStage = 0;
-        if (!safePowInt(flyK, qMax(0, flyN - 1), kMeshMaxRouters, perStage)) {
+        if (!safePowInt(flyK, qMax(0, flyN - 1), kPowIntMax, perStage)) {
             QMessageBox::warning(nullptr,
                                  tr("Fly 规模过大"),
                                  tr("当前参数生成的 fly 规模过大，请减小 k / n 后重试。"));
             return;
         }
         const int routerCount = flyN * perStage;
-        if (routerCount > kMeshMaxRouters) {
-            QMessageBox::warning(nullptr,
-                                 tr("Fly 规模过大"),
-                                 tr("当前参数生成的路由器数量过大，请减小 k / n 后重试。"));
-            return;
-        }
-        int terminalCount = 0;
-        if (!safePowInt(flyK, flyN, kMeshMaxTerminals, terminalCount)) {
-            QMessageBox::warning(nullptr,
-                                 tr("Fly 规模过大"),
-                                 tr("当前参数生成的终端数量过大，请减小 k / n 后重试。"));
-            return;
-        }
         QVector<GraphNode*> routers;
         routers.reserve(routerCount);
         const qreal stageStepX = 180.0;
@@ -580,7 +567,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
         QSet<quint64> createdRouterEdges;
         for (int stage = 0; stage < flyN - 1; ++stage) {
             int shift = 1;
-            if (!safePowInt(flyK, qMax(0, flyN - stage - 2), kMeshMaxRouters, shift)) {
+            if (!safePowInt(flyK, qMax(0, flyN - stage - 2), kPowIntMax, shift)) {
                 shift = 1;
             }
             for (int addr = 0; addr < perStage; ++addr) {
@@ -622,7 +609,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
             levels.resize(treeN);
             for (int h = 0; h < treeN; ++h) {
                 int count = 1;
-                if (!safePowInt(treeK, h, kMeshMaxRouters, count)) {
+                if (!safePowInt(treeK, h, kPowIntMax, count)) {
                     count = 1;
                 }
                 levels[h].reserve(count);
@@ -729,26 +716,13 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
         const int fatK = qMax(2, k);
         const int fatN = qMax(2, n);
         int nPos = 0;
-        if (!safePowInt(fatK, qMax(0, fatN - 1), kMeshMaxRouters, nPos)) {
+        if (!safePowInt(fatK, qMax(0, fatN - 1), kPowIntMax, nPos)) {
             QMessageBox::warning(nullptr,
                                  tr("FatTree 规模过大"),
                                  tr("当前参数生成的 FatTree 规模过大，请减小 k / n 后重试。"));
             return;
         }
         const int routerCount = fatN * nPos;
-        if (routerCount > kMeshMaxRouters) {
-            QMessageBox::warning(nullptr,
-                                 tr("FatTree 规模过大"),
-                                 tr("当前参数生成的路由器数量过大，请减小 k / n 后重试。"));
-            return;
-        }
-        int terminalCount = 0;
-        if (!safePowInt(fatK, fatN, kMeshMaxTerminals, terminalCount)) {
-            QMessageBox::warning(nullptr,
-                                 tr("FatTree 规模过大"),
-                                 tr("当前参数生成的终端数量过大，请减小 k / n 后重试。"));
-            return;
-        }
 
         QVector<QVector<GraphNode*>> levels(fatN);
         const int cols = qMax(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(nPos)))));
@@ -818,23 +792,15 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
         const int ffN = qMax(1, n);
         const int ffC = qMax(1, c);
         int routerCount = 0;
-        if (!safePowInt(ffK, ffN, kMeshMaxRouters, routerCount)) {
+        if (!safePowInt(ffK, ffN, kPowIntMax, routerCount)) {
             QMessageBox::warning(nullptr,
                                  tr("FlatFly 规模过大"),
                                  tr("当前参数生成的 FlatFly 规模过大，请减小 k / n 后重试。"));
             return;
         }
-        if (routerCount * ffC > kMeshMaxTerminals) {
-            QMessageBox::warning(nullptr,
-                                 tr("FlatFly 规模过大"),
-                                 tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。")
-                                     .arg(routerCount * ffC)
-                                     .arg(kMeshMaxTerminals));
-            return;
-        }
 
         int planeCount = 1;
-        if (!safePowInt(ffK, qMax(0, ffN - 2), kMeshMaxRouters, planeCount)) {
+        if (!safePowInt(ffK, qMax(0, ffN - 2), kPowIntMax, planeCount)) {
             planeCount = 1;
         }
         const int planeCols = qMax(1,
@@ -905,24 +871,6 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
         const int a = 2 * p;
         const int g = a * p + 1;
         const int routerCount = a * g;
-        if (routerCount > kMeshMaxRouters) {
-            QMessageBox::warning(nullptr,
-                                 tr("Dragonfly 规模过大"),
-                                 tr("当前参数会生成 %1 个路由器，超过当前支持上限 %2。\n"
-                                    "请减小 k 后重试。")
-                                     .arg(routerCount)
-                                     .arg(kMeshMaxRouters));
-            return;
-        }
-        if (routerCount * p > kMeshMaxTerminals) {
-            QMessageBox::warning(nullptr,
-                                 tr("Dragonfly 规模过大"),
-                                 tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。\n"
-                                    "请减小 k 后重试。")
-                                     .arg(routerCount * p)
-                                     .arg(kMeshMaxTerminals));
-            return;
-        }
 
         const int groupCols = qMax(1,
                                    static_cast<int>(std::ceil(std::sqrt(static_cast<double>(g)))));
@@ -1005,28 +953,15 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     const int layoutN = isCMesh ? 2 : n;
 
     int routerCount = 0;
-    if (!safePowInt(k, layoutN, kMeshMaxRouters, routerCount)) {
+    if (!safePowInt(k, layoutN, kPowIntMax, routerCount)) {
         QMessageBox::warning(nullptr,
                              tr("%1 规模过大").arg(baseTopoName),
-                             tr("当前参数 k=%1, n=%2 生成的路由器数量过大。\n"
-                                "为保证画布可用性，当前最多支持 %3 个路由器。")
-                                 .arg(k)
-                                 .arg(layoutN)
-                                 .arg(kMeshMaxRouters));
-        return;
-    }
-    if (routerCount * c > kMeshMaxTerminals) {
-        QMessageBox::warning(nullptr,
-                             tr("%1 规模过大").arg(baseTopoName),
-                             tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。\n"
-                                "请减小 k / n / c 后重试。")
-                                 .arg(routerCount * c)
-                                 .arg(kMeshMaxTerminals));
+                             tr("当前参数 k=%1, n=%2 生成的路由器数量过大。").arg(k).arg(layoutN));
         return;
     }
 
     int planeCount = 1;
-    if (!safePowInt(k, qMax(0, layoutN - 2), kMeshMaxRouters, planeCount)) {
+    if (!safePowInt(k, qMax(0, layoutN - 2), kPowIntMax, planeCount)) {
         planeCount = 1;
     }
     const int planeCols = qMax(1,

@@ -7,6 +7,7 @@
 
 class ElaLineEdit;
 class ElaText;
+class ElaComboBox;
 class QScrollArea;
 class QVBoxLayout;
 
@@ -25,14 +26,18 @@ private:
     void reloadRecords();
     void rebuildCards();
     void applyTheme();
+    void refreshTopologyFilterOptions();
     [[nodiscard]] bool matchesKeyword(const SimulationRecordSnapshot& record) const;
-    [[nodiscard]] QWidget* buildRecordCard(const SimulationRecordSnapshot& record, int index);
-    [[nodiscard]] QString buildConfigSummary(const QMap<QString, QString>& cfg) const;
-    [[nodiscard]] QString buildMetricSummary(const SimulationRecordSnapshot& record) const;
+    [[nodiscard]] bool matchesFilters(const SimulationRecordSnapshot& record) const;
+    [[nodiscard]] int findRecordIndexById(const QString& id) const;
+    [[nodiscard]] QWidget* buildRecordCard(const SimulationRecordSnapshot& record);
     void persistRecords();
 
     QList<SimulationRecordSnapshot> m_records;
     ElaLineEdit* m_searchEdit = nullptr;
+    ElaComboBox* m_topologyFilter = nullptr;
+    ElaComboBox* m_latencyFilter = nullptr;
+    ElaComboBox* m_sortCombo = nullptr;
     ElaText* m_statusText = nullptr;
     QScrollArea* m_scrollArea = nullptr;
     QWidget* m_scrollInner = nullptr;

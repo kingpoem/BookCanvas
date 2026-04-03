@@ -3,7 +3,9 @@
 #include "BasePage.h"
 #include <QMap>
 
+class QWidget;
 class ElaLineEdit;
+class ElaComboBox;
 class ElaPushButton;
 class QVBoxLayout;
 class QScrollArea;
@@ -30,7 +32,7 @@ private:
     QMap<QString, QString> m_config;
     QVBoxLayout* m_formLayout = nullptr;
     QScrollArea* m_scrollArea = nullptr;
-    QMap<QString, ElaLineEdit*> m_edits;
+    QMap<QString, QWidget*> m_inputs;
     ElaPushButton* m_resetBtn = nullptr;
     QWidget* m_pageRoot = nullptr;
 };

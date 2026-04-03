@@ -1,15 +1,175 @@
 #include "GlobalConfigPage.h"
 #include "component/RouterGlobalConfigDialog.h"
+#include <ElaComboBox.h>
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
 #include <ElaTheme.h>
+#include <QComboBox>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPalette>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
 #include <QScrollArea>
+#include <QSet>
 #include <QVBoxLayout>
+
+namespace {
+enum class InputKind {
+    Text,
+    Integer,
+    Float,
+    Boolean,
+    Enum,
+};
+
+struct InputSpec {
+    InputKind kind = InputKind::Text;
+    QStringList options;
+    bool editable = false;
+    QString placeholder;
+};
+
+[[nodiscard]] QString normalizeBoolLike(const QString& raw) {
+    const QString t = raw.trimmed().toLower();
+    if (t == QLatin1String("1") || t == QLatin1String("true") || t == QLatin1String("yes")
+        || t == QLatin1String("on")) {
+        return QStringLiteral("1");
+    }
+    if (t == QLatin1String("0") || t == QLatin1String("false") || t == QLatin1String("no")
+        || t == QLatin1String("off")) {
+        return QStringLiteral("0");
+    }
+    return raw.trimmed();
+}
+
+[[nodiscard]] InputSpec inputSpecForKey(const QString& key) {
+    static const QSet<QString> kBooleanKeys = {
+        QStringLiteral("use_noc_latency"),
+        QStringLiteral("noq"),
+        QStringLiteral("wait_for_tail_credit"),
+        QStringLiteral("vc_busy_when_full"),
+        QStringLiteral("vc_prioritize_empty"),
+        QStringLiteral("vc_priority_donation"),
+        QStringLiteral("vc_shuffle_requests"),
+        QStringLiteral("speculative"),
+        QStringLiteral("spec_check_elig"),
+        QStringLiteral("spec_check_cred"),
+        QStringLiteral("spec_mask_by_reqs"),
+        QStringLiteral("hold_switch_for_packet"),
+        QStringLiteral("vct"),
+        QStringLiteral("injection_rate_uses_flits"),
+        QStringLiteral("use_read_write"),
+        QStringLiteral("measure_stats"),
+        QStringLiteral("pair_stats"),
+        QStringLiteral("include_queuing"),
+        QStringLiteral("print_activity"),
+        QStringLiteral("print_csv_results"),
+        QStringLiteral("viewer_trace"),
+        QStringLiteral("sim_power"),
+        QStringLiteral("channel_sweep"),
+    };
+
+    static const QSet<QString> kFloatKeys = {
+        QStringLiteral("internal_speedup"),
+        QStringLiteral("injection_rate"),
+        QStringLiteral("burst_alpha"),
+        QStringLiteral("burst_beta"),
+        QStringLiteral("burst_r1"),
+        QStringLiteral("write_fraction"),
+        QStringLiteral("latency_thres"),
+        QStringLiteral("warmup_thres"),
+        QStringLiteral("acc_warmup_thres"),
+        QStringLiteral("stopping_thres"),
+        QStringLiteral("acc_stopping_thres"),
+    };
+
+    static const QSet<QString> kTextPathLikeKeys = {
+        QStringLiteral("channel_file"),
+        QStringLiteral("network_file"),
+        QStringLiteral("watch_file"),
+        QStringLiteral("watch_out"),
+        QStringLiteral("stats_out"),
+        QStringLiteral("power_output_file"),
+        QStringLiteral("tech_file"),
+    };
+
+    static const QMap<QString, QStringList> kEnumOptions = {
+        {QStringLiteral("topology"),
+         {QStringLiteral("anynet"),
+          QStringLiteral("mesh"),
+          QStringLiteral("torus"),
+          QStringLiteral("cmesh"),
+          QStringLiteral("fly"),
+          QStringLiteral("qtree"),
+          QStringLiteral("tree4"),
+          QStringLiteral("fattree"),
+          QStringLiteral("flatfly"),
+          QStringLiteral("dragonflynew")}},
+        {QStringLiteral("routing_function"),
+         {QStringLiteral("min"), QStringLiteral("dim_order"), QStringLiteral("none")}},
+        {QStringLiteral("router"), {QStringLiteral("iq"), QStringLiteral("event")}},
+        {QStringLiteral("buffer_policy"), {QStringLiteral("private"), QStringLiteral("shared")}},
+        {QStringLiteral("spec_sw_allocator"), {QStringLiteral("prio"), QStringLiteral("islip")}},
+        {QStringLiteral("vc_allocator"), {QStringLiteral("islip"), QStringLiteral("prio")}},
+        {QStringLiteral("sw_allocator"), {QStringLiteral("islip"), QStringLiteral("prio")}},
+        {QStringLiteral("arb_type"),
+         {QStringLiteral("round_robin"), QStringLiteral("matrix"), QStringLiteral("prio")}},
+        {QStringLiteral("traffic"),
+         {QStringLiteral("uniform"),
+          QStringLiteral("bitcomp"),
+          QStringLiteral("transpose"),
+          QStringLiteral("tornado"),
+          QStringLiteral("hotspot")}},
+        {QStringLiteral("injection_process"),
+         {QStringLiteral("bernoulli"), QStringLiteral("on_off")}},
+        {QStringLiteral("priority"),
+         {QStringLiteral("none"),
+          QStringLiteral("class"),
+          QStringLiteral("age"),
+          QStringLiteral("network_age")}},
+        {QStringLiteral("sim_type"), {QStringLiteral("latency"), QStringLiteral("throughput")}},
+    };
+
+    InputSpec spec;
+    if (kBooleanKeys.contains(key)) {
+        spec.kind = InputKind::Boolean;
+        return spec;
+    }
+    if (kEnumOptions.contains(key)) {
+        spec.kind = InputKind::Enum;
+        spec.options = kEnumOptions.value(key);
+        spec.editable = true;
+        return spec;
+    }
+    if (kFloatKeys.contains(key)) {
+        spec.kind = InputKind::Float;
+        return spec;
+    }
+    if (kTextPathLikeKeys.contains(key)) {
+        spec.kind = InputKind::Text;
+        spec.placeholder = QStringLiteral("支持文件名或绝对路径");
+        return spec;
+    }
+    spec.kind = InputKind::Integer;
+    return spec;
+}
+
+[[nodiscard]] QString readInputValue(QWidget* input, const QString& key) {
+    if (auto* edit = qobject_cast<ElaLineEdit*>(input)) {
+        return edit->text().trimmed();
+    }
+    if (auto* combo = qobject_cast<ElaComboBox*>(input)) {
+        if (key == QLatin1String("topology") || combo->isEditable()) {
+            return combo->currentText().trimmed();
+        }
+        return combo->currentData().toString().trimmed();
+    }
+    return QString();
+}
+} // namespace
 
 GlobalConfigPage::GlobalConfigPage(QWidget* parent)
     : BasePage(parent)
@@ -207,8 +367,37 @@ void GlobalConfigPage::setupUi() {
 
 void GlobalConfigPage::setConfig(const QMap<QString, QString>& config) {
     m_config = config;
-    for (auto it = m_edits.begin(); it != m_edits.end(); ++it) {
-        it.value()->setText(m_config.value(it.key()));
+    for (auto it = m_inputs.begin(); it != m_inputs.end(); ++it) {
+        const QString& key = it.key();
+        const QString raw = m_config.value(key);
+        if (auto* edit = qobject_cast<ElaLineEdit*>(it.value())) {
+            edit->setText(raw);
+            continue;
+        }
+        auto* combo = qobject_cast<ElaComboBox*>(it.value());
+        if (!combo) {
+            continue;
+        }
+        const InputSpec spec = inputSpecForKey(key);
+        if (spec.kind == InputKind::Boolean) {
+            const QString normalized = normalizeBoolLike(raw);
+            const int idx = combo->findData(normalized);
+            combo->setCurrentIndex((idx >= 0) ? idx : 0);
+            continue;
+        }
+        const int byData = combo->findData(raw);
+        if (byData >= 0) {
+            combo->setCurrentIndex(byData);
+            continue;
+        }
+        const int byText = combo->findText(raw);
+        if (byText >= 0) {
+            combo->setCurrentIndex(byText);
+            continue;
+        }
+        if (combo->isEditable()) {
+            combo->setEditText(raw);
+        }
     }
 }
 
@@ -234,20 +423,70 @@ void GlobalConfigPage::addConfigItem(const QString& key,
                                      const QString& defaultValue) {
     auto* labelWidget = new QLabel(label, this);
     labelWidget->setMinimumWidth(250);
-    auto* edit = new ElaLineEdit(this);
-    edit->setText(defaultValue);
-    m_edits[key] = edit;
+
+    const InputSpec spec = inputSpecForKey(key);
+    QWidget* input = nullptr;
+    if (spec.kind == InputKind::Boolean) {
+        auto* combo = new ElaComboBox(this);
+        combo->addItem(tr("0（关闭）"), QStringLiteral("0"));
+        combo->addItem(tr("1（开启）"), QStringLiteral("1"));
+        const QString normalized = normalizeBoolLike(defaultValue);
+        const int idx = combo->findData(normalized);
+        combo->setCurrentIndex((idx >= 0) ? idx : 0);
+        combo->setToolTip(tr("支持 0/1、true/false、yes/no 格式"));
+        input = combo;
+    } else if (spec.kind == InputKind::Enum) {
+        auto* combo = new ElaComboBox(this);
+        for (const QString& option : spec.options) {
+            combo->addItem(option, option);
+        }
+        combo->setEditable(spec.editable);
+        const int idx = combo->findData(defaultValue);
+        if (idx >= 0) {
+            combo->setCurrentIndex(idx);
+        } else if (combo->isEditable()) {
+            combo->setEditText(defaultValue);
+        }
+        input = combo;
+    } else {
+        auto* edit = new ElaLineEdit(this);
+        edit->setText(defaultValue);
+        if (!spec.placeholder.isEmpty()) {
+            edit->setPlaceholderText(spec.placeholder);
+        }
+        if (spec.kind == InputKind::Integer) {
+            auto* validator = new QRegularExpressionValidator(QRegularExpression(
+                                                                  QStringLiteral("^-?\\d+$")),
+                                                              edit);
+            edit->setValidator(validator);
+        } else if (spec.kind == InputKind::Float) {
+            auto* validator = new QRegularExpressionValidator(QRegularExpression(QStringLiteral(
+                                                                  "^-?(?:\\d+\\.?\\d*|\\.\\d+)$")),
+                                                              edit);
+            edit->setValidator(validator);
+        }
+        input = edit;
+    }
+    m_inputs[key] = input;
 
     auto* itemLayout = new QHBoxLayout();
     itemLayout->addWidget(labelWidget);
-    itemLayout->addWidget(edit);
+    itemLayout->addWidget(input);
     m_formLayout->addLayout(itemLayout);
 }
 
 QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
     QMap<QString, QString> config;
-    for (auto it = m_edits.begin(); it != m_edits.end(); ++it) {
-        config[it.key()] = it.value()->text();
+    for (auto it = m_inputs.begin(); it != m_inputs.end(); ++it) {
+        const QString& key = it.key();
+        QString value = readInputValue(it.value(), key);
+        if (inputSpecForKey(key).kind == InputKind::Boolean) {
+            value = normalizeBoolLike(value);
+            if (value != QLatin1String("0") && value != QLatin1String("1")) {
+                value = QStringLiteral("0");
+            }
+        }
+        config[key] = value;
     }
     return config;
 }

@@ -16,6 +16,15 @@ public:
     explicit UsageGuidePage(QWidget* parent = nullptr);
 
 private:
+    struct SubSectionUi {
+        QString title;
+        QString searchableText;
+        QWidget* card = nullptr;
+        QWidget* body = nullptr;
+        QToolButton* toggle = nullptr;
+        QTextBrowser* browser = nullptr;
+    };
+
     struct SectionUi {
         QString category;
         QString title;
@@ -26,14 +35,20 @@ private:
         QLabel* categoryLabel = nullptr;
         QLabel* summaryLabel = nullptr;
         QTextBrowser* browser = nullptr;
+        QVector<SubSectionUi> children;
     };
 
-    void addSection(const QString& title,
-                    const QString& category,
-                    const QString& summary,
-                    const QString& richText,
-                    const QString& searchableText,
-                    const QVector<QPair<QString, QString>>& templates = {});
+    SectionUi* addSection(const QString& title,
+                          const QString& category,
+                          const QString& summary,
+                          const QString& richText,
+                          const QString& searchableText,
+                          const QVector<QPair<QString, QString>>& templates = {});
+    void addSubSection(SectionUi& parent,
+                       const QString& title,
+                       const QString& summary,
+                       const QString& richText,
+                       const QString& searchableText);
     void applySearchFilter();
     void applyTheme();
     QWidget* createTemplateRow(const QVector<QPair<QString, QString>>& templates, QWidget* parent);
