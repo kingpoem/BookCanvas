@@ -1,27 +1,6 @@
 # BookCanvas
 Design, customize, and simulate irregular NoC topologies with a drag-and-drop interface!
 
-## 文档导航
-
-- 快速上手与页面流程：[`docs/USAGE.md`](docs/USAGE.md)
-- 构建与安装（多平台）：见本文档下方 `Build` / `Install`
-- 应用内参数与指标解释：侧栏页面 `使用说明`
-
-## 快速开始（推荐）
-
-如果你只想先跑通一轮仿真，按下面顺序执行：
-
-1. 按平台完成构建（Windows/macOS/Archlinux 见下文 `Build`）
-2. 启动程序后进入 `Setting`，确认：
-   - `拓扑文件（Canvas「导出拓扑」）` 路径
-   - `JSON 配置（Canvas「导出配置」与仿真）` 路径
-3. 在 `Canvas` 放置节点或拓扑块，检查参数
-4. 在 `全局配置` 补齐关键参数（如 `topology`、`routing_function`、`traffic`、`injection_rate`）
-5. 在 `Simulation` 点击 `执行仿真`
-6. 在 `BookSim 结果` 查看 KPI 和延迟/吞吐结果
-
-详细流程、快捷键和排障建议见：[`docs/USAGE.md`](docs/USAGE.md)
-
 ## Build
 
 ### Windows
