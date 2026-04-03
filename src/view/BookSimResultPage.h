@@ -46,4 +46,6 @@ private:
     QWidget* m_pageRoot{};
     /// 用于切换亮/暗主题后按同一份日志重绘样式
     QString m_lastSimulationLog;
+    /// 记住状态是否为错误态，便于主题切换时刷新文字颜色
+    bool m_statusIsError = false;
 };

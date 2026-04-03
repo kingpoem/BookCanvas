@@ -527,6 +527,8 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
     setStatus(tr("运行 Simulation 结束后将自动载入；也可粘贴完整终端输出后点击解析。"), false);
 
     connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
+        // 主题切换时先刷新状态文案颜色，避免保留上一个主题的黑/白字。
+        setStatus(m_statusText->text(), m_statusIsError);
         applyResultPageChrome();
         if (m_lastSimulationLog.isEmpty()) {
             return;
@@ -553,6 +555,7 @@ void BookSimResultPage::loadFromClipboard() {
 }
 
 void BookSimResultPage::setStatus(const QString& message, bool isError) {
+    m_statusIsError = isError;
     m_statusText->setText(message);
     const BookSimResultUi::Theme th = BookSimResultUi::themeFrom(eTheme->getThemeMode());
     if (isError) {
