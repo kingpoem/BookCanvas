@@ -101,12 +101,14 @@ BooksimTopologyPlaceDialog::BooksimTopologyPlaceDialog(const QString& topologyId
 
 void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     auto* root = new QVBoxLayout(this);
+    const bool autoBuildTopology = (m_topologyId == QLatin1String("mesh")
+                                    || m_topologyId == QLatin1String("torus"));
     const QString hintText
-        = (m_topologyId == QLatin1String("mesh"))
-              ? tr("确认参数后，在画布空白处单击一次会放置 mesh 组件，并自动生成"
-                   "路由器、终端与内部连线。\n你仍可与现有节点继续手动连线。")
-              : tr("确认参数后，在画布空白处单击一次即可放置该拓扑块。\n配置将随「导"
-                   "出配置」写入 JSON（画布上仅一块时生效）。");
+        = autoBuildTopology ? tr("确认参数后，在画布空白处单击一次会放置 %1 组件，并自动生成"
+                                 "路由器、终端与内部连线。\n你仍可与现有节点继续手动连线。")
+                                  .arg(m_topologyId)
+                            : tr("确认参数后，在画布空白处单击一次即可放置该拓扑块。\n配置将随「导"
+                                 "出配置」写入 JSON（画布上仅一块时生效）。");
     auto* hint = new QLabel(hintText, this);
     hint->setWordWrap(true);
     root->addWidget(hint);
@@ -144,6 +146,12 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     if (m_topologyId == QLatin1String("mesh")) {
         auto* tips = new QLabel(tr("mesh 推荐：dor（默认）/ dim_order / xy_yx。\n"
                                    "无需填写 *_mesh 后缀，系统会自动处理。"),
+                                this);
+        tips->setWordWrap(true);
+        root->addWidget(tips);
+    } else if (m_topologyId == QLatin1String("torus")) {
+        auto* tips = new QLabel(tr("torus 推荐：dim_order（默认）/ dor。\n"
+                                   "无需填写 *_torus 后缀，系统会自动处理。"),
                                 this);
         tips->setWordWrap(true);
         root->addWidget(tips);

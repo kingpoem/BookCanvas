@@ -73,6 +73,12 @@ constexpr int kMeshMaxTerminals = 4000;
     return idx;
 }
 
+[[nodiscard]] quint64 undirectedEdgeKey(int a, int b) {
+    const int lo = qMin(a, b);
+    const int hi = qMax(a, b);
+    return (static_cast<quint64>(static_cast<quint32>(lo)) << 32) | static_cast<quint32>(hi);
+}
+
 } // namespace
 
 GraphScene::GraphScene(QObject* parent)
@@ -107,8 +113,8 @@ void GraphScene::updateTopologyBlockParams(GraphTopologyBlock* block,
         return;
     }
     block->setParams(params);
-    if (params.topologyId == QLatin1String("mesh")) {
-        rebuildManagedMesh(block);
+    if (params.topologyId == QLatin1String("mesh") || params.topologyId == QLatin1String("torus")) {
+        rebuildManagedTopology(block);
     }
 }
 
@@ -123,11 +129,12 @@ void GraphScene::createTopologyBlockAt(const QPointF& pos) {
     block->setPos(pos);
     m_topologyBlocks.append(block);
 
-    if (m_pendingBooksimTopology.topologyId == QLatin1String("mesh")) {
+    if (m_pendingBooksimTopology.topologyId == QLatin1String("mesh")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("torus")) {
         ManagedTopologyState st;
         st.params = m_pendingBooksimTopology;
         m_managedTopologies.insert(block, st);
-        rebuildManagedMesh(block);
+        rebuildManagedTopology(block);
     }
 
     connect(block, &GraphTopologyBlock::configureRequested, this, [this](GraphTopologyBlock* b) {
@@ -150,13 +157,13 @@ void GraphScene::removeTopologyBlock(GraphTopologyBlock* block) {
     if (!block) {
         return;
     }
-    clearManagedMesh(block);
+    clearManagedTopology(block);
     m_managedTopologies.remove(block);
     m_topologyBlocks.removeAll(block);
     removeItem(block);
 }
 
-void GraphScene::clearManagedMesh(GraphTopologyBlock* block) {
+void GraphScene::clearManagedTopology(GraphTopologyBlock* block) {
     auto it = m_managedTopologies.find(block);
     if (it == m_managedTopologies.end()) {
         return;
@@ -187,23 +194,26 @@ void GraphScene::clearManagedMesh(GraphTopologyBlock* block) {
     st.routers.clear();
 }
 
-void GraphScene::rebuildManagedMesh(GraphTopologyBlock* block) {
+void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     auto it = m_managedTopologies.find(block);
     if (it == m_managedTopologies.end()) {
         return;
     }
     ManagedTopologyState& st = it.value();
     st.params = block->params();
-    clearManagedMesh(block);
+    clearManagedTopology(block);
 
     const int k = qMax(2, st.params.k);
     const int n = qMax(1, st.params.n);
     const int c = qMax(1, st.params.c);
+    const QString topologyId = st.params.topologyId.trimmed().toLower();
+    const bool isTorus = (topologyId == QLatin1String("torus"));
+    const QString topoName = isTorus ? tr("Torus") : tr("Mesh");
 
     int routerCount = 0;
     if (!safePowInt(k, n, kMeshMaxRouters, routerCount)) {
         QMessageBox::warning(nullptr,
-                             tr("Mesh 规模过大"),
+                             tr("%1 规模过大").arg(topoName),
                              tr("当前参数 k=%1, n=%2 生成的路由器数量过大。\n"
                                 "为保证画布可用性，当前最多支持 %3 个路由器。")
                                  .arg(k)
@@ -213,7 +223,7 @@ void GraphScene::rebuildManagedMesh(GraphTopologyBlock* block) {
     }
     if (routerCount * c > kMeshMaxTerminals) {
         QMessageBox::warning(nullptr,
-                             tr("Mesh 规模过大"),
+                             tr("%1 规模过大").arg(topoName),
                              tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。\n"
                                 "请减小 k / n / c 后重试。")
                                  .arg(routerCount * c)
@@ -254,17 +264,27 @@ void GraphScene::rebuildManagedMesh(GraphTopologyBlock* block) {
         st.routers.append(router);
     }
 
+    QSet<quint64> createdRouterEdges;
     for (int idx = 0; idx < routerCount; ++idx) {
         const QVector<int> coords = decodeRouterCoords(idx, k, n);
         for (int d = 0; d < n; ++d) {
-            if (coords[d] + 1 >= k) {
+            QVector<int> next = coords;
+            if (isTorus) {
+                next[d] = (coords[d] + 1) % k;
+            } else {
+                if (coords[d] + 1 >= k) {
+                    continue;
+                }
+                next[d] += 1;
+            }
+            const int nb = encodeRouterCoords(next, k);
+            const quint64 edgeKey = undirectedEdgeKey(idx, nb);
+            if (createdRouterEdges.contains(edgeKey)) {
                 continue;
             }
-            QVector<int> next = coords;
-            next[d] += 1;
-            const int nb = encodeRouterCoords(next, k);
             GraphEdge* e = createEdge(routers[idx], routers[nb], 1.0);
             if (e) {
+                createdRouterEdges.insert(edgeKey);
                 st.edges.append(e);
             }
         }

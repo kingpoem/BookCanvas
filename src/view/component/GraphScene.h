@@ -90,8 +90,8 @@ private:
     [[nodiscard]] QString allocateNextTopologyBlockId() const;
     void createTopologyBlockAt(const QPointF& pos);
     void removeTopologyBlock(GraphTopologyBlock* block);
-    void rebuildManagedMesh(GraphTopologyBlock* block);
-    void clearManagedMesh(GraphTopologyBlock* block);
+    void rebuildManagedTopology(GraphTopologyBlock* block);
+    void clearManagedTopology(GraphTopologyBlock* block);
 
     QList<GraphNode*> m_nodes; // 存放所有节点
     QList<GraphEdge*> m_edges; // 存放所有边
