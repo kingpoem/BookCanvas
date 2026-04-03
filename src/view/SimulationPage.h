@@ -19,6 +19,7 @@ signals:
 
 private slots:
     void onRunSimulation();
+    void onClearSimulationRecord();
     void onProcessReadyReadStandardOutput();
     void onProcessReadyReadStandardError();
     void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
@@ -26,11 +27,14 @@ private slots:
 private:
     bool prepareFilesForSimulation();
     void appendOutput(const QString& text);
+    void applyTheme();
 
     ElaPushButton* m_runButton;
+    ElaPushButton* m_clearButton;
     QPlainTextEdit* m_outputText;
     QProcess* m_process;
     QString m_capturedOutput;
     CanvasPage* m_canvasPage = nullptr;
     GlobalConfigPage* m_globalConfigPage = nullptr;
+    QWidget* m_pageRoot = nullptr;
 };

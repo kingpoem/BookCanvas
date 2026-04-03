@@ -144,9 +144,27 @@ CanvasPage::CanvasPage(QWidget* parent)
     bindWidgetToElaPanelChrome(stripScroll->viewport());
     bindWidgetToElaPanelChrome(stripInner);
 
+    auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", stripInner);
+    showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
+    auto* clearCanvasBtn = new ElaIconButton(ElaIconType::TrashCan, 18, stripInner);
+    clearCanvasBtn->setBorderRadius(8);
+    clearCanvasBtn->setToolTip(tr("一键清除当前画布上的全部节点、链路与拓扑块"));
+
     auto* leftCol = new QVBoxLayout(leftBuildPanel);
     leftCol->setContentsMargins(0, 0, 0, 0);
     leftCol->addWidget(stripScroll, 1);
+
+    auto* actionsTitle = new QLabel(tr("BookSim 操作"), stripInner);
+    actionsTitle->setForegroundRole(QPalette::WindowText);
+    bindLabelToElaBasicText(actionsTitle);
+    QFont at = actionsTitle->font();
+    at.setBold(true);
+    at.setPointSize(10);
+    actionsTitle->setFont(at);
+    stripLay->addWidget(actionsTitle);
+    stripLay->addSpacing(4);
+    stripLay->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), stripInner));
+    stripLay->addWidget(createButtonWithLabel(clearCanvasBtn, tr("清空画布"), stripInner));
 
     auto* buildTitle = new QLabel(tr("拖拽放置"), stripInner);
     buildTitle->setForegroundRole(QPalette::WindowText);
@@ -172,7 +190,8 @@ CanvasPage::CanvasPage(QWidget* parent)
     placeHint->setForegroundRole(QPalette::WindowText);
     bindLabelToElaBasicText(placeHint);
     QFont ph = placeHint->font();
-    ph.setPointSize(9);
+    ph.setBold(true);
+    ph.setPointSize(10);
     placeHint->setFont(ph);
     placeHint->setWordWrap(true);
     stripLay->addWidget(placeHint);
@@ -238,20 +257,6 @@ CanvasPage::CanvasPage(QWidget* parent)
     addTopoButton(QStringLiteral("flatfly"), QStringLiteral("flatfly"));
     addTopoButton(QStringLiteral("dragonflynew"), QStringLiteral("dragonflynew"));
 
-    auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", stripInner);
-    showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
-
-    auto* actionsTitle = new QLabel(tr("BookSim 操作"), stripInner);
-    actionsTitle->setForegroundRole(QPalette::WindowText);
-    bindLabelToElaBasicText(actionsTitle);
-    QFont at = actionsTitle->font();
-    at.setBold(true);
-    at.setPointSize(10);
-    actionsTitle->setFont(at);
-    stripLay->addWidget(actionsTitle);
-    stripLay->addSpacing(4);
-    stripLay->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), stripInner));
-
     stripLay->addStretch(1);
 
     auto* rightColumn = new QVBoxLayout();
@@ -287,6 +292,12 @@ CanvasPage::CanvasPage(QWidget* parent)
     mainRow->addWidget(splitter, 1);
 
     connect(showBtn, &ShowButton::toggled, m_scene, &GraphScene::setAllEdgeWeightsVisible);
+    connect(clearCanvasBtn, &ElaPushButton::clicked, this, [this]() {
+        clearPlaceMode();
+        if (m_scene) {
+            m_scene->clearAllContent();
+        }
+    });
 
     connect(m_placeTermPick, &ElaIconButton::toggled, this, [this](bool on) {
         if (on) {

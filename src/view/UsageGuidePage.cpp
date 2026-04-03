@@ -2,6 +2,7 @@
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
 #include <ElaText.h>
+#include <ElaTheme.h>
 #include <QApplication>
 #include <QClipboard>
 #include <QFrame>
@@ -9,6 +10,7 @@
 #include <QLabel>
 #include <QScrollArea>
 #include <QTextBrowser>
+#include <QTextDocument>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -187,7 +189,6 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
         = new QLabel(tr("按“流程-参数-指标-诊断”组织内容，支持全文搜索、分组折叠和模板复制。"),
                      this);
     m_statusLabel->setWordWrap(true);
-    m_statusLabel->setStyleSheet(QStringLiteral("color: palette(mid);"));
     centerLayout->addWidget(m_statusLabel);
 
     auto* scroll = new QScrollArea(this);
@@ -311,8 +312,12 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
     centerLayout->addWidget(scroll, 1);
 
     connect(m_searchEdit, &ElaLineEdit::textChanged, this, [this]() { applySearchFilter(); });
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
+        applyTheme();
+    });
 
     addCentralWidget(centralWidget, true, true, 0);
+    applyTheme();
 }
 
 QWidget* UsageGuidePage::createTemplateRow(const QVector<QPair<QString, QString>>& templates,
@@ -345,8 +350,6 @@ void UsageGuidePage::addSection(const QString& title,
                                 const QVector<QPair<QString, QString>>& templates) {
     auto* card = new QFrame(m_sectionHost);
     card->setFrameShape(QFrame::StyledPanel);
-    card->setStyleSheet(QStringLiteral("QFrame { border: 1px solid palette(mid); border-radius: "
-                                       "10px; background: palette(base); }"));
 
     auto* cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(10, 8, 10, 10);
@@ -366,12 +369,8 @@ void UsageGuidePage::addSection(const QString& title,
     toggle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
     auto* categoryLabel = new QLabel(category, headRow);
-    categoryLabel->setStyleSheet(
-        QStringLiteral("QLabel { border: 1px solid palette(mid); border-radius: 8px; padding: 1px "
-                       "8px; color: palette(mid); }"));
     auto* summaryLabel = new QLabel(summary, headRow);
     summaryLabel->setWordWrap(true);
-    summaryLabel->setStyleSheet(QStringLiteral("color: palette(mid);"));
 
     headLay->addWidget(toggle, 1);
     headLay->addWidget(categoryLabel, 0);
@@ -408,6 +407,9 @@ void UsageGuidePage::addSection(const QString& title,
     sec.card = card;
     sec.body = body;
     sec.toggle = toggle;
+    sec.categoryLabel = categoryLabel;
+    sec.summaryLabel = summaryLabel;
+    sec.browser = browser;
     m_sections.append(sec);
     m_sectionLayout->addWidget(card);
 }
@@ -435,5 +437,73 @@ void UsageGuidePage::applySearchFilter() {
             tr("按“流程-参数-指标-诊断”组织内容，支持全文搜索、分组折叠和模板复制。"));
     } else {
         m_statusLabel->setText(tr("搜索 \"%1\"：匹配到 %2 个分组。").arg(key).arg(matched));
+    }
+}
+
+void UsageGuidePage::applyTheme() {
+    const auto mode = eTheme->getThemeMode();
+    const bool isLight = (mode == ElaThemeType::Light);
+    const QString border = ElaThemeColor(mode, BasicBorder).name(QColor::HexRgb);
+    const QString pageBg = ElaThemeColor(mode, WindowBase).name(QColor::HexRgb);
+    const QString cardBg = ElaThemeColor(mode, PopupBase).name(QColor::HexRgb);
+    const QString textMain = (isLight ? QColor(Qt::black) : ElaThemeColor(mode, BasicText))
+                                 .name(QColor::HexRgb);
+    const QString textMuted = (isLight ? QColor(Qt::black) : ElaThemeColor(mode, BasicDetailsText))
+                                  .name(QColor::HexRgb);
+    const QString textHint = (isLight ? QColor(Qt::black) : ElaThemeColor(mode, BasicTextNoFocus))
+                                 .name(QColor::HexRgb);
+    const QString editorBg = ElaThemeColor(mode, WindowBase).name(QColor::HexRgb);
+    const QString link = ElaThemeColor(mode, PrimaryNormal).name(QColor::HexRgb);
+
+    if (QWidget* root = this->findChild<QWidget*>(QStringLiteral("ElaScrollPage_CentralPage"))) {
+        root->setStyleSheet(QStringLiteral("background-color: %1;").arg(pageBg));
+    }
+    if (m_sectionHost) {
+        m_sectionHost->setStyleSheet(QStringLiteral("background-color: %1;").arg(pageBg));
+    }
+
+    if (m_statusLabel) {
+        m_statusLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textHint));
+    }
+
+    for (SectionUi& s : m_sections) {
+        if (s.card) {
+            s.card->setStyleSheet(
+                QStringLiteral(
+                    "QFrame { border: 1px solid %1; border-radius: 10px; background: %2; }")
+                    .arg(border, cardBg));
+        }
+        if (s.toggle) {
+            s.toggle->setStyleSheet(
+                QStringLiteral("QToolButton { border: none; background: transparent; color: %1; "
+                               "font-weight: 600; text-align: left; padding: 2px 0; }")
+                    .arg(textMain));
+        }
+        if (s.categoryLabel) {
+            s.categoryLabel->setStyleSheet(
+                QStringLiteral(
+                    "QLabel { border: 1px solid %1; border-radius: 8px; padding: 1px 8px; "
+                    "color: %2; background: transparent; }")
+                    .arg(border, textHint));
+        }
+        if (s.summaryLabel) {
+            s.summaryLabel->setStyleSheet(QStringLiteral("color: %1;").arg(textMuted));
+        }
+        if (s.browser) {
+            s.browser->setStyleSheet(
+                QStringLiteral("QTextBrowser { border: 1px solid %1; border-radius: 8px; "
+                               "background-color: %2; color: %3; padding: 6px; }"
+                               "QTextBrowser a { color: %4; }")
+                    .arg(border, editorBg, textMain, link));
+            if (s.browser->document()) {
+                s.browser->document()->setDefaultStyleSheet(
+                    QStringLiteral("body { color: %1; background-color: %2; }"
+                                   "h4 { color: %1; margin: 8px 0 4px 0; }"
+                                   "p, li { color: %1; }"
+                                   "ul, ol { margin-top: 4px; margin-bottom: 4px; }"
+                                   "a { color: %3; }")
+                        .arg(textMain, editorBg, link));
+            }
+        }
     }
 }

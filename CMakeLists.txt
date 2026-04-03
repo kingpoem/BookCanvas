@@ -5,7 +5,6 @@ include(Version)
 
 project(BookCanvas VERSION ${VERSION_SEMANTIC} LANGUAGES CXX)
 
-# GUI .app 安装到系统「应用程序」目录；若在 cmake -B 时传入 -DCMAKE_INSTALL_PREFIX=... 则仍以用户指定为准。
 if(APPLE AND NOT IOS)
   if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "/Applications" CACHE PATH
@@ -76,24 +75,37 @@ add_subdirectory(3rdpart/ElaWidgetTools)
 
 # Set booksim2 source directory and binary directory
 set(BOOKSIM2_SRC_DIR ${CMAKE_SOURCE_DIR}/3rdpart/booksim2/src)
-set(BOOKSIM2_EXECUTABLE ${BOOKSIM2_SRC_DIR}/booksim)
-
-# Custom command to compile booksim
-find_program(MAKE_PROGRAM make)
 if(WIN32)
-    find_program(MAKE_PROGRAM mingw32-make)
-    if(NOT MAKE_PROGRAM)
-        find_program(MAKE_PROGRAM nmake)
-    endif()
-endif()
+    set(BOOKSIM2_EXECUTABLE ${BOOKSIM2_SRC_DIR}/booksim.exe)
+    set(BOOKSIM2_DOWNLOAD_URL "https://github.com/kingpoem/booksim2/releases/download/v0.0.1/booksim.exe")
+    set(BOOKSIM2_DOWNLOAD_SCRIPT ${CMAKE_SOURCE_DIR}/.cmake/download_booksim2.cmake)
 
-add_custom_command(
-    OUTPUT ${BOOKSIM2_EXECUTABLE}
-    COMMAND ${CMAKE_COMMAND} -E chdir ${BOOKSIM2_SRC_DIR} ${MAKE_PROGRAM}
-    COMMENT "Building booksim2..."
-    WORKING_DIRECTORY ${BOOKSIM2_SRC_DIR}
-    VERBATIM
-)
+    add_custom_command(
+        OUTPUT ${BOOKSIM2_EXECUTABLE}
+        COMMAND ${CMAKE_COMMAND}
+            "-DBOOKSIM2_DOWNLOAD_URL=${BOOKSIM2_DOWNLOAD_URL}"
+            "-DBOOKSIM2_EXECUTABLE=${BOOKSIM2_EXECUTABLE}"
+            -P ${BOOKSIM2_DOWNLOAD_SCRIPT}
+        COMMENT "Downloading booksim.exe for Windows..."
+        VERBATIM
+    )
+else()
+    set(BOOKSIM2_EXECUTABLE ${BOOKSIM2_SRC_DIR}/booksim)
+
+    # Custom command to compile booksim
+    find_program(MAKE_PROGRAM make)
+    if(NOT MAKE_PROGRAM)
+        message(FATAL_ERROR "Cannot find 'make' to build booksim2.")
+    endif()
+
+    add_custom_command(
+        OUTPUT ${BOOKSIM2_EXECUTABLE}
+        COMMAND ${CMAKE_COMMAND} -E chdir ${BOOKSIM2_SRC_DIR} ${MAKE_PROGRAM}
+        COMMENT "Building booksim2..."
+        WORKING_DIRECTORY ${BOOKSIM2_SRC_DIR}
+        VERBATIM
+    )
+endif()
 
 # Add custom target
 add_custom_target(booksim2

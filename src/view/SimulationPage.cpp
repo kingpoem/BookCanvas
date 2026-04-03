@@ -5,22 +5,26 @@
 #include <ElaPushButton.h>
 #include <ElaScrollPageArea.h>
 #include <ElaText.h>
+#include <ElaTheme.h>
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
 #include <QHBoxLayout>
+#include <QPalette>
 #include <QTextCursor>
 #include <QVBoxLayout>
 
 SimulationPage::SimulationPage(QWidget* parent)
     : BasePage(parent)
     , m_runButton(nullptr)
+    , m_clearButton(nullptr)
     , m_outputText(nullptr)
     , m_process(nullptr) {
     setWindowTitle("Simulation");
 
     // 创建中央部件
     auto* centralWidget = new QWidget(this);
+    m_pageRoot = centralWidget;
     centralWidget->setWindowTitle("Simulation");
     auto* mainLayout = new QVBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 20, 0);
@@ -32,6 +36,8 @@ SimulationPage::SimulationPage(QWidget* parent)
 
     m_runButton = new ElaPushButton("执行仿真", this);
     buttonLayout->addWidget(m_runButton);
+    m_clearButton = new ElaPushButton("清空记录", this);
+    buttonLayout->addWidget(m_clearButton);
     buttonLayout->addStretch();
 
     mainLayout->addWidget(buttonArea);
@@ -48,12 +54,17 @@ SimulationPage::SimulationPage(QWidget* parent)
 
     // clang-format off
     connect(m_runButton, &ElaPushButton::clicked, this, &SimulationPage::onRunSimulation);
+    connect(m_clearButton, &ElaPushButton::clicked, this, &SimulationPage::onClearSimulationRecord);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &SimulationPage::onProcessReadyReadStandardOutput);
     connect(m_process, &QProcess::readyReadStandardError, this, &SimulationPage::onProcessReadyReadStandardError);
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &SimulationPage::onProcessFinished);
     // clang-format on
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
+        applyTheme();
+    });
 
     addCentralWidget(centralWidget, true, true, 0);
+    applyTheme();
 }
 
 void SimulationPage::setSaveContext(CanvasPage* canvasPage, GlobalConfigPage* globalConfigPage) {
@@ -98,7 +109,8 @@ void SimulationPage::onRunSimulation() {
     const QString booksimExec = BooksimPaths::findBooksimExecutable();
     if (booksimExec.isEmpty()) {
         appendOutput("错误: 找不到 booksim 可执行文件！\n");
-        appendOutput("请确保 booksim 已编译，位于 3rdpart/booksim2/src/booksim\n");
+        appendOutput("请确保可执行文件位于 3rdpart/booksim2/src（Windows 为 "
+                     "booksim.exe，其他平台为 booksim）。\n");
         return;
     }
 
@@ -124,6 +136,11 @@ void SimulationPage::onRunSimulation() {
 
     // 启动进程
     m_process->start(booksimExec, arguments);
+}
+
+void SimulationPage::onClearSimulationRecord() {
+    m_outputText->clear();
+    m_capturedOutput.clear();
 }
 
 void SimulationPage::onProcessReadyReadStandardOutput() {
@@ -168,4 +185,39 @@ void SimulationPage::appendOutput(const QString& text) {
     QTextCursor cursor = m_outputText->textCursor();
     cursor.movePosition(QTextCursor::End);
     m_outputText->setTextCursor(cursor);
+}
+
+void SimulationPage::applyTheme() {
+    if (!m_pageRoot) {
+        return;
+    }
+
+    const auto mode = eTheme->getThemeMode();
+    const QColor pageBg = ElaThemeColor(mode, WindowBase);
+    const QColor border = ElaThemeColor(mode, BasicBorder);
+    const QColor textMain = ElaThemeColor(mode, BasicText);
+    const QColor textHint = ElaThemeColor(mode, BasicTextNoFocus);
+    const QColor editorBg = ElaThemeColor(mode, PopupBase);
+
+    m_pageRoot->setAttribute(Qt::WA_StyledBackground, true);
+    m_pageRoot->setStyleSheet(QStringLiteral("#ElaScrollPage_CentralPage { background-color: %1; }")
+                                  .arg(pageBg.name(QColor::HexRgb)));
+    if (QWidget* outerVp = m_pageRoot->parentWidget()) {
+        outerVp->setAutoFillBackground(true);
+        QPalette op = outerVp->palette();
+        op.setColor(QPalette::Window, pageBg);
+        outerVp->setPalette(op);
+    }
+
+    if (m_outputText) {
+        m_outputText->setStyleSheet(
+            QStringLiteral("QPlainTextEdit { background-color: %1; color: %2; border: 1px solid "
+                           "%3; border-radius: 8px; }")
+                .arg(editorBg.name(QColor::HexRgb),
+                     textMain.name(QColor::HexRgb),
+                     border.name(QColor::HexRgb)));
+        QPalette pal = m_outputText->palette();
+        pal.setColor(QPalette::PlaceholderText, textHint);
+        m_outputText->setPalette(pal);
+    }
 }

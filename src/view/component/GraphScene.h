@@ -49,6 +49,8 @@ public:
 
     // 控制所有边的权重显示/隐藏
     void setAllEdgeWeightsVisible(bool visible);
+    // 清空画布上的全部内容（节点、边、拓扑块）
+    void clearAllContent();
 
     // 检查连接是否合法（节点只能连接路由器，路由器可以连接任何节点）
     static bool isConnectionValid(GraphNode* start, GraphNode* end);

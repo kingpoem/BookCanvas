@@ -22,6 +22,7 @@ signals:
 
 private:
     void setupUi();
+    void applyTheme();
     void addSectionTitle(const QString& title);
     void addConfigItem(const QString& key, const QString& label, const QString& defaultValue);
     [[nodiscard]] QMap<QString, QString> collectConfigFromUi() const;
@@ -31,4 +32,5 @@ private:
     QScrollArea* m_scrollArea = nullptr;
     QMap<QString, ElaLineEdit*> m_edits;
     ElaPushButton* m_resetBtn = nullptr;
+    QWidget* m_pageRoot = nullptr;
 };

@@ -8,6 +8,7 @@ class QLabel;
 class QVBoxLayout;
 class QWidget;
 class QToolButton;
+class QTextBrowser;
 
 class UsageGuidePage : public BasePage {
     Q_OBJECT
@@ -22,6 +23,9 @@ private:
         QWidget* card = nullptr;
         QWidget* body = nullptr;
         QToolButton* toggle = nullptr;
+        QLabel* categoryLabel = nullptr;
+        QLabel* summaryLabel = nullptr;
+        QTextBrowser* browser = nullptr;
     };
 
     void addSection(const QString& title,
@@ -31,6 +35,7 @@ private:
                     const QString& searchableText,
                     const QVector<QPair<QString, QString>>& templates = {});
     void applySearchFilter();
+    void applyTheme();
     QWidget* createTemplateRow(const QVector<QPair<QString, QString>>& templates, QWidget* parent);
 
     ElaLineEdit* m_searchEdit = nullptr;

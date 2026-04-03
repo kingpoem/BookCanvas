@@ -33,17 +33,17 @@ void MainWindow::initContent() {
     simulationPage = new SimulationPage(this);
     addPageNode("Simulation", simulationPage, ElaIconType::Play);
 
-    globalConfigPage = new GlobalConfigPage(this);
-    addPageNode(tr("全局配置"), globalConfigPage, ElaIconType::CarWrench);
-    globalConfigPage->setConfig(canvasPage->globalConfig());
-    simulationPage->setSaveContext(canvasPage, globalConfigPage);
-
     bookSimResultPage = new BookSimResultPage(this);
     addPageNode(tr("BookSim 结果"), bookSimResultPage, ElaIconType::ChartSimple);
     connect(simulationPage,
             &SimulationPage::simulationFinished,
             bookSimResultPage,
             &BookSimResultPage::ingestSimulationLog);
+
+    globalConfigPage = new GlobalConfigPage(this);
+    addPageNode(tr("全局配置"), globalConfigPage, ElaIconType::CarWrench);
+    globalConfigPage->setConfig(canvasPage->globalConfig());
+    simulationPage->setSaveContext(canvasPage, globalConfigPage);
 
     usageGuidePage = new UsageGuidePage(this);
     addPageNode(tr("使用说明"), usageGuidePage, ElaIconType::CircleInfo);

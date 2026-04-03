@@ -2,10 +2,12 @@
 #include "component/RouterGlobalConfigDialog.h"
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
+#include <ElaTheme.h>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QPalette>
 #include <QScrollArea>
 #include <QVBoxLayout>
 
@@ -19,6 +21,7 @@ GlobalConfigPage::GlobalConfigPage(QWidget* parent)
 
 void GlobalConfigPage::setupUi() {
     auto* centralWidget = new QWidget(this);
+    m_pageRoot = centralWidget;
     centralWidget->setWindowTitle(tr("全局配置"));
 
     auto* root = new QVBoxLayout(centralWidget);
@@ -195,7 +198,11 @@ void GlobalConfigPage::setupUi() {
             setConfig(RouterGlobalConfigDialog::getDefaultConfig());
         }
     });
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
+        applyTheme();
+    });
     addCentralWidget(centralWidget, true, true, 0);
+    applyTheme();
 }
 
 void GlobalConfigPage::setConfig(const QMap<QString, QString>& config) {
@@ -217,7 +224,8 @@ void GlobalConfigPage::addSectionTitle(const QString& title) {
     font.setBold(true);
     font.setPointSize(font.pointSize() + 1);
     titleLabel->setFont(font);
-    titleLabel->setStyleSheet("color: #2c3e50; margin-top: 5px; margin-bottom: 5px;");
+    titleLabel->setProperty("isSectionTitle", true);
+    titleLabel->setStyleSheet("margin-top: 5px; margin-bottom: 5px;");
     m_formLayout->addWidget(titleLabel);
 }
 
@@ -247,4 +255,39 @@ QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
 QMap<QString, QString> GlobalConfigPage::collectCurrentConfig() {
     m_config = collectConfigFromUi();
     return m_config;
+}
+
+void GlobalConfigPage::applyTheme() {
+    if (!m_pageRoot) {
+        return;
+    }
+
+    const auto mode = eTheme->getThemeMode();
+    const QColor pageBg = ElaThemeColor(mode, WindowBase);
+    const QColor textMain = (mode == ElaThemeType::Light) ? QColor(Qt::black)
+                                                          : ElaThemeColor(mode, BasicText);
+    const QColor border = ElaThemeColor(mode, BasicBorder);
+
+    m_pageRoot->setAttribute(Qt::WA_StyledBackground, true);
+    m_pageRoot->setStyleSheet(QStringLiteral("#ElaScrollPage_CentralPage { background-color: %1; } "
+                                             "QLabel { color: %2; } "
+                                             "QLabel[isSectionTitle=\"true\"] { color: %2; }")
+                                  .arg(pageBg.name(QColor::HexRgb), textMain.name(QColor::HexRgb)));
+
+    if (QWidget* outerVp = m_pageRoot->parentWidget()) {
+        outerVp->setAutoFillBackground(true);
+        QPalette op = outerVp->palette();
+        op.setColor(QPalette::Window, pageBg);
+        outerVp->setPalette(op);
+    }
+
+    if (m_scrollArea) {
+        m_scrollArea->setStyleSheet(
+            QStringLiteral("QScrollArea { background: transparent; border: 1px solid %1; "
+                           "border-radius: 8px; }")
+                .arg(border.name(QColor::HexRgb)));
+        if (QWidget* vp = m_scrollArea->viewport()) {
+            vp->setStyleSheet(QStringLiteral("background: transparent;"));
+        }
+    }
 }

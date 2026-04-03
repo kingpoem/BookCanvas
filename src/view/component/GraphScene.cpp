@@ -1089,6 +1089,39 @@ void GraphScene::setAllEdgeWeightsVisible(bool visible) {
     }
 }
 
+void GraphScene::clearAllContent() {
+    m_highlightNode = nullptr;
+    m_lineStartNode = nullptr;
+    if (m_tempEdge) {
+        removeItem(m_tempEdge);
+        m_tempEdge = nullptr;
+    }
+    m_pendingToolName.clear();
+    m_pendingBooksimTopologyActive = false;
+    m_placeTool = PlaceTool::None;
+
+    const QList<GraphTopologyBlock*> blocks = m_topologyBlocks;
+    for (GraphTopologyBlock* block : blocks) {
+        if (block) {
+            removeTopologyBlock(block);
+        }
+    }
+
+    const QList<GraphEdge*> allEdges = m_edges;
+    for (GraphEdge* edge : allEdges) {
+        if (edge) {
+            removeEdge(edge);
+        }
+    }
+
+    const QList<GraphNode*> allNodes = m_nodes;
+    for (GraphNode* node : allNodes) {
+        if (node) {
+            removeNode(node);
+        }
+    }
+}
+
 bool GraphScene::isConnectionValid(GraphNode* start, GraphNode* end) {
     if (!start || !end)
         return false;
