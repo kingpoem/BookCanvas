@@ -16,6 +16,7 @@
 #include <QSet>
 #include <QTextStream>
 #include <QTimer>
+#include <QUndoCommand>
 #include <QVector>
 #include <cmath>
 
@@ -79,12 +80,297 @@ constexpr int kMeshMaxTerminals = 4000;
     return (static_cast<quint64>(static_cast<quint32>(lo)) << 32) | static_cast<quint32>(hi);
 }
 
+class BoolResetGuard {
+public:
+    explicit BoolResetGuard(bool& flag)
+        : m_flag(flag)
+        , m_old(flag) {}
+    ~BoolResetGuard() { m_flag = m_old; }
+
+private:
+    bool& m_flag;
+    bool m_old = false;
+};
+
 } // namespace
+
+class GraphScene::AddNodeCommand final : public QUndoCommand {
+public:
+    AddNodeCommand(GraphScene* scene, QString id, QPointF pos, GraphNode::NodeType type)
+        : m_scene(scene)
+        , m_id(std::move(id))
+        , m_pos(pos)
+        , m_type(type) {
+        setText(QObject::tr("添加节点"));
+    }
+
+    void redo() override {
+        if (!m_scene) {
+            return;
+        }
+        m_scene->createNodeInternal(m_id, m_pos, m_type);
+    }
+
+    void undo() override {
+        if (!m_scene) {
+            return;
+        }
+        if (GraphNode* node = m_scene->findNodeById(m_id)) {
+            m_scene->removeNodeInternal(node);
+        }
+    }
+
+private:
+    QPointer<GraphScene> m_scene;
+    QString m_id;
+    QPointF m_pos;
+    GraphNode::NodeType m_type = GraphNode::Node;
+};
+
+class GraphScene::AddEdgeCommand final : public QUndoCommand {
+public:
+    AddEdgeCommand(GraphScene* scene, QString startId, QString endId, double weight)
+        : m_scene(scene)
+        , m_startId(std::move(startId))
+        , m_endId(std::move(endId))
+        , m_weight(weight) {
+        setText(QObject::tr("添加连线"));
+    }
+
+    void redo() override {
+        if (!m_scene) {
+            return;
+        }
+        GraphNode* start = m_scene->findNodeById(m_startId);
+        GraphNode* end = m_scene->findNodeById(m_endId);
+        if (!start || !end) {
+            return;
+        }
+        m_scene->createEdgeInternal(start, end, m_weight);
+    }
+
+    void undo() override {
+        if (!m_scene) {
+            return;
+        }
+        for (GraphEdge* edge : m_scene->m_edges) {
+            if (!edge) {
+                continue;
+            }
+            if (edge->startNode() && edge->endNode() && edge->startNode()->getId() == m_startId
+                && edge->endNode()->getId() == m_endId && qFuzzyCompare(edge->weight(), m_weight)) {
+                m_scene->removeEdgeInternal(edge);
+                return;
+            }
+        }
+    }
+
+private:
+    QPointer<GraphScene> m_scene;
+    QString m_startId;
+    QString m_endId;
+    double m_weight = 1.0;
+};
+
+class GraphScene::RemoveEdgeCommand final : public QUndoCommand {
+public:
+    RemoveEdgeCommand(GraphScene* scene, QString startId, QString endId, double weight)
+        : m_scene(scene)
+        , m_startId(std::move(startId))
+        , m_endId(std::move(endId))
+        , m_weight(weight) {
+        setText(QObject::tr("删除连线"));
+    }
+
+    void redo() override {
+        if (!m_scene) {
+            return;
+        }
+        for (GraphEdge* edge : m_scene->m_edges) {
+            if (!edge || !edge->startNode() || !edge->endNode()) {
+                continue;
+            }
+            if (edge->startNode()->getId() == m_startId && edge->endNode()->getId() == m_endId
+                && qFuzzyCompare(edge->weight(), m_weight)) {
+                m_scene->removeEdgeInternal(edge);
+                return;
+            }
+        }
+    }
+
+    void undo() override {
+        if (!m_scene) {
+            return;
+        }
+        GraphNode* start = m_scene->findNodeById(m_startId);
+        GraphNode* end = m_scene->findNodeById(m_endId);
+        if (!start || !end) {
+            return;
+        }
+        m_scene->createEdgeInternal(start, end, m_weight);
+    }
+
+private:
+    QPointer<GraphScene> m_scene;
+    QString m_startId;
+    QString m_endId;
+    double m_weight = 1.0;
+};
+
+class GraphScene::RemoveNodeCommand final : public QUndoCommand {
+public:
+    struct EdgeSnapshot {
+        QString startId;
+        QString endId;
+        double weight = 1.0;
+    };
+
+    RemoveNodeCommand(GraphScene* scene, GraphNode* node)
+        : m_scene(scene) {
+        if (!node) {
+            return;
+        }
+        m_nodeId = node->getId();
+        m_nodeType = node->getType();
+        m_nodePos = node->pos();
+        if (m_nodeType == GraphNode::Router) {
+            m_routerConfig = scene->getRouterConfig(m_nodeId);
+        }
+        for (GraphEdge* edge : scene->m_edges) {
+            if (!edge || !edge->startNode() || !edge->endNode()) {
+                continue;
+            }
+            if (edge->startNode() == node || edge->endNode() == node) {
+                m_incidentEdges.push_back(
+                    {edge->startNode()->getId(), edge->endNode()->getId(), edge->weight()});
+            }
+        }
+        setText(QObject::tr("删除节点"));
+    }
+
+    void redo() override {
+        if (!m_scene) {
+            return;
+        }
+        if (GraphNode* node = m_scene->findNodeById(m_nodeId)) {
+            m_scene->removeNodeInternal(node);
+        }
+    }
+
+    void undo() override {
+        if (!m_scene) {
+            return;
+        }
+        GraphNode* node = m_scene->createNodeInternal(m_nodeId, m_nodePos, m_nodeType);
+        if (!node) {
+            return;
+        }
+        if (m_nodeType == GraphNode::Router && !m_routerConfig.isEmpty()) {
+            m_scene->setRouterConfig(m_nodeId, m_routerConfig);
+        }
+        for (const EdgeSnapshot& edge : m_incidentEdges) {
+            GraphNode* start = m_scene->findNodeById(edge.startId);
+            GraphNode* end = m_scene->findNodeById(edge.endId);
+            if (!start || !end) {
+                continue;
+            }
+            m_scene->createEdgeInternal(start, end, edge.weight);
+        }
+    }
+
+private:
+    QPointer<GraphScene> m_scene;
+    QString m_nodeId;
+    GraphNode::NodeType m_nodeType = GraphNode::Node;
+    QPointF m_nodePos;
+    QMap<QString, QString> m_routerConfig;
+    QVector<EdgeSnapshot> m_incidentEdges;
+};
+
+class GraphScene::MoveNodeCommand final : public QUndoCommand {
+public:
+    MoveNodeCommand(GraphScene* scene, QString nodeId, QPointF from, QPointF to)
+        : m_scene(scene)
+        , m_nodeId(std::move(nodeId))
+        , m_from(from)
+        , m_to(to) {
+        setText(QObject::tr("移动节点"));
+    }
+
+    void redo() override {
+        if (!m_scene) {
+            return;
+        }
+        if (GraphNode* node = m_scene->findNodeById(m_nodeId)) {
+            node->setPos(m_to);
+        }
+    }
+
+    void undo() override {
+        if (!m_scene) {
+            return;
+        }
+        if (GraphNode* node = m_scene->findNodeById(m_nodeId)) {
+            node->setPos(m_from);
+        }
+    }
+
+    int id() const override { return 0xB00CC1; }
+
+    bool mergeWith(const QUndoCommand* other) override {
+        auto* rhs = dynamic_cast<const MoveNodeCommand*>(other);
+        if (!rhs || rhs->m_nodeId != m_nodeId) {
+            return false;
+        }
+        m_to = rhs->m_to;
+        return true;
+    }
+
+private:
+    QPointer<GraphScene> m_scene;
+    QString m_nodeId;
+    QPointF m_from;
+    QPointF m_to;
+};
+
+class GraphScene::UpdateTopologyParamsCommand final : public QUndoCommand {
+public:
+    UpdateTopologyParamsCommand(GraphScene* scene,
+                                GraphTopologyBlock* block,
+                                BooksimTopologyParams oldParams,
+                                BooksimTopologyParams newParams)
+        : m_scene(scene)
+        , m_block(block)
+        , m_oldParams(std::move(oldParams))
+        , m_newParams(std::move(newParams)) {
+        setText(QObject::tr("修改拓扑参数"));
+    }
+
+    void redo() override { apply(m_newParams); }
+
+    void undo() override { apply(m_oldParams); }
+
+private:
+    void apply(const BooksimTopologyParams& params) {
+        if (!m_scene || !m_block) {
+            return;
+        }
+        m_block->setParams(params);
+        m_scene->rebuildManagedTopology(m_block.data());
+    }
+
+    QPointer<GraphScene> m_scene;
+    QPointer<GraphTopologyBlock> m_block;
+    BooksimTopologyParams m_oldParams;
+    BooksimTopologyParams m_newParams;
+};
 
 GraphScene::GraphScene(QObject* parent)
     : ElaGraphicsScene(parent) {
     setSceneRect(QRectF(0, 0, 1200, 600));
     // (x, y ,sceneX, sceneY) (x, y) 控制画布左上角点 (sceneX, sceneY) 控制宽高
+    connect(&m_undoStack, &QUndoStack::indexChanged, this, [this](int) { emitUndoStateNow(); });
+    emitUndoStateNow();
 }
 
 void GraphScene::setPlaceTool(PlaceTool tool) {
@@ -110,6 +396,11 @@ void GraphScene::clearBooksimTopologyPlacePending() {
 void GraphScene::updateTopologyBlockParams(GraphTopologyBlock* block,
                                            const BooksimTopologyParams& params) {
     if (!block) {
+        return;
+    }
+    const BooksimTopologyParams oldParams = block->params();
+    if (isRecordingHistory()) {
+        m_undoStack.push(new UpdateTopologyParamsCommand(this, block, oldParams, params));
         return;
     }
     block->setParams(params);
@@ -181,6 +472,8 @@ void GraphScene::clearManagedTopology(GraphTopologyBlock* block) {
     if (it == m_managedTopologies.end()) {
         return;
     }
+    const bool oldSuspended = m_historySuspended;
+    m_historySuspended = true;
     ManagedTopologyState& st = it.value();
     const QList<QPointer<GraphEdge>> edges = st.edges;
     for (const QPointer<GraphEdge>& e : edges) {
@@ -205,6 +498,7 @@ void GraphScene::clearManagedTopology(GraphTopologyBlock* block) {
         }
     }
     st.routers.clear();
+    m_historySuspended = oldSuspended;
 }
 
 void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
@@ -212,6 +506,8 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     if (it == m_managedTopologies.end()) {
         return;
     }
+    BoolResetGuard historyRestore(m_historySuspended);
+    m_historySuspended = true;
     ManagedTopologyState& st = it.value();
     st.params = block->params();
     clearManagedTopology(block);
@@ -945,7 +1241,9 @@ void GraphScene::promptRenameNode(GraphNode* node) {
     }
 }
 
-GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNode::NodeType type) {
+GraphNode* GraphScene::createNodeInternal(const QString& id,
+                                          const QPointF& pos,
+                                          GraphNode::NodeType type) {
     auto* node = new GraphNode(id, type);
     addItem(node);
     node->setPos(pos); // NOTE: this line must be after addItem(node); `addItem` has written `setPos`
@@ -972,11 +1270,18 @@ GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNo
             }
         });
     });
-
     return node;
 }
 
-void GraphScene::removeNode(GraphNode* node) {
+GraphNode* GraphScene::createNode(const QString& id, const QPointF& pos, GraphNode::NodeType type) {
+    if (!isRecordingHistory()) {
+        return createNodeInternal(id, pos, type);
+    }
+    m_undoStack.push(new AddNodeCommand(this, id, pos, type));
+    return findNodeById(id);
+}
+
+void GraphScene::removeNodeInternal(GraphNode* node) {
     canvasDebugLog(QStringLiteral("GraphScene::removeNode [enter] ptr=0x%1 edges=%2")
                        .arg(quintptr(node), 0, 16)
                        .arg(m_edges.size()));
@@ -1027,7 +1332,18 @@ void GraphScene::removeNode(GraphNode* node) {
     canvasDebugLog(QStringLiteral("GraphScene::removeNode [return] ptr invalid"));
 }
 
-GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weight) {
+void GraphScene::removeNode(GraphNode* node) {
+    if (!node) {
+        return;
+    }
+    if (!isRecordingHistory()) {
+        removeNodeInternal(node);
+        return;
+    }
+    m_undoStack.push(new RemoveNodeCommand(this, node));
+}
+
+GraphEdge* GraphScene::createEdgeInternal(GraphNode* start, GraphNode* end, double weight) {
     if (!start || !end)
         return nullptr;
 
@@ -1051,7 +1367,27 @@ GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weigh
     return edge;
 }
 
-void GraphScene::removeEdge(GraphEdge* edge) {
+GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weight) {
+    if (!start || !end) {
+        return nullptr;
+    }
+    if (!isRecordingHistory()) {
+        return createEdgeInternal(start, end, weight);
+    }
+    m_undoStack.push(new AddEdgeCommand(this, start->getId(), end->getId(), weight));
+    for (GraphEdge* edge : m_edges) {
+        if (!edge || !edge->startNode() || !edge->endNode()) {
+            continue;
+        }
+        if (edge->startNode()->getId() == start->getId() && edge->endNode()->getId() == end->getId()
+            && qFuzzyCompare(edge->weight(), weight)) {
+            return edge;
+        }
+    }
+    return nullptr;
+}
+
+void GraphScene::removeEdgeInternal(GraphEdge* edge) {
     canvasDebugLog(QStringLiteral("GraphScene::removeEdge [enter] ptr=0x%1 listSize=%2")
                        .arg(quintptr(edge), 0, 16)
                        .arg(m_edges.size()));
@@ -1081,6 +1417,20 @@ void GraphScene::removeEdge(GraphEdge* edge) {
         }
     }
     canvasDebugLog(QStringLiteral("GraphScene::removeEdge [return] ptr invalid"));
+}
+
+void GraphScene::removeEdge(GraphEdge* edge) {
+    if (!edge || !edge->startNode() || !edge->endNode()) {
+        return;
+    }
+    if (!isRecordingHistory()) {
+        removeEdgeInternal(edge);
+        return;
+    }
+    m_undoStack.push(new RemoveEdgeCommand(this,
+                                           edge->startNode()->getId(),
+                                           edge->endNode()->getId(),
+                                           edge->weight()));
 }
 
 void GraphScene::setAllEdgeWeightsVisible(bool visible) {
@@ -1174,6 +1524,10 @@ int GraphScene::removeUnconnectedNodes() {
 }
 
 void GraphScene::clearAllContent() {
+    const bool recordMacro = isRecordingHistory();
+    if (recordMacro) {
+        m_undoStack.beginMacro(tr("清空画布"));
+    }
     m_highlightNode = nullptr;
     m_lineStartNode = nullptr;
     if (m_tempEdge) {
@@ -1204,6 +1558,69 @@ void GraphScene::clearAllContent() {
             removeNode(node);
         }
     }
+    if (recordMacro) {
+        m_undoStack.endMacro();
+    }
+}
+
+void GraphScene::undo() {
+    if (m_undoStack.canUndo()) {
+        m_historySuspended = true;
+        m_undoStack.undo();
+        m_historySuspended = false;
+    }
+}
+
+void GraphScene::redo() {
+    if (m_undoStack.canRedo()) {
+        m_historySuspended = true;
+        m_undoStack.redo();
+        m_historySuspended = false;
+    }
+}
+
+bool GraphScene::canUndo() const {
+    return m_undoStack.canUndo();
+}
+
+bool GraphScene::canRedo() const {
+    return m_undoStack.canRedo();
+}
+
+QString GraphScene::undoText() const {
+    return m_undoStack.undoText();
+}
+
+QString GraphScene::redoText() const {
+    return m_undoStack.redoText();
+}
+
+QAction* GraphScene::createUndoAction(QObject* parent, const QString& prefix) {
+    return m_undoStack.createUndoAction(parent, prefix);
+}
+
+QAction* GraphScene::createRedoAction(QObject* parent, const QString& prefix) {
+    return m_undoStack.createRedoAction(parent, prefix);
+}
+
+GraphNode* GraphScene::findNodeById(const QString& id) const {
+    for (GraphNode* node : m_nodes) {
+        if (node && node->getId() == id) {
+            return node;
+        }
+    }
+    return nullptr;
+}
+
+void GraphScene::emitUndoStateNow() {
+    emit undoStateChanged(m_undoStack.canUndo(),
+                          m_undoStack.canRedo(),
+                          m_undoStack.undoText(),
+                          m_undoStack.redoText());
+}
+
+bool GraphScene::isRecordingHistory() const {
+    return !m_historySuspended;
 }
 
 bool GraphScene::isConnectionValid(GraphNode* start, GraphNode* end) {
@@ -1280,6 +1697,12 @@ void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 
     QGraphicsItem* item = itemAt(event->scenePos(), QTransform());
     auto* node = dynamic_cast<GraphNode*>(item);
+    if (event->button() == Qt::LeftButton && node) {
+        m_draggingNode = node;
+        m_dragStartPos = node->pos();
+    } else if (event->button() == Qt::LeftButton) {
+        m_draggingNode = nullptr;
+    }
 
     if (event->button() == Qt::LeftButton) {
         if (node) {
@@ -1334,6 +1757,18 @@ void GraphScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
         }
         m_tempEdge = nullptr;
         m_lineStartNode = nullptr;
+    }
+    if (event->button() == Qt::LeftButton && m_draggingNode) {
+        GraphNode* movedNode = m_draggingNode.data();
+        const QPointF from = m_dragStartPos;
+        const QPointF to = movedNode->pos();
+        m_draggingNode = nullptr;
+        if (!qFuzzyCompare(from.x() + 1.0, to.x() + 1.0)
+            || !qFuzzyCompare(from.y() + 1.0, to.y() + 1.0)) {
+            if (isRecordingHistory()) {
+                m_undoStack.push(new MoveNodeCommand(this, movedNode->getId(), from, to));
+            }
+        }
     }
     ElaGraphicsScene::mouseReleaseEvent(event);
 }

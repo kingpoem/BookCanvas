@@ -7,8 +7,11 @@
 #include <QMap>
 #include <QPointer>
 #include <QString>
+#include <QUndoStack>
 
 class GraphTopologyBlock;
+class QAction;
+class QUndoCommand;
 
 // 提供了节点/边的创建、删除，以及与拖拽交互、鼠标事件相关的逻辑
 class GraphScene : public ElaGraphicsScene {
@@ -33,6 +36,10 @@ public:
     // 信号：节点配置请求
     Q_SIGNAL void nodeConfigureRequested(GraphNode* node);
     Q_SIGNAL void topologyBlockConfigureRequested(GraphTopologyBlock* block);
+    Q_SIGNAL void undoStateChanged(bool canUndo,
+                                   bool canRedo,
+                                   const QString& undoText,
+                                   const QString& redoText);
 
     GraphNode* createNode(const QString& id,
                           const QPointF& pos,
@@ -55,6 +62,14 @@ public:
     int removeUnconnectedNodes();
     // 清空画布上的全部内容（节点、边、拓扑块）
     void clearAllContent();
+    void undo();
+    void redo();
+    [[nodiscard]] bool canUndo() const;
+    [[nodiscard]] bool canRedo() const;
+    [[nodiscard]] QString undoText() const;
+    [[nodiscard]] QString redoText() const;
+    QAction* createUndoAction(QObject* parent, const QString& prefix = {});
+    QAction* createRedoAction(QObject* parent, const QString& prefix = {});
 
     // 检查连接是否合法（节点只能连接路由器，路由器可以连接任何节点）
     static bool isConnectionValid(GraphNode* start, GraphNode* end);
@@ -86,6 +101,19 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
 
 private:
+    class AddNodeCommand;
+    class AddEdgeCommand;
+    class RemoveNodeCommand;
+    class RemoveEdgeCommand;
+    class MoveNodeCommand;
+    class UpdateTopologyParamsCommand;
+    friend class AddNodeCommand;
+    friend class AddEdgeCommand;
+    friend class RemoveNodeCommand;
+    friend class RemoveEdgeCommand;
+    friend class MoveNodeCommand;
+    friend class UpdateTopologyParamsCommand;
+
     static int extractNumberId(const QString& id); // 辅助函数
     [[nodiscard]] QString allocateNextNodeId(GraphNode::NodeType type) const;
     /// 将用户输入规范为 Router_%d / Node_%d；无效则返回空字符串
@@ -98,6 +126,13 @@ private:
     void removeTopologyBlock(GraphTopologyBlock* block);
     void rebuildManagedTopology(GraphTopologyBlock* block);
     void clearManagedTopology(GraphTopologyBlock* block);
+    GraphNode* createNodeInternal(const QString& id, const QPointF& pos, GraphNode::NodeType type);
+    void removeNodeInternal(GraphNode* node);
+    GraphEdge* createEdgeInternal(GraphNode* start, GraphNode* end, double weight);
+    void removeEdgeInternal(GraphEdge* edge);
+    [[nodiscard]] GraphNode* findNodeById(const QString& id) const;
+    void emitUndoStateNow();
+    bool isRecordingHistory() const;
 
     QList<GraphNode*> m_nodes; // 存放所有节点
     QList<GraphEdge*> m_edges; // 存放所有边
@@ -130,4 +165,8 @@ private:
 
     // 全局配置参数
     QMap<QString, QString> m_globalConfig;
+    QUndoStack m_undoStack;
+    bool m_historySuspended = false;
+    QPointer<GraphNode> m_draggingNode;
+    QPointF m_dragStartPos;
 };

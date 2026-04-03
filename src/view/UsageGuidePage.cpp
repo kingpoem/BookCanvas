@@ -201,6 +201,13 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
                   "<li><b>R</b>：进入“路由器点击放置”模式。</li>"
                   "<li><b>Esc</b>：退出点击放置模式，回到普通编辑状态。</li>"
                   "</ul>"
+                  "<h4>撤销与重做</h4>"
+                  "<ul>"
+                  "<li><b>Windows / Linux</b>：<b>Ctrl + Z</b> 撤销，<b>Ctrl + Y</b>（或 "
+                  "<b>Ctrl + Shift + Z</b>）重做。</li>"
+                  "<li><b>macOS</b>：<b>Command + Z</b> 撤销，<b>Command + Shift + Z</b> "
+                  "重做。</li>"
+                  "</ul>"
                   "<h4>视口平移</h4>"
                   "<ul>"
                   "<li><b>↑ / ↓ / ← / →</b>：按固定步长平移画布视口。该操作与当前缩放比例解耦，"
@@ -215,7 +222,7 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
                   "</ul>"),
                QStringLiteral(
                    "快捷键 键盘 canvas n r esc 上下左右 平移 视口 缩放 ctrl command cmd plus "
-                   "minus zoom reset"));
+                   "minus zoom reset undo redo ctrl+z ctrl+y ctrl+shift+z cmd+z cmd+shift+z"));
 
     addSection(
         tr("参数"),

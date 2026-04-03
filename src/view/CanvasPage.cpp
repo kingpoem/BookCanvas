@@ -374,6 +374,20 @@ CanvasPage::CanvasPage(QWidget* parent)
     connect(placeRouterShortcut, &QShortcut::activated, this, [this]() {
         m_placeRouterPick->setChecked(true);
     });
+    auto* undoShortcut
+        = new QShortcut(QKeySequence::Undo, this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(undoShortcut, &QShortcut::activated, this, [this]() {
+        if (m_scene) {
+            m_scene->undo();
+        }
+    });
+    auto* redoShortcut
+        = new QShortcut(QKeySequence::Redo, this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(redoShortcut, &QShortcut::activated, this, [this]() {
+        if (m_scene) {
+            m_scene->redo();
+        }
+    });
 
     auto bindCanvasShortcut = [this](const QKeySequence& seq, const std::function<void()>& fn) {
         auto* sc = new QShortcut(seq, this, nullptr, nullptr, Qt::WindowShortcut);
