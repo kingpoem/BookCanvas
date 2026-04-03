@@ -620,7 +620,7 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
         return;
     }
 
-    setStatus(tr("解析成功：共 %1 个 traffic class。顶部为核心 KPI，延迟与吞吐板块已强化展示。")
+    setStatus(tr("解析成功：共 %1 个 traffic class")
                   .arg(result.classes.size()),
               false);
 

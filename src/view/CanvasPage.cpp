@@ -17,6 +17,7 @@
 #include <ElaTheme.h>
 #include <QApplication>
 #include <QDir>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -162,6 +163,9 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* pruneUnconnectedBtn = new ElaIconButton(ElaIconType::LinkSlash, 18, stripInner);
     pruneUnconnectedBtn->setBorderRadius(8);
     pruneUnconnectedBtn->setToolTip(tr("删除没有任何连线的路由器与终端"));
+    auto* importNetworkBtn = new ElaIconButton(ElaIconType::NetworkWired, 18, stripInner);
+    importNetworkBtn->setBorderRadius(8);
+    importNetworkBtn->setToolTip(tr("选择拓扑网络文件，并在画布上恢复网络"));
 
     auto* leftCol = new QVBoxLayout(leftBuildPanel);
     leftCol->setContentsMargins(0, 0, 0, 0);
@@ -180,6 +184,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addWidget(createButtonWithLabel(clearCanvasBtn, tr("清空画布"), stripInner));
     stripLay->addWidget(createButtonWithLabel(smartRenumberBtn, tr("智能重编号"), stripInner));
     stripLay->addWidget(createButtonWithLabel(pruneUnconnectedBtn, tr("清理孤立节点"), stripInner));
+    stripLay->addWidget(createButtonWithLabel(importNetworkBtn, tr("恢复网络"), stripInner));
 
     auto* buildTitle = new QLabel(tr("拖拽放置"), stripInner);
     buildTitle->setForegroundRole(QPalette::WindowText);
@@ -326,6 +331,29 @@ CanvasPage::CanvasPage(QWidget* parent)
             return;
         }
         m_scene->removeUnconnectedNodes();
+    });
+    connect(importNetworkBtn, &ElaPushButton::clicked, this, [this]() {
+        const QString filePath
+            = QFileDialog::getOpenFileName(this,
+                                           tr("选择拓扑网络文件"),
+                                           QDir::homePath(),
+                                           tr("所有文件 (*)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+        if (!m_scene) {
+            QMessageBox::warning(this, tr("恢复失败"), tr("画布场景未初始化。"));
+            return;
+        }
+        clearPlaceMode();
+        QString errorMessage;
+        if (!m_scene->importGraph(filePath, &errorMessage)) {
+            QMessageBox::warning(this,
+                                 tr("恢复失败"),
+                                 errorMessage.isEmpty() ? tr("无法从文件恢复网络。") : errorMessage);
+            return;
+        }
+        QMessageBox::information(this, tr("恢复成功"), tr("已从文件恢复网络:\n%1").arg(filePath));
     });
 
     connect(m_placeTermPick, &ElaIconButton::toggled, this, [this](bool on) {

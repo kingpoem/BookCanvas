@@ -13,6 +13,7 @@
 #include <QMimeData>
 #include <QPen>
 #include <QPointer>
+#include <QRegularExpression>
 #include <QSet>
 #include <QTextStream>
 #include <QTimer>
@@ -1779,6 +1780,190 @@ void GraphScene::exportGraph(const QString& filePath) {
     }
 
     file.close();
+}
+
+bool GraphScene::importGraph(const QString& filePath, QString* errorMessage) {
+    struct PendingLink {
+        bool toRouter = false;
+        int targetId = -1;
+        double weight = 1.0;
+    };
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (errorMessage) {
+            *errorMessage = tr("无法打开文件：%1").arg(filePath);
+        }
+        return false;
+    }
+
+    const QRegularExpression ws(QStringLiteral("\\s+"));
+    QMap<int, QVector<PendingLink>> linksByRouter;
+    QSet<int> routerIds;
+    int lineNo = 0;
+    QTextStream in(&file);
+    while (!in.atEnd()) {
+        const QString line = in.readLine();
+        ++lineNo;
+        const QString trimmed = line.trimmed();
+        if (trimmed.isEmpty() || trimmed.startsWith(u'#')) {
+            continue;
+        }
+        const QStringList tk = trimmed.split(ws, Qt::SkipEmptyParts);
+        if (tk.size() < 2 || tk[0].compare(QLatin1String("router"), Qt::CaseInsensitive) != 0) {
+            if (errorMessage) {
+                *errorMessage = tr("第 %1 行格式错误：应以 \"router <id>\" 开头。").arg(lineNo);
+            }
+            return false;
+        }
+
+        bool okRouterId = false;
+        const int routerId = tk[1].toInt(&okRouterId);
+        if (!okRouterId || routerId < 0) {
+            if (errorMessage) {
+                *errorMessage = tr("第 %1 行路由器编号无效。").arg(lineNo);
+            }
+            return false;
+        }
+        routerIds.insert(routerId);
+
+        int i = 2;
+        while (i < tk.size()) {
+            const QString kind = tk[i].toLower();
+            if (kind != QLatin1String("router") && kind != QLatin1String("node")) {
+                if (errorMessage) {
+                    *errorMessage = tr("第 %1 行连接类型无效：%2").arg(lineNo).arg(tk[i]);
+                }
+                return false;
+            }
+            ++i;
+            if (i >= tk.size()) {
+                if (errorMessage) {
+                    *errorMessage = tr("第 %1 行缺少连接目标编号。").arg(lineNo);
+                }
+                return false;
+            }
+
+            bool okTargetId = false;
+            const int targetId = tk[i].toInt(&okTargetId);
+            if (!okTargetId || targetId < 0) {
+                if (errorMessage) {
+                    *errorMessage = tr("第 %1 行连接目标编号无效：%2").arg(lineNo).arg(tk[i]);
+                }
+                return false;
+            }
+            ++i;
+
+            double weight = 1.0;
+            if (i < tk.size()) {
+                bool okWeight = false;
+                const double parsed = tk[i].toDouble(&okWeight);
+                if (okWeight) {
+                    weight = parsed;
+                    ++i;
+                }
+            }
+
+            PendingLink link;
+            link.toRouter = (kind == QLatin1String("router"));
+            link.targetId = targetId;
+            link.weight = weight;
+            linksByRouter[routerId].append(link);
+            if (link.toRouter) {
+                routerIds.insert(targetId);
+            }
+        }
+    }
+    file.close();
+
+    if (routerIds.isEmpty()) {
+        if (errorMessage) {
+            *errorMessage = tr("文件中未找到任何 router 定义。");
+        }
+        return false;
+    }
+
+    QList<int> sortedRouterIds = routerIds.values();
+    std::sort(sortedRouterIds.begin(), sortedRouterIds.end());
+
+    clearAllContent();
+
+    QMap<int, GraphNode*> routerById;
+    const int routerCount = static_cast<int>(sortedRouterIds.size());
+    const int cols = qMax(1,
+                          static_cast<int>(std::ceil(std::sqrt(static_cast<double>(routerCount)))));
+    constexpr qreal baseX = 120.0;
+    constexpr qreal baseY = 110.0;
+    constexpr qreal stepX = 190.0;
+    constexpr qreal stepY = 150.0;
+    for (int idx = 0; idx < sortedRouterIds.size(); ++idx) {
+        const int rid = sortedRouterIds[idx];
+        const int row = idx / cols;
+        const int col = idx % cols;
+        const QPointF p(baseX + col * stepX, baseY + row * stepY);
+        GraphNode* router = createNode(QStringLiteral("Router_%1").arg(rid), p, GraphNode::Router);
+        if (!router) {
+            if (errorMessage) {
+                *errorMessage = tr("恢复网络失败：创建路由器 Router_%1 失败。").arg(rid);
+            }
+            return false;
+        }
+        routerById.insert(rid, router);
+    }
+
+    QMap<int, GraphNode*> nodeById;
+    QMap<int, int> nodeRankInRouter;
+    QSet<quint64> routerEdges;
+    for (auto it = linksByRouter.begin(); it != linksByRouter.end(); ++it) {
+        const int srcRouterId = it.key();
+        GraphNode* srcRouter = routerById.value(srcRouterId, nullptr);
+        if (!srcRouter) {
+            continue;
+        }
+        for (const PendingLink& link : it.value()) {
+            if (link.toRouter) {
+                GraphNode* dstRouter = routerById.value(link.targetId, nullptr);
+                if (!dstRouter || dstRouter == srcRouter) {
+                    continue;
+                }
+                const int lo = qMin(srcRouterId, link.targetId);
+                const int hi = qMax(srcRouterId, link.targetId);
+                const quint64 edgeKey = (static_cast<quint64>(static_cast<quint32>(lo)) << 32)
+                                        | static_cast<quint32>(hi);
+                if (routerEdges.contains(edgeKey)) {
+                    continue;
+                }
+                GraphEdge* e = createEdge(srcRouter, dstRouter, link.weight);
+                if (e) {
+                    routerEdges.insert(edgeKey);
+                }
+                continue;
+            }
+
+            GraphNode* node = nodeById.value(link.targetId, nullptr);
+            if (!node) {
+                const int rank = nodeRankInRouter[srcRouterId]++;
+                const int localCol = rank % 5;
+                const int localRow = rank / 5;
+                const qreal x = srcRouter->pos().x() - 32.0 + localCol * 16.0;
+                const qreal y = srcRouter->pos().y() + 72.0 + localRow * 24.0;
+                node = createNode(QStringLiteral("Node_%1").arg(link.targetId),
+                                  QPointF(x, y),
+                                  GraphNode::Node);
+                if (!node) {
+                    if (errorMessage) {
+                        *errorMessage = tr("恢复网络失败：创建终端 Node_%1 失败。")
+                                            .arg(link.targetId);
+                    }
+                    return false;
+                }
+                nodeById.insert(link.targetId, node);
+            }
+            createEdge(node, srcRouter, link.weight);
+        }
+    }
+
+    return true;
 }
 
 // 获取和设置路由器独立配置
