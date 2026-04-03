@@ -102,7 +102,8 @@ BooksimTopologyPlaceDialog::BooksimTopologyPlaceDialog(const QString& topologyId
 void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     auto* root = new QVBoxLayout(this);
     const bool autoBuildTopology = (m_topologyId == QLatin1String("mesh")
-                                    || m_topologyId == QLatin1String("torus"));
+                                    || m_topologyId == QLatin1String("torus")
+                                    || m_topologyId == QLatin1String("cmesh"));
     const QString hintText
         = autoBuildTopology ? tr("确认参数后，在画布空白处单击一次会放置 %1 组件，并自动生成"
                                  "路由器、终端与内部连线。\n你仍可与现有节点继续手动连线。")
@@ -132,6 +133,15 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     m_cSpin->setRange(1, 64);
     m_cSpin->setValue(1);
     m_cSpin->setToolTip(tr("c：每台路由器连接的终端/节点数（集中度）"));
+    if (m_topologyId == QLatin1String("cmesh")) {
+        // 当前内置 BookSim2 cmesh 实现仅支持 n=2, c=4。
+        m_nSpin->setRange(2, 2);
+        m_nSpin->setValue(2);
+        m_nSpin->setEnabled(false);
+        m_cSpin->setRange(4, 4);
+        m_cSpin->setValue(4);
+        m_cSpin->setEnabled(false);
+    }
 
     m_rfEdit = new ElaLineEdit(this);
     m_rfEdit->setText(defaultRoutingForTopology(m_topologyId));
@@ -155,6 +165,12 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
                                 this);
         tips->setWordWrap(true);
         root->addWidget(tips);
+    } else if (m_topologyId == QLatin1String("cmesh")) {
+        auto* tips = new QLabel(tr("cmesh 推荐：dor_no_express（默认）/ xy_yx_no_express。\n"
+                                   "当前 BookSim2 内置 cmesh 仅支持 n=2、c=4。"),
+                                this);
+        tips->setWordWrap(true);
+        root->addWidget(tips);
     }
 
     auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -170,6 +186,10 @@ BooksimTopologyParams BooksimTopologyPlaceDialog::getParams() const {
     p.k = m_kSpin ? m_kSpin->value() : 8;
     p.n = m_nSpin ? m_nSpin->value() : 2;
     p.c = m_cSpin ? m_cSpin->value() : 1;
+    if (p.topologyId == QLatin1String("cmesh")) {
+        p.n = 2;
+        p.c = 4;
+    }
     p.routingFunction = normalizeRoutingFunction(m_rfEdit ? m_rfEdit->text() : QString(),
                                                  m_topologyId);
     return p;
@@ -182,10 +202,10 @@ void BooksimTopologyPlaceDialog::setParams(const BooksimTopologyParams& p) {
         m_kSpin->setValue(p.k);
     }
     if (m_nSpin) {
-        m_nSpin->setValue(p.n);
+        m_nSpin->setValue((p.topologyId == QLatin1String("cmesh")) ? 2 : p.n);
     }
     if (m_cSpin) {
-        m_cSpin->setValue(p.c);
+        m_cSpin->setValue((p.topologyId == QLatin1String("cmesh")) ? 4 : p.c);
     }
     if (m_rfEdit) {
         m_rfEdit->setText(normalizeRoutingFunction(p.routingFunction, p.topologyId));

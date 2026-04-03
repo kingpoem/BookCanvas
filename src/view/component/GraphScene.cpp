@@ -113,7 +113,8 @@ void GraphScene::updateTopologyBlockParams(GraphTopologyBlock* block,
         return;
     }
     block->setParams(params);
-    if (params.topologyId == QLatin1String("mesh") || params.topologyId == QLatin1String("torus")) {
+    if (params.topologyId == QLatin1String("mesh") || params.topologyId == QLatin1String("torus")
+        || params.topologyId == QLatin1String("cmesh")) {
         rebuildManagedTopology(block);
     }
 }
@@ -130,7 +131,8 @@ void GraphScene::createTopologyBlockAt(const QPointF& pos) {
     m_topologyBlocks.append(block);
 
     if (m_pendingBooksimTopology.topologyId == QLatin1String("mesh")
-        || m_pendingBooksimTopology.topologyId == QLatin1String("torus")) {
+        || m_pendingBooksimTopology.topologyId == QLatin1String("torus")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("cmesh")) {
         ManagedTopologyState st;
         st.params = m_pendingBooksimTopology;
         m_managedTopologies.insert(block, st);
@@ -208,16 +210,18 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     const int c = qMax(1, st.params.c);
     const QString topologyId = st.params.topologyId.trimmed().toLower();
     const bool isTorus = (topologyId == QLatin1String("torus"));
-    const QString topoName = isTorus ? tr("Torus") : tr("Mesh");
+    const bool isCMesh = (topologyId == QLatin1String("cmesh"));
+    const QString topoName = isCMesh ? tr("CMesh") : (isTorus ? tr("Torus") : tr("Mesh"));
+    const int layoutN = isCMesh ? 2 : n;
 
     int routerCount = 0;
-    if (!safePowInt(k, n, kMeshMaxRouters, routerCount)) {
+    if (!safePowInt(k, layoutN, kMeshMaxRouters, routerCount)) {
         QMessageBox::warning(nullptr,
                              tr("%1 规模过大").arg(topoName),
                              tr("当前参数 k=%1, n=%2 生成的路由器数量过大。\n"
                                 "为保证画布可用性，当前最多支持 %3 个路由器。")
                                  .arg(k)
-                                 .arg(n)
+                                 .arg(layoutN)
                                  .arg(kMeshMaxRouters));
         return;
     }
@@ -232,7 +236,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     }
 
     int planeCount = 1;
-    if (!safePowInt(k, qMax(0, n - 2), kMeshMaxRouters, planeCount)) {
+    if (!safePowInt(k, qMax(0, layoutN - 2), kMeshMaxRouters, planeCount)) {
         planeCount = 1;
     }
     const int planeCols = qMax(1,
@@ -244,19 +248,20 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     const qreal planeGapX = 120.0;
     const qreal planeGapY = 120.0;
     const qreal layerSpanX = (k - 1) * routerStepX + planeGapX;
-    const qreal layerSpanY = ((n >= 2 ? (k - 1) : 0) * routerStepY) + planeGapY;
+    const qreal layerSpanY = ((layoutN >= 2 ? (k - 1) : 0) * routerStepY) + planeGapY;
 
     const QPointF base = block->pos() + QPointF(0.0, 120.0);
     QVector<GraphNode*> routers;
     routers.resize(routerCount);
 
     for (int idx = 0; idx < routerCount; ++idx) {
-        const QVector<int> coords = decodeRouterCoords(idx, k, n);
+        const QVector<int> coords = decodeRouterCoords(idx, k, layoutN);
         const int plane = planeIndexForCoords(coords, k);
         const int planeCol = plane % planeCols;
         const int planeRow = plane / planeCols;
         const qreal x = base.x() + planeCol * layerSpanX + coords[0] * routerStepX;
-        const qreal y = base.y() + planeRow * layerSpanY + ((n >= 2 ? coords[1] : 0) * routerStepY);
+        const qreal y = base.y() + planeRow * layerSpanY
+                        + ((layoutN >= 2 ? coords[1] : 0) * routerStepY);
         GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
                                        QPointF(x, y),
                                        GraphNode::Router);
@@ -266,8 +271,8 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
 
     QSet<quint64> createdRouterEdges;
     for (int idx = 0; idx < routerCount; ++idx) {
-        const QVector<int> coords = decodeRouterCoords(idx, k, n);
-        for (int d = 0; d < n; ++d) {
+        const QVector<int> coords = decodeRouterCoords(idx, k, layoutN);
+        for (int d = 0; d < layoutN; ++d) {
             QVector<int> next = coords;
             if (isTorus) {
                 next[d] = (coords[d] + 1) % k;
@@ -278,6 +283,37 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
                 next[d] += 1;
             }
             const int nb = encodeRouterCoords(next, k);
+            const quint64 edgeKey = undirectedEdgeKey(idx, nb);
+            if (createdRouterEdges.contains(edgeKey)) {
+                continue;
+            }
+            GraphEdge* e = createEdge(routers[idx], routers[nb], 1.0);
+            if (e) {
+                createdRouterEdges.insert(edgeKey);
+                st.edges.append(e);
+            }
+        }
+    }
+    if (isCMesh && layoutN == 2) {
+        // cmesh 在边界上存在 express 连接，这里用可视化连边表达该结构特性。
+        const int half = qMax(1, k / 2);
+        for (int idx = 0; idx < routerCount; ++idx) {
+            const QVector<int> coords = decodeRouterCoords(idx, k, layoutN);
+            const int x = coords[0];
+            const int y = coords[1];
+            QVector<int> dst = coords;
+            bool hasExpress = false;
+            if (x == 0 || x == (k - 1)) {
+                dst[1] = (y + half) % k;
+                hasExpress = true;
+            } else if (y == 0 || y == (k - 1)) {
+                dst[0] = (x + half) % k;
+                hasExpress = true;
+            }
+            if (!hasExpress) {
+                continue;
+            }
+            const int nb = encodeRouterCoords(dst, k);
             const quint64 edgeKey = undirectedEdgeKey(idx, nb);
             if (createdRouterEdges.contains(edgeKey)) {
                 continue;
@@ -816,11 +852,18 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
 
     if (m_topologyBlocks.size() == 1) {
         const BooksimTopologyParams p = m_topologyBlocks.first()->params();
+        const bool isCMesh = (p.topologyId == QLatin1String("cmesh"));
         globalConfigToExport.insert(QStringLiteral("topology"), p.topologyId);
         globalConfigToExport.insert(QStringLiteral("k"), QString::number(p.k));
-        globalConfigToExport.insert(QStringLiteral("n"), QString::number(p.n));
-        globalConfigToExport.insert(QStringLiteral("c"), QString::number(p.c));
+        globalConfigToExport.insert(QStringLiteral("n"), QString::number(isCMesh ? 2 : p.n));
+        globalConfigToExport.insert(QStringLiteral("c"), QString::number(isCMesh ? 4 : p.c));
         globalConfigToExport.insert(QStringLiteral("routing_function"), p.routingFunction);
+        if (isCMesh) {
+            globalConfigToExport.insert(QStringLiteral("x"), QString::number(p.k));
+            globalConfigToExport.insert(QStringLiteral("y"), QString::number(p.k));
+            globalConfigToExport.insert(QStringLiteral("xr"), QStringLiteral("2"));
+            globalConfigToExport.insert(QStringLiteral("yr"), QStringLiteral("2"));
+        }
     }
 
     bool first = true;
