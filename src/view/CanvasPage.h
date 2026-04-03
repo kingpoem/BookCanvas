@@ -17,6 +17,8 @@ public:
     [[nodiscard]] QMap<QString, QString> globalConfig() const;
     void setGlobalConfig(const QMap<QString, QString>& config);
     void exportConfigJson();
+    [[nodiscard]] bool exportTopologySilently(QString* errorMessage = nullptr);
+    [[nodiscard]] bool exportConfigJsonSilently(QString* errorMessage = nullptr);
 
 protected:
     void showEvent(QShowEvent* event) override;

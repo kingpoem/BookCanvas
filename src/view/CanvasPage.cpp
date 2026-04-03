@@ -1,7 +1,6 @@
 #include "CanvasPage.h"
 #include "component/BooksimTopologyPlaceDialog.h"
 #include "component/DragButton.h"
-#include "component/ExportButton.h"
 #include "component/GraphNode.h"
 #include "component/GraphScene.h"
 #include "component/GraphTopologyBlock.h"
@@ -241,9 +240,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     addTopoButton(QStringLiteral("anynet"), QStringLiteral("anynet"));
 
     auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", stripInner);
-    auto* exportBtn = new ExportButton(ElaIconType::Download, "Export File", stripInner);
     showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
-    exportBtn->setToolTip(tr("导出网络拓扑（anynet）"));
 
     auto* actionsTitle = new QLabel(tr("BookSim 操作"), stripInner);
     actionsTitle->setForegroundRole(QPalette::WindowText);
@@ -255,7 +252,6 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addWidget(actionsTitle);
     stripLay->addSpacing(4);
     stripLay->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), stripInner));
-    stripLay->addWidget(createButtonWithLabel(exportBtn, tr("导出拓扑"), stripInner));
 
     stripLay->addStretch(1);
 
@@ -336,24 +332,6 @@ CanvasPage::CanvasPage(QWidget* parent)
         m_placeRouterPick->setChecked(true);
     });
 
-    connect(exportBtn, &ExportButton::exportRequested, [this]() {
-        const QString path = BooksimPaths::topologyExportPathFromSettings();
-        if (path.isEmpty()) {
-            QMessageBox::warning(
-                this,
-                QObject::tr("导出失败"),
-                QObject::tr("未配置拓扑导出路径，请在「设置」中设置 BookSim 拓扑文件路径。"));
-            return;
-        }
-        if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
-            QMessageBox::warning(this, QObject::tr("导出失败"), QObject::tr("无法创建目标目录。"));
-            return;
-        }
-        m_scene->exportGraph(path);
-        QMessageBox::information(this, QObject::tr("导出成功"),
-                                 QObject::tr("网络拓扑已导出到:\n%1").arg(path));
-    });
-
     connect(m_scene, &GraphScene::nodeConfigureRequested, [this](GraphNode* node) {
         if (node && node->getType() == GraphNode::Router) {
             RouterConfigDialog dialog(node->getId(), this);
@@ -394,19 +372,57 @@ void CanvasPage::setGlobalConfig(const QMap<QString, QString>& config) {
     }
 }
 
-void CanvasPage::exportConfigJson() {
+bool CanvasPage::exportTopologySilently(QString* errorMessage) {
+    const QString path = BooksimPaths::topologyExportPathFromSettings();
+    if (path.isEmpty()) {
+        if (errorMessage) {
+            *errorMessage = QObject::tr("未配置拓扑导出路径，请在「设置」中设置 BookSim 拓扑文件路径。");
+        }
+        return false;
+    }
+    if (!QDir().mkpath(QFileInfo(path).absolutePath())) {
+        if (errorMessage) {
+            *errorMessage = QObject::tr("无法创建拓扑目标目录。");
+        }
+        return false;
+    }
+    if (!m_scene) {
+        if (errorMessage) {
+            *errorMessage = QObject::tr("画布场景未初始化。");
+        }
+        return false;
+    }
+    m_scene->exportGraph(path);
+    return true;
+}
+
+bool CanvasPage::exportConfigJsonSilently(QString* errorMessage) {
     const QString cfgPath = BooksimPaths::configExportPathFromSettings();
     const QString topoPath = BooksimPaths::topologyExportPathFromSettings();
     if (cfgPath.isEmpty()) {
-        QMessageBox::warning(this,
-                             QObject::tr("导出失败"),
-                             QObject::tr("未配置 JSON 导出路径，请在「设置」中设置 BookSim 配置文件路径。"));
-        return;
+        if (errorMessage) {
+            *errorMessage = QObject::tr("未配置 JSON 导出路径，请在「设置」中设置 BookSim 配置文件路径。");
+        }
+        return false;
     }
     if (!QDir().mkpath(QFileInfo(cfgPath).absolutePath())) {
-        QMessageBox::warning(this, QObject::tr("导出失败"), QObject::tr("无法创建目标目录。"));
-        return;
+        if (errorMessage) {
+            *errorMessage = QObject::tr("无法创建 JSON 目标目录。");
+        }
+        return false;
     }
+    if (!m_scene) {
+        if (errorMessage) {
+            *errorMessage = QObject::tr("画布场景未初始化。");
+        }
+        return false;
+    }
+    const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
+    m_scene->exportJSONConfig(cfgPath, netField);
+    return true;
+}
+
+void CanvasPage::exportConfigJson() {
     if (m_scene && m_scene->topologyBlockCount() > 1) {
         QMessageBox::warning(
             this,
@@ -414,11 +430,12 @@ void CanvasPage::exportConfigJson() {
             tr("画布上存在多个 BookSim 拓扑块。仅当恰好有一个拓扑块时，「导出配置」才会把该块的 "
                "topology / k / n / c / routing_function 写入 JSON；本次将保留全局配置中的对应字段。"));
     }
-    if (!m_scene) {
+    QString errorMessage;
+    if (!exportConfigJsonSilently(&errorMessage)) {
+        QMessageBox::warning(this, QObject::tr("导出失败"), errorMessage);
         return;
     }
-    const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
-    m_scene->exportJSONConfig(cfgPath, netField);
+    const QString cfgPath = BooksimPaths::configExportPathFromSettings();
     QMessageBox::information(this, QObject::tr("导出成功"), QObject::tr("JSON 配置已导出到:\n%1").arg(cfgPath));
 }
 

@@ -15,6 +15,7 @@ public:
 
     void setConfig(const QMap<QString, QString>& config);
     [[nodiscard]] QMap<QString, QString> config() const { return m_config; }
+    [[nodiscard]] QMap<QString, QString> collectCurrentConfig();
 
 signals:
     void globalConfigChanged(const QMap<QString, QString>& config);
@@ -29,6 +30,5 @@ private:
     QVBoxLayout* m_formLayout = nullptr;
     QScrollArea* m_scrollArea = nullptr;
     QMap<QString, ElaLineEdit*> m_edits;
-    ElaPushButton* m_applyBtn = nullptr;
     ElaPushButton* m_resetBtn = nullptr;
 };

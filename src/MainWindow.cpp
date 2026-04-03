@@ -36,13 +36,7 @@ void MainWindow::initContent() {
     globalConfigPage = new GlobalConfigPage(this);
     addPageNode(tr("全局配置"), globalConfigPage, ElaIconType::CarWrench);
     globalConfigPage->setConfig(canvasPage->globalConfig());
-    connect(globalConfigPage,
-            &GlobalConfigPage::globalConfigChanged,
-            canvasPage,
-            [this](const QMap<QString, QString>& cfg) {
-                canvasPage->setGlobalConfig(cfg);
-                canvasPage->exportConfigJson();
-            });
+    simulationPage->setSaveContext(canvasPage, globalConfigPage);
 
     bookSimResultPage = new BookSimResultPage(this);
     addPageNode(tr("BookSim 结果"), bookSimResultPage, ElaIconType::ChartSimple);

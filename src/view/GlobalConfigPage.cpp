@@ -182,17 +182,10 @@ void GlobalConfigPage::setupUi() {
 
     auto* buttonRow = new QHBoxLayout();
     buttonRow->addStretch();
-    m_applyBtn = new ElaPushButton(tr("应用配置"), this);
     m_resetBtn = new ElaPushButton(tr("恢复默认"), this);
-    buttonRow->addWidget(m_applyBtn);
     buttonRow->addWidget(m_resetBtn);
     root->addLayout(buttonRow);
     root->addSpacing(6);
-
-    connect(m_applyBtn, &ElaPushButton::clicked, this, [this]() {
-        m_config = collectConfigFromUi();
-        emit globalConfigChanged(m_config);
-    });
 
     connect(m_resetBtn, &ElaPushButton::clicked, this, [this]() {
         const auto answer = QMessageBox::question(this,
@@ -200,7 +193,6 @@ void GlobalConfigPage::setupUi() {
                                                   tr("确定将全局配置恢复为默认参数吗？"));
         if (answer == QMessageBox::Yes) {
             setConfig(RouterGlobalConfigDialog::getDefaultConfig());
-            emit globalConfigChanged(m_config);
         }
     });
     addCentralWidget(centralWidget, true, true, 0);
@@ -250,4 +242,9 @@ QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
         config[it.key()] = it.value()->text();
     }
     return config;
+}
+
+QMap<QString, QString> GlobalConfigPage::collectCurrentConfig() {
+    m_config = collectConfigFromUi();
+    return m_config;
 }

@@ -1,4 +1,6 @@
 #include "SimulationPage.h"
+#include "CanvasPage.h"
+#include "GlobalConfigPage.h"
 #include "utils/BooksimPaths.h"
 #include <ElaPushButton.h>
 #include <ElaScrollPageArea.h>
@@ -54,6 +56,31 @@ SimulationPage::SimulationPage(QWidget* parent)
     addCentralWidget(centralWidget, true, true, 0);
 }
 
+void SimulationPage::setSaveContext(CanvasPage* canvasPage, GlobalConfigPage* globalConfigPage) {
+    m_canvasPage = canvasPage;
+    m_globalConfigPage = globalConfigPage;
+}
+
+bool SimulationPage::prepareFilesForSimulation() {
+    if (!m_canvasPage || !m_globalConfigPage) {
+        appendOutput("错误: 页面上下文未初始化，无法保存仿真输入文件。\n");
+        return false;
+    }
+
+    m_canvasPage->setGlobalConfig(m_globalConfigPage->collectCurrentConfig());
+
+    QString saveError;
+    if (!m_canvasPage->exportTopologySilently(&saveError)) {
+        appendOutput("错误: 拓扑保存失败: " + saveError + "\n");
+        return false;
+    }
+    if (!m_canvasPage->exportConfigJsonSilently(&saveError)) {
+        appendOutput("错误: 配置保存失败: " + saveError + "\n");
+        return false;
+    }
+    return true;
+}
+
 void SimulationPage::onRunSimulation() {
     // 如果进程正在运行，先终止它
     if (m_process->state() != QProcess::NotRunning) {
@@ -64,6 +91,9 @@ void SimulationPage::onRunSimulation() {
     // 清空输出
     m_outputText->clear();
     m_capturedOutput.clear();
+    if (!prepareFilesForSimulation()) {
+        return;
+    }
 
     const QString booksimExec = BooksimPaths::findBooksimExecutable();
     if (booksimExec.isEmpty()) {
@@ -75,7 +105,7 @@ void SimulationPage::onRunSimulation() {
     const QString configFile = BooksimPaths::configExportPathFromSettings();
     if (configFile.isEmpty() || !QFileInfo::exists(configFile)) {
         appendOutput("错误: 找不到配置文件: " + configFile + "\n");
-        appendOutput("请在「设置」中确认 BookSim JSON 路径，或先在 Canvas 导出配置。\n");
+        appendOutput("请在「设置」中确认 BookSim JSON 路径。\n");
         return;
     }
 
