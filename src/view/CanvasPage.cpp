@@ -46,10 +46,8 @@ void bindLabelToElaBasicText(QLabel* label) {
         QPalette pal = label->palette();
         pal.setColor(QPalette::WindowText, text);
         label->setPalette(pal);
-#ifdef Q_OS_WINDOWS
         label->setStyleSheet(
             QStringLiteral("background: transparent; color: %1;").arg(text.name(QColor::HexRgb)));
-#endif
     };
     apply();
     QObject::connect(eTheme, &ElaTheme::themeModeChanged, label, [apply](ElaThemeType::ThemeMode) {
@@ -69,10 +67,8 @@ void bindWidgetToElaPanelChrome(QWidget* w) {
         pal.setColor(QPalette::Window, bg);
         pal.setColor(QPalette::Base, bg);
         w->setPalette(pal);
-#ifdef Q_OS_WINDOWS
         w->setAttribute(Qt::WA_StyledBackground, true);
         w->setStyleSheet(QStringLiteral("background-color: %1;").arg(bg.name(QColor::HexRgb)));
-#endif
     };
     apply();
     QObject::connect(eTheme, &ElaTheme::themeModeChanged, w, [apply](ElaThemeType::ThemeMode) {
@@ -453,14 +449,13 @@ CanvasPage::CanvasPage(QWidget* parent)
     centerLayout->setContentsMargins(0, 0, 20, 0);
     addCentralWidget(centralWidget, true, true, 0);
 
-#ifdef Q_OS_WINDOWS
-    const auto applyWindowsCanvasChrome = [centralWidget, splitter]() {
+    const auto applyCanvasChrome = [centralWidget, splitter]() {
         const auto mode = eTheme->getThemeMode();
         const QColor pageBg = ElaThemeColor(mode, WindowBase);
         const QColor handleBg = ElaThemeColor(mode, BasicBase);
         const QColor handleBorder = ElaThemeColor(mode, BasicBorderDeep);
 
-        // ElaScrollPage 默认把中央页设为透明；在 Windows 下显式回填背景，避免透出深色底。
+        // ElaScrollPage 默认把中央页设为透明；显式回填背景，避免浅色主题下透出深色底。
         centralWidget->setAttribute(Qt::WA_StyledBackground, true);
         centralWidget->setStyleSheet(
             QStringLiteral("#ElaScrollPage_CentralPage { background-color: %1; }")
@@ -486,11 +481,10 @@ CanvasPage::CanvasPage(QWidget* parent)
                      handleBorder.name(QColor::HexRgb),
                      handleBg.lighter(105).name(QColor::HexRgb)));
     };
-    applyWindowsCanvasChrome();
-    connect(eTheme, &ElaTheme::themeModeChanged, this, [applyWindowsCanvasChrome](ElaThemeType::ThemeMode) {
-        applyWindowsCanvasChrome();
+    applyCanvasChrome();
+    connect(eTheme, &ElaTheme::themeModeChanged, this, [applyCanvasChrome](ElaThemeType::ThemeMode) {
+        applyCanvasChrome();
     });
-#endif
 }
 
 QMap<QString, QString> CanvasPage::globalConfig() const {

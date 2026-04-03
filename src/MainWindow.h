@@ -6,6 +6,7 @@
 #include "view/GlobalConfigPage.h"
 #include "view/SettingPage.h"
 #include "view/SimulationPage.h"
+#include "view/SimulationRecordPage.h"
 #include "view/UsageGuidePage.h"
 #include <ElaWindow.h>
 
@@ -25,6 +26,7 @@ private:
     CanvasPage* canvasPage{};
     GlobalConfigPage* globalConfigPage{};
     SimulationPage* simulationPage{};
+    SimulationRecordPage* simulationRecordPage{};
     BookSimResultPage* bookSimResultPage{};
     UsageGuidePage* usageGuidePage{};
     SettingPage* settingPage{};

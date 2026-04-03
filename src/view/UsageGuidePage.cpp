@@ -225,6 +225,26 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
                    "minus zoom reset undo redo ctrl+z ctrl+y ctrl+shift+z cmd+z cmd+shift+z"));
 
     addSection(
+        tr("配置文件路径"),
+        tr("存储"),
+        tr("应用设置和仿真记录保存到用户配置目录，不在工程仓库内。"),
+        tr("<h4>macOS / Linux</h4>"
+           "<ul>"
+           "<li>配置目录：<b>~/.config/Book-Canvas/</b></li>"
+           "<li>设置文件：<b>~/.config/Book-Canvas/settings.ini</b></li>"
+           "<li>仿真记录：<b>~/.config/Book-Canvas/simulation_records.json</b></li>"
+           "</ul>"
+           "<h4>Windows</h4>"
+           "<ul>"
+           "<li>配置目录：<b>%APPDATA%\\Local\\Book-Canvas\\</b></li>"
+           "<li>设置文件：<b>%APPDATA%\\Local\\Book-Canvas\\settings.ini</b></li>"
+           "<li>仿真记录：<b>%APPDATA%\\Local\\Book-Canvas\\simulation_records.json</b></li>"
+           "</ul>"),
+        QStringLiteral(
+            "配置 路径 settings.ini simulation_records.json 存储 目录 windows mac linux appdata "
+            "book-canvas njupt"));
+
+    addSection(
         tr("参数"),
         tr("建模"),
         tr("参数分为结构、路由、流量、缓冲与统计五类；建议先验证结构合法性，再做负载扫描。"),

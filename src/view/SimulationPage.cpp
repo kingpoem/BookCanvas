@@ -78,7 +78,8 @@ bool SimulationPage::prepareFilesForSimulation() {
         return false;
     }
 
-    m_canvasPage->setGlobalConfig(m_globalConfigPage->collectCurrentConfig());
+    m_lastRunConfig = m_globalConfigPage->collectCurrentConfig();
+    m_canvasPage->setGlobalConfig(m_lastRunConfig);
 
     QString saveError;
     if (!m_canvasPage->exportTopologySilently(&saveError)) {
@@ -158,6 +159,8 @@ void SimulationPage::onProcessReadyReadStandardError() {
 }
 
 void SimulationPage::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    Q_UNUSED(exitCode);
+    Q_UNUSED(exitStatus);
     m_runButton->setEnabled(true);
     if (m_capturedOutput.contains(QStringLiteral("Invalid routing function:"),
                                   Qt::CaseInsensitive)) {
@@ -177,6 +180,7 @@ void SimulationPage::onProcessFinished(int exitCode, QProcess::ExitStatus exitSt
         appendOutput("注意不要手动填写 *_topology 后缀，BookSim 会自动拼接。\n");
     }
     emit simulationFinished(m_capturedOutput);
+    emit simulationFinishedWithContext(m_capturedOutput, m_lastRunConfig);
 }
 
 void SimulationPage::appendOutput(const QString& text) {

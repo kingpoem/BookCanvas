@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BasePage.h"
+#include <QMap>
 #include <QPlainTextEdit>
 #include <QProcess>
 
@@ -16,6 +17,8 @@ public:
 
 signals:
     void simulationFinished(const QString& fullConsoleOutput);
+    void simulationFinishedWithContext(const QString& fullConsoleOutput,
+                                       const QMap<QString, QString>& config);
 
 private slots:
     void onRunSimulation();
@@ -34,6 +37,7 @@ private:
     QPlainTextEdit* m_outputText;
     QProcess* m_process;
     QString m_capturedOutput;
+    QMap<QString, QString> m_lastRunConfig;
     CanvasPage* m_canvasPage = nullptr;
     GlobalConfigPage* m_globalConfigPage = nullptr;
     QWidget* m_pageRoot = nullptr;

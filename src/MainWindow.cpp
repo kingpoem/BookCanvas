@@ -33,12 +33,27 @@ void MainWindow::initContent() {
     simulationPage = new SimulationPage(this);
     addPageNode("Simulation", simulationPage, ElaIconType::Play);
 
+    const QString resultPageTitle = tr("BookSim 结果");
     bookSimResultPage = new BookSimResultPage(this);
-    addPageNode(tr("BookSim 结果"), bookSimResultPage, ElaIconType::ChartSimple);
+    addPageNode(resultPageTitle, bookSimResultPage, ElaIconType::ChartSimple);
+
+    simulationRecordPage = new SimulationRecordPage(this);
+    addPageNode(tr("仿真记录"), simulationRecordPage, ElaIconType::ClockRotateLeft);
     connect(simulationPage,
             &SimulationPage::simulationFinished,
             bookSimResultPage,
             &BookSimResultPage::ingestSimulationLog);
+    connect(simulationPage,
+            &SimulationPage::simulationFinishedWithContext,
+            simulationRecordPage,
+            &SimulationRecordPage::appendRecord);
+    connect(simulationRecordPage,
+            &SimulationRecordPage::showRecordInResultRequested,
+            this,
+            [this, resultPageTitle](const QString& log) {
+                bookSimResultPage->ingestSimulationLog(log);
+                navigation(resultPageTitle);
+            });
 
     globalConfigPage = new GlobalConfigPage(this);
     addPageNode(tr("全局配置"), globalConfigPage, ElaIconType::CarWrench);
