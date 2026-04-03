@@ -175,11 +175,6 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
     centerLayout->setContentsMargins(0, 0, 20, 0);
     centerLayout->setSpacing(10);
 
-    auto* heading = new ElaText(tr("BookSim 使用说明（系统化指南）"), this);
-    heading->setWordWrap(false);
-    heading->setTextPixelSize(22);
-    centerLayout->addWidget(heading);
-
     m_searchEdit = new ElaLineEdit(this);
     m_searchEdit->setPlaceholderText(
         tr("搜索关键词：例如 流程 / routing_function / 饱和 / 收敛 ..."));

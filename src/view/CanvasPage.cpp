@@ -21,6 +21,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHideEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -32,6 +33,7 @@
 #include <QSplitterHandle>
 #include <QVBoxLayout>
 #include <Version.h>
+#include <functional>
 
 namespace {
 
@@ -45,7 +47,6 @@ void bindLabelToElaBasicText(QLabel* label) {
         pal.setColor(QPalette::WindowText, text);
         label->setPalette(pal);
 #ifdef Q_OS_WINDOWS
-        // Windows 下部分控件在透明/自绘容器里可能不跟随调色板前景色，显式设置 color 保证深色主题可读性。
         label->setStyleSheet(
             QStringLiteral("background: transparent; color: %1;").arg(text.name(QColor::HexRgb)));
 #endif
@@ -69,7 +70,6 @@ void bindWidgetToElaPanelChrome(QWidget* w) {
         pal.setColor(QPalette::Base, bg);
         w->setPalette(pal);
 #ifdef Q_OS_WINDOWS
-        // Windows 下显式回填背景，避免透明链路导致面板保持深色底。
         w->setAttribute(Qt::WA_StyledBackground, true);
         w->setStyleSheet(QStringLiteral("background-color: %1;").arg(bg.name(QColor::HexRgb)));
 #endif
@@ -375,6 +375,41 @@ CanvasPage::CanvasPage(QWidget* parent)
         m_placeRouterPick->setChecked(true);
     });
 
+    auto bindCanvasShortcut = [this](const QKeySequence& seq, const std::function<void()>& fn) {
+        auto* sc = new QShortcut(seq, this, nullptr, nullptr, Qt::WindowShortcut);
+        connect(sc, &QShortcut::activated, this, [this, fn]() {
+            if (m_graphView) {
+                fn();
+            }
+        });
+    };
+    bindCanvasShortcut(QKeySequence(Qt::Key_Left), [this]() {
+        m_graphView->panViewportBy(-56.0, 0.0);
+    });
+    bindCanvasShortcut(QKeySequence(Qt::Key_Right), [this]() {
+        m_graphView->panViewportBy(56.0, 0.0);
+    });
+    bindCanvasShortcut(QKeySequence(Qt::Key_Up), [this]() {
+        m_graphView->panViewportBy(0.0, -56.0);
+    });
+    bindCanvasShortcut(QKeySequence(Qt::Key_Down), [this]() {
+        m_graphView->panViewportBy(0.0, 56.0);
+    });
+    bindCanvasShortcut(QKeySequence::ZoomIn, [this]() {
+        m_graphView->zoomInStep();
+    });
+    bindCanvasShortcut(QKeySequence::ZoomOut, [this]() {
+        m_graphView->zoomOutStep();
+    });
+    bindCanvasShortcut(QKeySequence(Qt::CTRL | Qt::Key_0), [this]() {
+        m_graphView->resetZoomToDefault();
+    });
+#ifdef Q_OS_MACOS
+    bindCanvasShortcut(QKeySequence(Qt::META | Qt::Key_0), [this]() {
+        m_graphView->resetZoomToDefault();
+    });
+#endif
+
     connect(m_scene, &GraphScene::nodeConfigureRequested, [this](GraphNode* node) {
         if (node && node->getType() == GraphNode::Router) {
             RouterConfigDialog dialog(node->getId(), this);
@@ -551,6 +586,67 @@ void CanvasPage::hideEvent(QHideEvent* event) {
 }
 
 bool CanvasPage::eventFilter(QObject* watched, QEvent* event) {
+    if ((event->type() == QEvent::KeyPress || event->type() == QEvent::ShortcutOverride) && m_graphView) {
+        auto* keyEvent = dynamic_cast<QKeyEvent*>(event);
+        if (keyEvent && this->isVisible()) {
+            const int key = keyEvent->key();
+            const Qt::KeyboardModifiers mods = keyEvent->modifiers();
+            const bool hasZoomModifier
+                = mods.testFlag(Qt::ControlModifier) || mods.testFlag(Qt::MetaModifier);
+            const bool isKeyPhase = event->type() == QEvent::KeyPress;
+
+            // 先在 ShortcutOverride 阶段“预留”按键，防止被其他控件（如方向键焦点导航）吞掉。
+            if (!isKeyPhase) {
+                if (key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up ||
+                    key == Qt::Key_Down || (hasZoomModifier && key == Qt::Key_0) ||
+                    keyEvent->matches(QKeySequence::ZoomIn) || keyEvent->matches(QKeySequence::ZoomOut) ||
+                    (hasZoomModifier &&
+                     (key == Qt::Key_Plus || key == Qt::Key_Equal || key == Qt::Key_Minus ||
+                      key == Qt::Key_Underscore))) {
+                    keyEvent->accept();
+                    return true;
+                }
+                return BasePage::eventFilter(watched, event);
+            }
+
+            if (!hasZoomModifier) {
+                if (key == Qt::Key_Left) {
+                    m_graphView->panViewportBy(-56.0, 0.0);
+                    return true;
+                }
+                if (key == Qt::Key_Right) {
+                    m_graphView->panViewportBy(56.0, 0.0);
+                    return true;
+                }
+                if (key == Qt::Key_Up) {
+                    m_graphView->panViewportBy(0.0, -56.0);
+                    return true;
+                }
+                if (key == Qt::Key_Down) {
+                    m_graphView->panViewportBy(0.0, 56.0);
+                    return true;
+                }
+            }
+
+            if (hasZoomModifier && key == Qt::Key_0) {
+                m_graphView->resetZoomToDefault();
+                return true;
+            }
+
+            if (keyEvent->matches(QKeySequence::ZoomIn) ||
+                (hasZoomModifier && (key == Qt::Key_Plus || key == Qt::Key_Equal))) {
+                m_graphView->zoomInStep();
+                return true;
+            }
+
+            if (keyEvent->matches(QKeySequence::ZoomOut) ||
+                (hasZoomModifier && (key == Qt::Key_Minus || key == Qt::Key_Underscore))) {
+                m_graphView->zoomOutStep();
+                return true;
+            }
+        }
+    }
+
     if (event->type() == QEvent::MouseButtonPress && m_scene && m_graphView && m_leftBuildPanel) {
         auto* mouseEvent = dynamic_cast<QMouseEvent*>(event);
         if (mouseEvent && mouseEvent->button() == Qt::LeftButton &&

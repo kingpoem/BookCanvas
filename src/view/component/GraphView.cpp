@@ -1,7 +1,22 @@
 #include "GraphView.h"
 #include "GraphScene.h"
 #include <QEvent>
+#include <QKeyEvent>
+#include <QScrollBar>
 #include <QWheelEvent>
+#include <algorithm>
+
+namespace {
+
+constexpr double kZoomStepFactor = 1.15;
+constexpr qreal kKeyboardPanStepInViewPx = 56.0;
+constexpr qreal kPanSceneMargin = 2000.0;
+
+bool hasZoomModifier(Qt::KeyboardModifiers modifiers) {
+    return modifiers.testFlag(Qt::ControlModifier) || modifiers.testFlag(Qt::MetaModifier);
+}
+
+} // namespace
 
 GraphView::GraphView(GraphScene* scene, QWidget* parent)
     : ElaGraphicsView(scene, parent) {
@@ -16,33 +31,129 @@ GraphView::GraphView(GraphScene* scene, QWidget* parent)
     }
 }
 
+void GraphView::ensureSceneRectHasPanMargin() {
+    if (!scene()) {
+        return;
+    }
+    QRectF rect = scene()->sceneRect();
+    const QRect viewRect = viewport()->rect();
+    const QPointF p1 = mapToScene(viewRect.topLeft());
+    const QPointF p2 = mapToScene(viewRect.bottomRight());
+    const QRectF viewInScene = QRectF(p1, p2).normalized();
+    const QRectF needRect = viewInScene.adjusted(-kPanSceneMargin,
+                                                 -kPanSceneMargin,
+                                                 kPanSceneMargin,
+                                                 kPanSceneMargin);
+    if (!rect.contains(needRect)) {
+        scene()->setSceneRect(rect.united(needRect));
+    }
+}
+
+void GraphView::panViewportBy(qreal dx, qreal dy) {
+    ensureSceneRectHasPanMargin();
+    if (auto* hBar = horizontalScrollBar()) {
+        hBar->setValue(hBar->value() + static_cast<int>(std::lround(dx)));
+    }
+    if (auto* vBar = verticalScrollBar()) {
+        vBar->setValue(vBar->value() + static_cast<int>(std::lround(dy)));
+    }
+}
+
+void GraphView::zoomInStep() {
+    applyZoomFactor(kZoomStepFactor);
+    ensureSceneRectHasPanMargin();
+}
+
+void GraphView::zoomOutStep() {
+    applyZoomFactor(1.0 / kZoomStepFactor);
+    ensureSceneRectHasPanMargin();
+}
+
+void GraphView::resetZoomToDefault() {
+    resetTransform();
+    m_scale = 1.0;
+    ensureSceneRectHasPanMargin();
+}
+
 void GraphView::mouseMoveEvent(QMouseEvent* event) {
     QPoint viewPos = event->pos();          // 视图坐标
     QPointF scenePos = mapToScene(viewPos); // 场景坐标
     ElaGraphicsView::mouseMoveEvent(event);
 }
 
-// 滚轮缩放 + 限制最大最小值
-void GraphView::wheelEvent(QWheelEvent* event) {
-    constexpr double scaleFactor = 1.15;
-
-    if (event->angleDelta().y() > 0 && m_scale < m_maxScale) {
-        scale(scaleFactor, scaleFactor);
-        m_scale *= scaleFactor;
-    } else if (event->angleDelta().y() < 0 && m_scale > m_minScale) {
-        scale(1.0 / scaleFactor, 1.0 / scaleFactor);
-        m_scale /= scaleFactor;
-    }
-}
-
-// Ctrl + 0 恢复默认缩放
-// macos is command + 0
-void GraphView::keyPressEvent(QKeyEvent* event) {
-    if (event->modifiers() & Qt::ControlModifier && event->key() == Qt::Key_0) {
-        resetTransform();
-        m_scale = 1.0;
+void GraphView::applyZoomFactor(double factor) {
+    if (factor <= 0.0 || m_scale <= 0.0) {
         return;
     }
+    const double targetScale = std::clamp(m_scale * factor, m_minScale, m_maxScale);
+    const double appliedFactor = targetScale / m_scale;
+    if (qFuzzyCompare(appliedFactor, 1.0)) {
+        return;
+    }
+    scale(appliedFactor, appliedFactor);
+    m_scale = targetScale;
+}
+
+// 滚轮缩放 + 限制最大最小值
+void GraphView::wheelEvent(QWheelEvent* event) {
+    const int deltaY = event->angleDelta().y();
+    if (deltaY != 0) {
+        if (deltaY > 0) {
+            zoomInStep();
+        } else {
+            zoomOutStep();
+        }
+    }
+    event->accept();
+}
+
+// Ctrl/Cmd + 0 恢复默认缩放
+void GraphView::keyPressEvent(QKeyEvent* event) {
+    const Qt::KeyboardModifiers modifiers = event->modifiers();
+    const int key = event->key();
+
+    if (hasZoomModifier(modifiers) && key == Qt::Key_0) {
+        resetZoomToDefault();
+        event->accept();
+        return;
+    }
+
+    if (event->matches(QKeySequence::ZoomIn)
+        || (hasZoomModifier(modifiers) && (key == Qt::Key_Plus || key == Qt::Key_Equal))) {
+        zoomInStep();
+        event->accept();
+        return;
+    }
+
+    if (event->matches(QKeySequence::ZoomOut)
+        || (hasZoomModifier(modifiers) && (key == Qt::Key_Minus || key == Qt::Key_Underscore))) {
+        zoomOutStep();
+        event->accept();
+        return;
+    }
+
+    // 用视图变换平移相机，不依赖场景边界，任意画布尺寸都可平移。
+    if (key == Qt::Key_Left) {
+        panViewportBy(-kKeyboardPanStepInViewPx, 0.0);
+        event->accept();
+        return;
+    }
+    if (key == Qt::Key_Right) {
+        panViewportBy(kKeyboardPanStepInViewPx, 0.0);
+        event->accept();
+        return;
+    }
+    if (key == Qt::Key_Up) {
+        panViewportBy(0.0, -kKeyboardPanStepInViewPx);
+        event->accept();
+        return;
+    }
+    if (key == Qt::Key_Down) {
+        panViewportBy(0.0, kKeyboardPanStepInViewPx);
+        event->accept();
+        return;
+    }
+
     ElaGraphicsView::keyPressEvent(event);
 }
 

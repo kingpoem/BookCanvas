@@ -7,6 +7,10 @@ class GraphView : public ElaGraphicsView {
     Q_OBJECT
 public:
     explicit GraphView(GraphScene* scene, QWidget* parent = nullptr); // GraphScene 由外部控制
+    void panViewportBy(qreal dx, qreal dy);
+    void zoomInStep();
+    void zoomOutStep();
+    void resetZoomToDefault();
 
 protected:
     void wheelEvent(QWheelEvent* event) override;
@@ -18,6 +22,9 @@ protected:
     void changeEvent(QEvent* event) override;
 
 private:
+    void applyZoomFactor(double factor);
+    void ensureSceneRectHasPanMargin();
+
     double m_scale = 1.0;
     const double m_minScale = 0.2;
     const double m_maxScale = 3.0;
