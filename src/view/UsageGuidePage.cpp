@@ -176,13 +176,10 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
     centerLayout->setSpacing(10);
 
     m_searchEdit = new ElaLineEdit(this);
-    m_searchEdit->setPlaceholderText(
-        tr("搜索关键词：例如 流程 / routing_function / 饱和 / 收敛 ..."));
+    m_searchEdit->setPlaceholderText(tr("搜索关键词"));
     centerLayout->addWidget(m_searchEdit);
 
-    m_statusLabel
-        = new QLabel(tr("按“流程-参数-指标-诊断”组织内容，支持全文搜索、分组折叠和模板复制。"),
-                     this);
+    m_statusLabel = new QLabel(QString(), this);
     m_statusLabel->setWordWrap(true);
     centerLayout->addWidget(m_statusLabel);
 
@@ -195,112 +192,137 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
     m_sectionLayout->setContentsMargins(0, 0, 0, 0);
     m_sectionLayout->setSpacing(10);
 
-    addSection(
-        tr("A1. 标准实验流程（建议按序执行）"),
-        tr("流程"),
-        tr("以可复现实验为目标：先固定变量，再做单因素扫描。"),
-        tr("<ol>"
-           "<li><b>构建拓扑</b>：在 Canvas 放置单一拓扑块（推荐先 mesh/torus 小规模）。</li>"
-           "<li><b>设置全局配置</b>：在「全局配置」页确认 topology、routing_function、traffic、"
-           "injection_rate。</li>"
-           "<li><b>导出文件</b>：先导出拓扑（anynet_file），再导出 JSON。</li>"
-           "<li><b>执行仿真</b>：在 Simulation 页面运行并检查日志告警。</li>"
-           "<li><b>读取结果</b>：关注 latency、throughput 与 saturation 拐点。</li>"
-           "</ol>"
-           "<p>推荐方法：一次仅修改 1~2 个参数，记录版本、输入与输出，保证结果可追溯。</p>"),
-        QStringLiteral("流程 实验 可复现 导出 仿真 结果 分析 扫描 单因素"),
-        {});
-
-    addSection(
-        tr("B1. 快速可运行模板（推荐起步）"),
-        tr("参数模板"),
-        tr("先跑通，再调优：模板用于降低“参数不匹配”与“规模过大”风险。"),
-        tr("<ul>"
-           "<li><b>mesh</b>：k=4, n=2, c=1, routing_function=dor</li>"
-           "<li><b>torus</b>：k=4, n=2, c=1, routing_function=dim_order</li>"
-           "<li><b>cmesh</b>：k=4, n=2, c=4, routing_function=dor_no_express</li>"
-           "<li><b>fly</b>：k=4, n=2, routing_function=dest_tag</li>"
-           "<li><b>qtree</b>：k=4, n=3, routing_function=nca</li>"
-           "<li><b>tree4</b>：k=4, n=3, routing_function=nca</li>"
-           "<li><b>fattree</b>：k=4, n=2, routing_function=nca</li>"
-           "<li><b>flatfly</b>：k=4, n=2, c=1, routing_function=ran_min</li>"
-           "<li><b>dragonflynew</b>：k=2, n=1, routing_function=min</li>"
-           "<li><b>anynet</b>：由 network_file 决定拓扑，routing_function=min</li>"
-           "</ul>"
-           "<p>建议：先把 injection_rate 控制在 0.02~0.05，确认链路与路由函数匹配后再提负载。</p>"),
-        QStringLiteral("快速 起步 模板 mesh torus cmesh fly qtree tree4 fattree flatfly "
-                       "dragonflynew anynet k n c routing_function injection_rate"),
-        {{tr("复制 mesh 模板"), meshTemplate()},
-         {tr("复制 torus 模板"), torusTemplate()},
-         {tr("复制 cmesh 模板"), cmeshTemplate()},
-         {tr("复制 fly 模板"), flyTemplate()},
-         {tr("复制 qtree 模板"), qtreeTemplate()},
-         {tr("复制 tree4 模板"), tree4Template()},
-         {tr("复制 fattree 模板"), fattreeTemplate()},
-         {tr("复制 flatfly 模板"), flatflyTemplate()},
-         {tr("复制 dragonfly 模板"), dragonflyTemplate()},
-         {tr("复制 anynet 模板"), anynetTemplate()}});
-
-    addSection(tr("B2. 参数体系与建模含义"),
-               tr("参数体系"),
-               tr("参数可分为结构层、路由层、流量层、统计层。优先保证结构与路由合法。"),
-               tr("<h4>topology</h4>"
-                  "<p>"
-                  "决定网络连接结构。常见值：mesh、torus、cmesh、dragonflynew、flatfly、fattree、an"
-                  "ynet。</p>"
-                  "<h4>k / n / c</h4>"
+    addSection(tr("快捷键"),
+               tr("操作"),
+               tr("Canvas 页面支持键盘放置、平移与缩放。"),
+               tr("<h4>放置与模式切换</h4>"
                   "<ul>"
-                  "<li><b>k</b>：每维路由器数量</li>"
-                  "<li><b>n</b>：维度数（mesh/torus 路由器总数约为 k^n）</li>"
-                  "<li><b>c</b>：每个路由器挂接终端数（concentration）</li>"
+                  "<li><b>N</b>：进入“终端点击放置”模式。</li>"
+                  "<li><b>R</b>：进入“路由器点击放置”模式。</li>"
+                  "<li><b>Esc</b>：退出点击放置模式，回到普通编辑状态。</li>"
                   "</ul>"
-                  "<h4>routing_function</h4>"
-                  "<p>路由算法名（不需要填写后缀，例如 mesh 下填 dor，而不是 dor_mesh）。</p>"
+                  "<h4>视口平移</h4>"
                   "<ul>"
-                  "<li>mesh 常用：dor / dim_order / xy_yx</li>"
-                  "<li>cmesh 常用：dor_no_express / xy_yx_no_express</li>"
-                  "<li>anynet：min</li>"
+                  "<li><b>↑ / ↓ / ← / →</b>：按固定步长平移画布视口。该操作与当前缩放比例解耦，"
+                  "在大图或空白区域同样可用。</li>"
                   "</ul>"
-                  "<h4>traffic / injection_rate</h4>"
-                  "<p>决定输入负载模型与强度。注入率过高会触发拥塞，延迟急剧上升。</p>"
-                  "<h4>warmup / sample / max_samples</h4>"
-                  "<p>控制统计收敛质量。样本过少会导致结果波动大、可比性差。</p>"),
-               QStringLiteral("topology mesh torus cmesh anynet k n c concentration "
-                              "routing_function dor dim_order xy_yx dor_no_express "
-                              "network_file dragonfly flatfly fattree traffic warmup sample"));
-
-    addSection(tr("C1. 指标与术语（结果解释）"),
-               tr("指标解释"),
-               tr("建议同时观察延迟和吞吐，识别系统从线性区进入饱和区的拐点。"),
-               tr("<ul>"
-                  "<li><b>Router</b>：路由器节点，负责转发 flit。</li>"
-                  "<li><b>Terminal/Node</b>：注入与接收流量的端点。</li>"
-                  "<li><b>Hop</b>：经过一个路由器到下一个路由器的跳数。</li>"
-                  "<li><b>Flit</b>：流控粒度（flow control unit），一个包由多个 flit 组成。</li>"
-                  "<li><b>VC（Virtual Channel）</b>：虚通道，用于缓解 HOL 阻塞。</li>"
-                  "<li><b>Injection Rate</b>：注入率，每周期注入网络的负载强度。</li>"
-                  "<li><b>Packet Latency</b>：端到端包延迟，含注入等待与网内延迟。</li>"
-                  "<li><b>Network Latency</b>：网内延迟，只统计进入网络后的传输与排队。</li>"
-                  "<li><b>Throughput</b>：吞吐，单位时间成功传输的负载。</li>"
-                  "<li><b>Saturation</b>：饱和点，超过后延迟急剧上升、吞吐增长趋缓。</li>"
+                  "<h4>缩放控制</h4>"
+                  "<ul>"
+                  "<li><b>Windows / Linux</b>：<b>Ctrl + +</b> 放大，<b>Ctrl + -</b> 缩小，"
+                  "<b>Ctrl + 0</b> 重置为 1.0 倍。</li>"
+                  "<li><b>macOS</b>：<b>Command + +</b> 放大，<b>Command + -</b> 缩小，"
+                  "<b>Command + 0</b> 重置为 1.0 倍。</li>"
                   "</ul>"),
-               QStringLiteral("router terminal node hop flit vc virtual channel injection rate "
-                              "packet latency network latency throughput saturation 术语"));
+               QStringLiteral(
+                   "快捷键 键盘 canvas n r esc 上下左右 平移 视口 缩放 ctrl command cmd plus "
+                   "minus zoom reset"));
 
     addSection(
-        tr("D1. 诊断与排查清单"),
-        tr("故障排查"),
-        tr("从合法性、规模、负载、收敛四个维度逐项排查。"),
-        tr("<ul>"
-           "<li><b>Invalid routing function</b>：检查 routing_function 与 topology 是否匹配，"
-           "并避免手写 *_topology 后缀。</li>"
-           "<li><b>仿真启动但结果异常</b>：先降低 injection_rate（例如 0.02~0.05），再观察。"
-           "</li>"
-           "<li><b>大规模卡顿</b>：减小 k/n/c，先验证小规模，再逐级放大。</li>"
-           "<li><b>结果波动较大</b>：增加 sample_period / max_samples，确保统计收敛。</li>"
-           "<li><b>结果难以比较</b>：固定 seed 与其余参数，仅改变目标变量。</li>"
+        tr("参数"),
+        tr("建模"),
+        tr("参数分为结构、路由、流量、缓冲与统计五类；建议先验证结构合法性，再做负载扫描。"),
+        tr("<h4>一、结构参数</h4>"
+           "<ul>"
+           "<li><b>topology</b>：网络拓扑类型，决定节点连接图与最短路径集合。"
+           "常见值包括 mesh、torus、cmesh、flatfly、dragonflynew、fattree、anynet。</li>"
+           "<li><b>k</b>：每维路由器规模。"
+           "在规则拓扑中，k 的增加会提升路径并行性，但同步增加链路与状态空间。</li>"
+           "<li><b>n</b>：维度数。以 mesh/torus 为例，路由器总数约为 k^n；"
+           "n 增大通常会提高平均跳数分布宽度与路由决策复杂度。</li>"
+           "<li><b>c</b>：每个路由器挂接终端数。"
+           "c 增大可提高注入端口密度，但会抬高路由器局部竞争压力。</li>"
+           "<li><b>network_file</b>：anynet 模式下的外部拓扑定义文件。"
+           "其图结构与端口映射应与 routing_function 协同验证。</li>"
+           "</ul>"
+           "<h4>二、路由参数</h4>"
+           "<ul>"
+           "<li><b>routing_function</b>：路由算法标识，必须与 topology 兼容。"
+           "建议填写算法名本体（如 dor、dim_order、min），避免手写拓扑后缀。</li>"
+           "<li><b>最短路约束</b>：确认算法是否只走最短路径，或允许受控非最短路径。"
+           "该差异会影响拥塞分散能力与尾延迟。</li>"
+           "<li><b>死锁规避</b>：对自适应或多路径算法，需结合 VC 类别划分与转弯限制共同验证。</li>"
+           "<li><b>拓扑匹配异常信号</"
+           "b>：常见表现为启动报错、收敛失败、吞吐异常低或延迟曲线不连续。</li>"
+           "</ul>"
+           "<h4>三、流量参数</h4>"
+           "<ul>"
+           "<li><b>traffic</b>：流量模式（如 uniform、transpose 等），决定源宿分布与热点性质。</li>"
+           "<li><b>injection_rate</b>：归一化注入率。"
+           "它是最关键自变量，通常用于绘制延迟-负载曲线与吞吐-负载曲线。</li>"
+           "<li><b>步长建议</b>：低负载区可用较大步长（如 0.01），拐点附近应缩小步长（如 "
+           "0.002~0.005）。</li>"
+           "<li><b>负载区间划分</b>：可按“低负载线性区-过渡区-饱和区”三段记录关键点，"
+           "便于跨拓扑对比。</li>"
+           "<li><b>随机性控制</b>：固定随机种子或进行多种子重复实验，报告均值与离散度。</li>"
+           "</ul>"
+           "<h4>四、缓冲与并发参数</h4>"
+           "<ul>"
+           "<li><b>num_vcs</b>：每端口虚通道数。较高 num_vcs 可缓解 HOL 阻塞，"
+           "但增加仲裁与状态开销。</li>"
+           "<li><b>vc_buf_size</b>：每 VC 缓冲深度。"
+           "缓冲不足会导致上游反压提前出现，缓冲过大则带来资源成本增长。</li>"
+           "<li><b>参数耦合</b>：num_vcs 与 vc_buf_size 通常共同决定可吸收突发的能力，"
+           "仅提高其中一项可能收益有限。</li>"
+           "<li><b>资源视角</b>：在硬件可实现性分析中，应同步记录总缓冲开销"
+           "（近似与端口数 × VC 数 × 每 VC 深度成正比）。</li>"
+           "</ul>"
+           "<h4>五、统计控制参数</h4>"
+           "<ul>"
+           "<li><b>warmup_periods</b>：预热阶段样本，不计入最终统计；用于消除初始瞬态偏差。</li>"
+           "<li><b>sample_period</b> 与 <b>max_samples</b>：控制采样长度与统计稳定性。"
+           "采样不足会导致方差偏大、结论不稳定。</li>"
+           "<li><b>sim_type</b>：仿真模式。延迟研究建议在收敛条件明确后进行负载扫描。</li>"
+           "<li><b>收敛判据</b>：建议监控统计窗口内均值变化率或置信区间宽度，"
+           "避免以单次波动作为结束条件。</li>"
+           "<li><b>可复现性</b>：记录配置文件版本、提交哈希、随机种子、平台与编译模式。</li>"
            "</ul>"),
-        QStringLiteral("invalid routing function 报错 排查 injection_rate k n c 卡顿 收敛 seed"));
+        QStringLiteral("参数 topology k n c network_file anynet routing_function dor dim_order min "
+                       "traffic injection_rate offered load num_vcs vc_buf_size warmup_periods "
+                       "sample_period max_samples sim_type 建模 收敛 扫描 步长 置信区间 可复现"));
+
+    addSection(
+        tr("指标术语"),
+        tr("解释"),
+        tr("读图建议：同时看延迟、吞吐与饱和区间，避免只凭单一指标下结论。"),
+        tr("<h4>一、核心指标</h4>"
+           "<ul>"
+           "<li><b>Packet "
+           "Latency</b>：端到端包延迟，通常包含注入排队、网络传输与目的端接收等待。</li>"
+           "<li><b>Network Latency</b>：仅统计进入网络后的在网时间，用于分离注入端拥塞影响。</li>"
+           "<li><b>Throughput / Accepted Rate</b>：单位时间成功送达负载。"
+           "在低负载区通常随 injection_rate 近线性增长。</li>"
+           "<li><b>Saturation Point</b>：系统由近线性区转入拥塞区的临界负载。"
+           "表现为延迟斜率显著增大、吞吐增长趋缓。</li>"
+           "<li><b>Offered Load vs Accepted "
+           "Load</b>：输入负载与实际接收负载的差值可用于量化拥塞损失。</li>"
+           "<li><b>Tail Latency "
+           "(P95/P99)</b>：尾部时延反映最坏体验，对突发流量和不均衡模式更敏感。</li>"
+           "<li><b>Latency Jitter</b>：时延抖动用于衡量稳定性，常以方差或分位差表示。</li>"
+           "</ul>"
+           "<h4>二、结构与流控术语</h4>"
+           "<ul>"
+           "<li><b>Router</b>：执行路由计算、VC 分配与交换仲裁的核心转发节点。</li>"
+           "<li><b>Terminal / Node</b>：流量注入与接收端点。</li>"
+           "<li><b>Hop</b>：经过一个路由节点到下一路由节点的转发步数。</li>"
+           "<li><b>Flit</b>：流控最小单位；一个 packet 可由多个 flit 组成。</li>"
+           "<li><b>VC (Virtual Channel)</b>：共享物理链路上的逻辑通道，用于降低队首阻塞风险。</li>"
+           "<li><b>HOL Blocking</b>：队首阻塞，前序流受阻导致后序流无法前进的现象。</li>"
+           "<li><b>Backpressure</b>：下游拥塞通过流控反向传播到上游，引发注入受限。</li>"
+           "<li><b>Bisection Bandwidth</b>：网络二分带宽上限，常用于估计高负载潜在吞吐天花板。</li>"
+           "</ul>"
+           "<h4>三、结果判读建议</h4>"
+           "<ul>"
+           "<li>优先比较同一 topology/routing 下的曲线形状差异，再比较绝对值大小。</li>"
+           "<li>若高负载下 latency 波动过大，先检查 warmup 与采样长度是否足够。</li>"
+           "<li>报告结论时建议同时给出：实验配置、注入率区间、关键拐点与异常日志。</li>"
+           "<li>若比较不同拓扑，建议先按每节点注入率归一化，再比较跨规模结论。</li>"
+           "<li>出现“吞吐提升但尾延迟恶化”时，应补充分位数曲线，避免平均值掩盖风险。</li>"
+           "<li>建议同时展示 latency-throughput 双轴图和关键配置表，以提升可审阅性。</li>"
+           "</ul>"),
+        QStringLiteral(
+            "指标 术语 packet latency network latency throughput accepted rate saturation "
+            "router terminal hop flit vc virtual channel hol blocking tail latency p99 "
+            "offered load accepted load jitter backpressure bisection bandwidth 收敛 拐点"));
 
     m_sectionLayout->addStretch(1);
     scroll->setWidget(m_sectionHost);
@@ -358,18 +380,12 @@ void UsageGuidePage::addSection(const QString& title,
     auto* toggle = new QToolButton(headRow);
     toggle->setText(title);
     toggle->setCheckable(true);
-    toggle->setChecked(true);
+    toggle->setChecked(false);
     toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    toggle->setArrowType(Qt::DownArrow);
+    toggle->setArrowType(Qt::RightArrow);
     toggle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-    auto* categoryLabel = new QLabel(category, headRow);
-    auto* summaryLabel = new QLabel(summary, headRow);
-    summaryLabel->setWordWrap(true);
-
     headLay->addWidget(toggle, 1);
-    headLay->addWidget(categoryLabel, 0);
-    headLay->addWidget(summaryLabel, 2);
     cardLayout->addWidget(headRow);
 
     auto* body = new QWidget(card);
@@ -381,7 +397,7 @@ void UsageGuidePage::addSection(const QString& title,
     browser->setOpenExternalLinks(true);
     browser->setReadOnly(true);
     browser->setHtml(richText);
-    browser->setMinimumHeight(140);
+    browser->setMinimumHeight(260);
     bodyLay->addWidget(browser);
 
     if (!templates.isEmpty()) {
@@ -389,6 +405,7 @@ void UsageGuidePage::addSection(const QString& title,
     }
 
     cardLayout->addWidget(body);
+    body->setVisible(false);
 
     connect(toggle, &QToolButton::toggled, this, [toggle, body](bool on) {
         body->setVisible(on);
@@ -402,8 +419,8 @@ void UsageGuidePage::addSection(const QString& title,
     sec.card = card;
     sec.body = body;
     sec.toggle = toggle;
-    sec.categoryLabel = categoryLabel;
-    sec.summaryLabel = summaryLabel;
+    sec.categoryLabel = nullptr;
+    sec.summaryLabel = nullptr;
     sec.browser = browser;
     m_sections.append(sec);
     m_sectionLayout->addWidget(card);
@@ -428,8 +445,7 @@ void UsageGuidePage::applySearchFilter() {
         return;
     }
     if (key.isEmpty()) {
-        m_statusLabel->setText(
-            tr("按“流程-参数-指标-诊断”组织内容，支持全文搜索、分组折叠和模板复制。"));
+        m_statusLabel->clear();
     } else {
         m_statusLabel->setText(tr("搜索 \"%1\"：匹配到 %2 个分组。").arg(key).arg(matched));
     }
