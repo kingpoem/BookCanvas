@@ -160,6 +160,9 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* clearCanvasBtn = new ElaIconButton(ElaIconType::TrashCan, 18, stripInner);
     clearCanvasBtn->setBorderRadius(8);
     clearCanvasBtn->setToolTip(tr("一键清除当前画布上的全部节点、链路与拓扑块"));
+    auto* smartRenumberBtn = new ElaIconButton(ElaIconType::WandMagicSparkles, 18, stripInner);
+    smartRenumberBtn->setBorderRadius(8);
+    smartRenumberBtn->setToolTip(tr("将路由器与终端分别从 0 开始自动连续编号"));
 
     auto* leftCol = new QVBoxLayout(leftBuildPanel);
     leftCol->setContentsMargins(0, 0, 0, 0);
@@ -176,6 +179,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addSpacing(4);
     stripLay->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), stripInner));
     stripLay->addWidget(createButtonWithLabel(clearCanvasBtn, tr("清空画布"), stripInner));
+    stripLay->addWidget(createButtonWithLabel(smartRenumberBtn, tr("智能重编号"), stripInner));
 
     auto* buildTitle = new QLabel(tr("拖拽放置"), stripInner);
     buildTitle->setForegroundRole(QPalette::WindowText);
@@ -307,6 +311,14 @@ CanvasPage::CanvasPage(QWidget* parent)
         clearPlaceMode();
         if (m_scene) {
             m_scene->clearAllContent();
+        }
+    });
+    connect(smartRenumberBtn, &ElaPushButton::clicked, this, [this]() {
+        if (!m_scene) {
+            return;
+        }
+        if (!m_scene->renumberAllNodesFromZero()) {
+            QMessageBox::warning(this, tr("智能重编号失败"), tr("重编号过程中出现编号冲突，请重试。"));
         }
     });
 

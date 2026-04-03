@@ -1089,6 +1089,58 @@ void GraphScene::setAllEdgeWeightsVisible(bool visible) {
     }
 }
 
+bool GraphScene::renumberAllNodesFromZero() {
+    QList<GraphNode*> routers;
+    QList<GraphNode*> terminals;
+    routers.reserve(m_nodes.size());
+    terminals.reserve(m_nodes.size());
+    for (GraphNode* node : m_nodes) {
+        if (!node) {
+            continue;
+        }
+        if (node->getType() == GraphNode::Router) {
+            routers.append(node);
+        } else {
+            terminals.append(node);
+        }
+    }
+
+    auto byNumericId = [](GraphNode* lhs, GraphNode* rhs) {
+        if (lhs == nullptr || rhs == nullptr) {
+            return lhs < rhs;
+        }
+        const int lnum = extractNumberId(lhs->getId());
+        const int rnum = extractNumberId(rhs->getId());
+        if (lnum != rnum) {
+            return lnum < rnum;
+        }
+        return lhs->getId() < rhs->getId();
+    };
+    std::sort(routers.begin(), routers.end(), byNumericId);
+    std::sort(terminals.begin(), terminals.end(), byNumericId);
+
+    auto renumberGroup = [this](const QList<GraphNode*>& group, const QString& prefix) {
+        for (int i = 0; i < group.size(); ++i) {
+            GraphNode* node = group[i];
+            const QString tempId = QStringLiteral("__tmp_%1_%2__").arg(prefix).arg(i);
+            if (!renameNodeToId(node, tempId)) {
+                return false;
+            }
+        }
+        for (int i = 0; i < group.size(); ++i) {
+            GraphNode* node = group[i];
+            const QString finalId = QStringLiteral("%1_%2").arg(prefix).arg(i);
+            if (!renameNodeToId(node, finalId)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    return renumberGroup(routers, QStringLiteral("Router"))
+           && renumberGroup(terminals, QStringLiteral("Node"));
+}
+
 void GraphScene::clearAllContent() {
     m_highlightNode = nullptr;
     m_lineStartNode = nullptr;

@@ -49,6 +49,8 @@ public:
 
     // 控制所有边的权重显示/隐藏
     void setAllEdgeWeightsVisible(bool visible);
+    // 将路由器/终端分别按当前编号顺序重排为从 0 开始的连续编号
+    bool renumberAllNodesFromZero();
     // 清空画布上的全部内容（节点、边、拓扑块）
     void clearAllContent();
 
