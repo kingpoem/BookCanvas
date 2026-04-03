@@ -114,7 +114,10 @@ void GraphScene::updateTopologyBlockParams(GraphTopologyBlock* block,
     }
     block->setParams(params);
     if (params.topologyId == QLatin1String("mesh") || params.topologyId == QLatin1String("torus")
-        || params.topologyId == QLatin1String("cmesh")) {
+        || params.topologyId == QLatin1String("cmesh") || params.topologyId == QLatin1String("fly")
+        || params.topologyId == QLatin1String("qtree")
+        || params.topologyId == QLatin1String("tree4")
+        || params.topologyId == QLatin1String("fattree")) {
         rebuildManagedTopology(block);
     }
 }
@@ -132,7 +135,11 @@ void GraphScene::createTopologyBlockAt(const QPointF& pos) {
 
     if (m_pendingBooksimTopology.topologyId == QLatin1String("mesh")
         || m_pendingBooksimTopology.topologyId == QLatin1String("torus")
-        || m_pendingBooksimTopology.topologyId == QLatin1String("cmesh")) {
+        || m_pendingBooksimTopology.topologyId == QLatin1String("cmesh")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("fly")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("qtree")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("tree4")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("fattree")) {
         ManagedTopologyState st;
         st.params = m_pendingBooksimTopology;
         m_managedTopologies.insert(block, st);
@@ -205,19 +212,312 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     st.params = block->params();
     clearManagedTopology(block);
 
+    const QString topologyId = st.params.topologyId.trimmed().toLower();
     const int k = qMax(2, st.params.k);
     const int n = qMax(1, st.params.n);
     const int c = qMax(1, st.params.c);
-    const QString topologyId = st.params.topologyId.trimmed().toLower();
     const bool isTorus = (topologyId == QLatin1String("torus"));
     const bool isCMesh = (topologyId == QLatin1String("cmesh"));
-    const QString topoName = isCMesh ? tr("CMesh") : (isTorus ? tr("Torus") : tr("Mesh"));
+    const bool isFly = (topologyId == QLatin1String("fly"));
+    const bool isQTree = (topologyId == QLatin1String("qtree"));
+    const bool isTree4 = (topologyId == QLatin1String("tree4"));
+    const bool isFatTree = (topologyId == QLatin1String("fattree"));
+    const QPointF base = block->pos() + QPointF(0.0, 120.0);
+
+    auto addTerminalAt = [this, &st](GraphNode* router, const QPointF& pos) {
+        if (!router) {
+            return;
+        }
+        GraphNode* node = createNode(allocateNextNodeId(GraphNode::Node), pos, GraphNode::Node);
+        st.terminals.append(node);
+        GraphEdge* e = createEdge(node, router, 1.0);
+        if (e) {
+            st.edges.append(e);
+        }
+    };
+
+    if (isFly) {
+        const int flyK = qMax(2, k);
+        const int flyN = qMax(1, n);
+        int perStage = 0;
+        if (!safePowInt(flyK, qMax(0, flyN - 1), kMeshMaxRouters, perStage)) {
+            QMessageBox::warning(nullptr,
+                                 tr("Fly 规模过大"),
+                                 tr("当前参数生成的 fly 规模过大，请减小 k / n 后重试。"));
+            return;
+        }
+        const int routerCount = flyN * perStage;
+        if (routerCount > kMeshMaxRouters) {
+            QMessageBox::warning(nullptr,
+                                 tr("Fly 规模过大"),
+                                 tr("当前参数生成的路由器数量过大，请减小 k / n 后重试。"));
+            return;
+        }
+        int terminalCount = 0;
+        if (!safePowInt(flyK, flyN, kMeshMaxTerminals, terminalCount)) {
+            QMessageBox::warning(nullptr,
+                                 tr("Fly 规模过大"),
+                                 tr("当前参数生成的终端数量过大，请减小 k / n 后重试。"));
+            return;
+        }
+        QVector<GraphNode*> routers;
+        routers.reserve(routerCount);
+        const qreal stageStepX = 180.0;
+        const qreal rowStepY = 80.0;
+        for (int stage = 0; stage < flyN; ++stage) {
+            for (int addr = 0; addr < perStage; ++addr) {
+                const QPointF p(base.x() + stage * stageStepX, base.y() + addr * rowStepY);
+                GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
+                                               p,
+                                               GraphNode::Router);
+                routers.append(router);
+                st.routers.append(router);
+            }
+        }
+
+        QSet<quint64> createdRouterEdges;
+        for (int stage = 0; stage < flyN - 1; ++stage) {
+            int shift = 1;
+            if (!safePowInt(flyK, qMax(0, flyN - stage - 2), kMeshMaxRouters, shift)) {
+                shift = 1;
+            }
+            for (int addr = 0; addr < perStage; ++addr) {
+                const int zeroDigit = (addr / shift) % flyK;
+                for (int port = 0; port < flyK; ++port) {
+                    const int inAddr = addr - zeroDigit * shift + port * shift;
+                    const int lhs = stage * perStage + inAddr;
+                    const int rhs = (stage + 1) * perStage + addr;
+                    const quint64 edgeKey = undirectedEdgeKey(lhs, rhs);
+                    if (createdRouterEdges.contains(edgeKey)) {
+                        continue;
+                    }
+                    GraphEdge* e = createEdge(routers[lhs], routers[rhs], 1.0);
+                    if (e) {
+                        createdRouterEdges.insert(edgeKey);
+                        st.edges.append(e);
+                    }
+                }
+            }
+        }
+
+        for (int addr = 0; addr < perStage; ++addr) {
+            GraphNode* router = routers[(flyN - 1) * perStage + addr];
+            const QPointF rPos = router->pos();
+            for (int port = 0; port < flyK; ++port) {
+                const qreal x = rPos.x() - ((flyK - 1) * 14.0 / 2.0) + port * 14.0;
+                const qreal y = rPos.y() + 66.0;
+                addTerminalAt(router, QPointF(x, y));
+            }
+        }
+        return;
+    }
+
+    if (isQTree || isTree4) {
+        const int treeK = 4;
+        const int treeN = 3;
+        QVector<QVector<GraphNode*>> levels;
+        if (isQTree) {
+            levels.resize(treeN);
+            for (int h = 0; h < treeN; ++h) {
+                int count = 1;
+                if (!safePowInt(treeK, h, kMeshMaxRouters, count)) {
+                    count = 1;
+                }
+                levels[h].reserve(count);
+                const qreal step = 78.0;
+                const qreal y = base.y() + h * 120.0;
+                const qreal x0 = base.x() - ((count - 1) * step / 2.0) + 220.0;
+                for (int i = 0; i < count; ++i) {
+                    GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
+                                                   QPointF(x0 + i * step, y),
+                                                   GraphNode::Router);
+                    levels[h].append(router);
+                    st.routers.append(router);
+                }
+            }
+            QSet<quint64> createdRouterEdges;
+            for (int h = 0; h < treeN - 1; ++h) {
+                for (int p = 0; p < levels[h].size(); ++p) {
+                    for (int child = 0; child < treeK; ++child) {
+                        const int childPos = p * treeK + child;
+                        if (childPos < 0 || childPos >= levels[h + 1].size()) {
+                            continue;
+                        }
+                        const int a = static_cast<int>(st.routers.indexOf(levels[h][p]));
+                        const int b = static_cast<int>(st.routers.indexOf(levels[h + 1][childPos]));
+                        const quint64 edgeKey = undirectedEdgeKey(a, b);
+                        if (createdRouterEdges.contains(edgeKey)) {
+                            continue;
+                        }
+                        GraphEdge* e = createEdge(levels[h][p], levels[h + 1][childPos], 1.0);
+                        if (e) {
+                            createdRouterEdges.insert(edgeKey);
+                            st.edges.append(e);
+                        }
+                    }
+                }
+            }
+            for (GraphNode* leafRouter : levels[2]) {
+                const QPointF rPos = leafRouter->pos();
+                for (int i = 0; i < treeK; ++i) {
+                    addTerminalAt(leafRouter, QPointF(rPos.x() - 22.0 + i * 14.0, rPos.y() + 66.0));
+                }
+            }
+        } else {
+            levels = QVector<QVector<GraphNode*>>{QVector<GraphNode*>(),
+                                                  QVector<GraphNode*>(),
+                                                  QVector<GraphNode*>()};
+            const QVector<int> counts{4, 8, 16};
+            for (int h = 0; h < counts.size(); ++h) {
+                const int count = counts[h];
+                const qreal step = (h == 0) ? 120.0 : ((h == 1) ? 86.0 : 66.0);
+                const qreal y = base.y() + h * 120.0;
+                const qreal x0 = base.x() - ((count - 1) * step / 2.0) + 220.0;
+                for (int i = 0; i < count; ++i) {
+                    GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
+                                                   QPointF(x0 + i * step, y),
+                                                   GraphNode::Router);
+                    levels[h].append(router);
+                    st.routers.append(router);
+                }
+            }
+            QSet<quint64> createdRouterEdges;
+            for (int pos = 0; pos < 8; ++pos) {
+                for (int port = 0; port < 4; ++port) {
+                    const int child = 4 * (pos / 2) + port;
+                    const int a = static_cast<int>(st.routers.indexOf(levels[1][pos]));
+                    const int b = static_cast<int>(st.routers.indexOf(levels[2][child]));
+                    const quint64 edgeKey = undirectedEdgeKey(a, b);
+                    if (createdRouterEdges.contains(edgeKey)) {
+                        continue;
+                    }
+                    GraphEdge* e = createEdge(levels[1][pos], levels[2][child], 1.0);
+                    if (e) {
+                        createdRouterEdges.insert(edgeKey);
+                        st.edges.append(e);
+                    }
+                }
+            }
+            for (int p0 = 0; p0 < 4; ++p0) {
+                for (int p1 = 0; p1 < 8; ++p1) {
+                    const int a = static_cast<int>(st.routers.indexOf(levels[0][p0]));
+                    const int b = static_cast<int>(st.routers.indexOf(levels[1][p1]));
+                    const quint64 edgeKey = undirectedEdgeKey(a, b);
+                    if (createdRouterEdges.contains(edgeKey)) {
+                        continue;
+                    }
+                    GraphEdge* e = createEdge(levels[0][p0], levels[1][p1], 1.0);
+                    if (e) {
+                        createdRouterEdges.insert(edgeKey);
+                        st.edges.append(e);
+                    }
+                }
+            }
+            for (GraphNode* leafRouter : levels[2]) {
+                const QPointF rPos = leafRouter->pos();
+                for (int i = 0; i < treeK; ++i) {
+                    addTerminalAt(leafRouter, QPointF(rPos.x() - 22.0 + i * 14.0, rPos.y() + 66.0));
+                }
+            }
+        }
+        return;
+    }
+
+    if (isFatTree) {
+        const int fatK = qMax(2, k);
+        const int fatN = qMax(2, n);
+        int nPos = 0;
+        if (!safePowInt(fatK, qMax(0, fatN - 1), kMeshMaxRouters, nPos)) {
+            QMessageBox::warning(nullptr,
+                                 tr("FatTree 规模过大"),
+                                 tr("当前参数生成的 FatTree 规模过大，请减小 k / n 后重试。"));
+            return;
+        }
+        const int routerCount = fatN * nPos;
+        if (routerCount > kMeshMaxRouters) {
+            QMessageBox::warning(nullptr,
+                                 tr("FatTree 规模过大"),
+                                 tr("当前参数生成的路由器数量过大，请减小 k / n 后重试。"));
+            return;
+        }
+        int terminalCount = 0;
+        if (!safePowInt(fatK, fatN, kMeshMaxTerminals, terminalCount)) {
+            QMessageBox::warning(nullptr,
+                                 tr("FatTree 规模过大"),
+                                 tr("当前参数生成的终端数量过大，请减小 k / n 后重试。"));
+            return;
+        }
+
+        QVector<QVector<GraphNode*>> levels(fatN);
+        const int cols = qMax(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(nPos)))));
+        const qreal colStep = 88.0;
+        const qreal rowStep = 78.0;
+        const qreal levelGapX = 220.0;
+        for (int level = 0; level < fatN; ++level) {
+            levels[level].reserve(nPos);
+            const qreal x = base.x() + level * levelGapX;
+            for (int pos = 0; pos < nPos; ++pos) {
+                const int row = pos / cols;
+                const int col = pos % cols;
+                const qreal y = base.y() + row * rowStep + col * 0.2;
+                GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
+                                               QPointF(x + col * colStep, y),
+                                               GraphNode::Router);
+                levels[level].append(router);
+                st.routers.append(router);
+            }
+        }
+
+        QSet<quint64> createdRouterEdges;
+        int routersPerNeighborhood = nPos;
+        for (int level = 0; level < fatN - 1; ++level) {
+            const int routersPerBranch = qMax(1, routersPerNeighborhood / fatK);
+            for (int pos = 0; pos < nPos; ++pos) {
+                const int neighborhood = pos / routersPerNeighborhood;
+                const int neighborhoodPos = pos % routersPerNeighborhood;
+                for (int port = 0; port < fatK; ++port) {
+                    const int childPos = neighborhood * routersPerNeighborhood
+                                         + port * routersPerBranch
+                                         + (neighborhoodPos % routersPerBranch);
+                    if (childPos < 0 || childPos >= nPos) {
+                        continue;
+                    }
+                    const int a = level * nPos + pos;
+                    const int b = (level + 1) * nPos + childPos;
+                    const quint64 edgeKey = undirectedEdgeKey(a, b);
+                    if (createdRouterEdges.contains(edgeKey)) {
+                        continue;
+                    }
+                    GraphEdge* e = createEdge(levels[level][pos], levels[level + 1][childPos], 1.0);
+                    if (e) {
+                        createdRouterEdges.insert(edgeKey);
+                        st.edges.append(e);
+                    }
+                }
+            }
+            routersPerNeighborhood = routersPerBranch;
+        }
+
+        const int leafLevel = fatN - 1;
+        for (int pos = 0; pos < levels[leafLevel].size(); ++pos) {
+            GraphNode* leafRouter = levels[leafLevel][pos];
+            const QPointF rPos = leafRouter->pos();
+            for (int i = 0; i < fatK; ++i) {
+                addTerminalAt(leafRouter,
+                              QPointF(rPos.x() - ((fatK - 1) * 14.0 / 2.0) + i * 14.0,
+                                      rPos.y() + 66.0));
+            }
+        }
+        return;
+    }
+
+    const QString baseTopoName = isCMesh ? tr("CMesh") : (isTorus ? tr("Torus") : tr("Mesh"));
     const int layoutN = isCMesh ? 2 : n;
 
     int routerCount = 0;
     if (!safePowInt(k, layoutN, kMeshMaxRouters, routerCount)) {
         QMessageBox::warning(nullptr,
-                             tr("%1 规模过大").arg(topoName),
+                             tr("%1 规模过大").arg(baseTopoName),
                              tr("当前参数 k=%1, n=%2 生成的路由器数量过大。\n"
                                 "为保证画布可用性，当前最多支持 %3 个路由器。")
                                  .arg(k)
@@ -227,7 +527,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     }
     if (routerCount * c > kMeshMaxTerminals) {
         QMessageBox::warning(nullptr,
-                             tr("%1 规模过大").arg(topoName),
+                             tr("%1 规模过大").arg(baseTopoName),
                              tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。\n"
                                 "请减小 k / n / c 后重试。")
                                  .arg(routerCount * c)
@@ -250,7 +550,6 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     const qreal layerSpanX = (k - 1) * routerStepX + planeGapX;
     const qreal layerSpanY = ((layoutN >= 2 ? (k - 1) : 0) * routerStepY) + planeGapY;
 
-    const QPointF base = block->pos() + QPointF(0.0, 120.0);
     QVector<GraphNode*> routers;
     routers.resize(routerCount);
 
@@ -853,9 +1152,13 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
     if (m_topologyBlocks.size() == 1) {
         const BooksimTopologyParams p = m_topologyBlocks.first()->params();
         const bool isCMesh = (p.topologyId == QLatin1String("cmesh"));
+        const bool isQTree = (p.topologyId == QLatin1String("qtree"));
+        const bool isTree4 = (p.topologyId == QLatin1String("tree4"));
+        const bool isFixedTree = (isQTree || isTree4);
         globalConfigToExport.insert(QStringLiteral("topology"), p.topologyId);
-        globalConfigToExport.insert(QStringLiteral("k"), QString::number(p.k));
-        globalConfigToExport.insert(QStringLiteral("n"), QString::number(isCMesh ? 2 : p.n));
+        globalConfigToExport.insert(QStringLiteral("k"), QString::number(isFixedTree ? 4 : p.k));
+        globalConfigToExport.insert(QStringLiteral("n"),
+                                    QString::number(isCMesh ? 2 : (isFixedTree ? 3 : p.n)));
         globalConfigToExport.insert(QStringLiteral("c"), QString::number(isCMesh ? 4 : p.c));
         globalConfigToExport.insert(QStringLiteral("routing_function"), p.routingFunction);
         if (isCMesh) {

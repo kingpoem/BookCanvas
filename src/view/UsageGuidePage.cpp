@@ -59,6 +59,62 @@ QString cmeshTemplate() {
                           "}");
 }
 
+QString flyTemplate() {
+    return QStringLiteral("{\n"
+                          "  \"topology\": \"fly\",\n"
+                          "  \"k\": 4,\n"
+                          "  \"n\": 2,\n"
+                          "  \"routing_function\": \"dest_tag\",\n"
+                          "  \"traffic\": \"uniform\",\n"
+                          "  \"injection_rate\": 0.03,\n"
+                          "  \"num_vcs\": 8,\n"
+                          "  \"vc_buf_size\": 16,\n"
+                          "  \"sim_type\": \"latency\"\n"
+                          "}");
+}
+
+QString qtreeTemplate() {
+    return QStringLiteral("{\n"
+                          "  \"topology\": \"qtree\",\n"
+                          "  \"k\": 4,\n"
+                          "  \"n\": 3,\n"
+                          "  \"routing_function\": \"nca\",\n"
+                          "  \"traffic\": \"uniform\",\n"
+                          "  \"injection_rate\": 0.02,\n"
+                          "  \"num_vcs\": 8,\n"
+                          "  \"vc_buf_size\": 16,\n"
+                          "  \"sim_type\": \"latency\"\n"
+                          "}");
+}
+
+QString tree4Template() {
+    return QStringLiteral("{\n"
+                          "  \"topology\": \"tree4\",\n"
+                          "  \"k\": 4,\n"
+                          "  \"n\": 3,\n"
+                          "  \"routing_function\": \"nca\",\n"
+                          "  \"traffic\": \"uniform\",\n"
+                          "  \"injection_rate\": 0.02,\n"
+                          "  \"num_vcs\": 8,\n"
+                          "  \"vc_buf_size\": 16,\n"
+                          "  \"sim_type\": \"latency\"\n"
+                          "}");
+}
+
+QString fattreeTemplate() {
+    return QStringLiteral("{\n"
+                          "  \"topology\": \"fattree\",\n"
+                          "  \"k\": 4,\n"
+                          "  \"n\": 2,\n"
+                          "  \"routing_function\": \"nca\",\n"
+                          "  \"traffic\": \"uniform\",\n"
+                          "  \"injection_rate\": 0.02,\n"
+                          "  \"num_vcs\": 8,\n"
+                          "  \"vc_buf_size\": 16,\n"
+                          "  \"sim_type\": \"latency\"\n"
+                          "}");
+}
+
 QString anynetTemplate() {
     return QStringLiteral("{\n"
                           "  \"topology\": \"anynet\",\n"
@@ -134,14 +190,22 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
            "<li><b>mesh</b>：k=4, n=2, c=1, routing_function=dor</li>"
            "<li><b>torus</b>：k=4, n=2, c=1, routing_function=dim_order</li>"
            "<li><b>cmesh</b>：k=4, n=2, c=4, routing_function=dor_no_express</li>"
+           "<li><b>fly</b>：k=4, n=2, routing_function=dest_tag</li>"
+           "<li><b>qtree</b>：k=4, n=3, routing_function=nca</li>"
+           "<li><b>tree4</b>：k=4, n=3, routing_function=nca</li>"
+           "<li><b>fattree</b>：k=4, n=2, routing_function=nca</li>"
            "<li><b>anynet</b>：由 network_file 决定拓扑，routing_function=min</li>"
            "</ul>"
            "<p>建议：先把 injection_rate 控制在 0.02~0.05，确认链路与路由函数匹配后再提负载。</p>"),
-        QStringLiteral("快速 起步 模板 mesh torus cmesh anynet k n c routing_function "
-                       "injection_rate"),
+        QStringLiteral("快速 起步 模板 mesh torus cmesh fly qtree tree4 fattree anynet k n c "
+                       "routing_function injection_rate"),
         {{tr("复制 mesh 模板"), meshTemplate()},
          {tr("复制 torus 模板"), torusTemplate()},
          {tr("复制 cmesh 模板"), cmeshTemplate()},
+         {tr("复制 fly 模板"), flyTemplate()},
+         {tr("复制 qtree 模板"), qtreeTemplate()},
+         {tr("复制 tree4 模板"), tree4Template()},
+         {tr("复制 fattree 模板"), fattreeTemplate()},
          {tr("复制 anynet 模板"), anynetTemplate()}});
 
     addSection(tr("B2. 参数体系与建模含义"),
