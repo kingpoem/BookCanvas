@@ -1141,6 +1141,38 @@ bool GraphScene::renumberAllNodesFromZero() {
            && renumberGroup(terminals, QStringLiteral("Node"));
 }
 
+int GraphScene::removeUnconnectedNodes() {
+    QSet<GraphNode*> connectedNodes;
+    connectedNodes.reserve(m_edges.size() * 2);
+    for (GraphEdge* edge : m_edges) {
+        if (!edge) {
+            continue;
+        }
+        if (GraphNode* start = edge->startNode()) {
+            connectedNodes.insert(start);
+        }
+        if (GraphNode* end = edge->endNode()) {
+            connectedNodes.insert(end);
+        }
+    }
+
+    QList<GraphNode*> isolatedNodes;
+    isolatedNodes.reserve(m_nodes.size());
+    for (GraphNode* node : m_nodes) {
+        if (!node) {
+            continue;
+        }
+        if (!connectedNodes.contains(node)) {
+            isolatedNodes.append(node);
+        }
+    }
+
+    for (GraphNode* node : isolatedNodes) {
+        removeNode(node);
+    }
+    return static_cast<int>(isolatedNodes.size());
+}
+
 void GraphScene::clearAllContent() {
     m_highlightNode = nullptr;
     m_lineStartNode = nullptr;

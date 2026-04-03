@@ -51,6 +51,8 @@ public:
     void setAllEdgeWeightsVisible(bool visible);
     // 将路由器/终端分别按当前编号顺序重排为从 0 开始的连续编号
     bool renumberAllNodesFromZero();
+    // 删除没有任何连线的节点（路由器/终端），返回删除数量
+    int removeUnconnectedNodes();
     // 清空画布上的全部内容（节点、边、拓扑块）
     void clearAllContent();
 

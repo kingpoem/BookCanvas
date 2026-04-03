@@ -163,6 +163,9 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* smartRenumberBtn = new ElaIconButton(ElaIconType::WandMagicSparkles, 18, stripInner);
     smartRenumberBtn->setBorderRadius(8);
     smartRenumberBtn->setToolTip(tr("将路由器与终端分别从 0 开始自动连续编号"));
+    auto* pruneUnconnectedBtn = new ElaIconButton(ElaIconType::LinkSlash, 18, stripInner);
+    pruneUnconnectedBtn->setBorderRadius(8);
+    pruneUnconnectedBtn->setToolTip(tr("删除没有任何连线的路由器与终端"));
 
     auto* leftCol = new QVBoxLayout(leftBuildPanel);
     leftCol->setContentsMargins(0, 0, 0, 0);
@@ -180,6 +183,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addWidget(createButtonWithLabel(showBtn, tr("链路权重"), stripInner));
     stripLay->addWidget(createButtonWithLabel(clearCanvasBtn, tr("清空画布"), stripInner));
     stripLay->addWidget(createButtonWithLabel(smartRenumberBtn, tr("智能重编号"), stripInner));
+    stripLay->addWidget(createButtonWithLabel(pruneUnconnectedBtn, tr("清理孤立节点"), stripInner));
 
     auto* buildTitle = new QLabel(tr("拖拽放置"), stripInner);
     buildTitle->setForegroundRole(QPalette::WindowText);
@@ -320,6 +324,12 @@ CanvasPage::CanvasPage(QWidget* parent)
         if (!m_scene->renumberAllNodesFromZero()) {
             QMessageBox::warning(this, tr("智能重编号失败"), tr("重编号过程中出现编号冲突，请重试。"));
         }
+    });
+    connect(pruneUnconnectedBtn, &ElaPushButton::clicked, this, [this]() {
+        if (!m_scene) {
+            return;
+        }
+        m_scene->removeUnconnectedNodes();
     });
 
     connect(m_placeTermPick, &ElaIconButton::toggled, this, [this](bool on) {
