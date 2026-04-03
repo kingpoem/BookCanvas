@@ -19,6 +19,9 @@ void ensureDefaultExportPathSettings();
 [[nodiscard]] QString topologyExportPathFromSettings();
 [[nodiscard]] QString configExportPathFromSettings();
 
+/// 基于设置中的导出路径，拼接隔离标识（如 tab_1）形成独立文件名。
+[[nodiscard]] QString scopedExportPath(const QString& basePath, const QString& scopeToken);
+
 /// 写入 JSON 的 `network_file`：与配置同目录时用文件名，否则用绝对路径，便于 booksim 在配置所在 cwd 下打开拓扑。
 [[nodiscard]] QString networkFileFieldForJson(const QString& topologyFilePath,
                                               const QString& configFilePath);

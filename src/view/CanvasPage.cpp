@@ -9,6 +9,7 @@
 #include "component/RouterGlobalConfigDialog.h"
 #include "component/ShowButton.h"
 #include "utils/BooksimPaths.h"
+#include "utils/Settings.hpp"
 #include <ElaDef.h>
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
@@ -22,6 +23,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHideEvent>
+#include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
@@ -32,11 +34,14 @@
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QSplitterHandle>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <Version.h>
 #include <functional>
 
 namespace {
+
+constexpr auto kCanvasTabScopeProperty = "canvasTabScope";
 
 void bindLabelToElaBasicText(QLabel* label) {
     if (!label) {
@@ -116,10 +121,6 @@ static QWidget* createButtonWithLabel(QWidget* button, const QString& labelText,
 CanvasPage::CanvasPage(QWidget* parent)
     : BasePage(parent) {
     setWindowTitle("Canvas");
-
-    m_scene = new GraphScene(this);
-    m_scene->setGlobalConfig(RouterGlobalConfigDialog::getDefaultConfig());
-    m_graphView = new GraphView(m_scene, this);
 
     auto* mainRow = new QHBoxLayout();
     mainRow->setContentsMargins(0, 0, 0, 0);
@@ -289,8 +290,18 @@ CanvasPage::CanvasPage(QWidget* parent)
         "QFrame#CanvasViewFrame { border: 1px solid palette(mid); border-radius: 8px; background: transparent; }"));
     auto* viewFrameLay = new QVBoxLayout(viewFrame);
     viewFrameLay->setContentsMargins(6, 6, 6, 6);
-    viewFrameLay->addWidget(m_graphView);
 
+    m_canvasTabs = new QTabWidget(viewFrame);
+    m_canvasTabs->setTabsClosable(true);
+    m_canvasTabs->setMovable(true);
+    m_canvasTabs->setDocumentMode(true);
+
+    auto* addTabBtn = new ElaPushButton(QStringLiteral("+"), m_canvasTabs);
+    addTabBtn->setFixedWidth(28);
+    addTabBtn->setToolTip(tr("新建网络 Tab"));
+    m_canvasTabs->setCornerWidget(addTabBtn, Qt::TopRightCorner);
+
+    viewFrameLay->addWidget(m_canvasTabs);
     rightColumn->addWidget(viewFrame, 1);
 
     auto* rightWrap = new QWidget(this);
@@ -311,7 +322,54 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     mainRow->addWidget(splitter, 1);
 
-    connect(showBtn, &ShowButton::toggled, m_scene, &GraphScene::setAllEdgeWeightsVisible);
+    connect(addTabBtn, &ElaPushButton::clicked, this, [this]() {
+        createCanvasTab();
+    });
+    connect(m_canvasTabs, &QTabWidget::tabCloseRequested, this, [this](int index) {
+        closeCanvasTab(index);
+    });
+    connect(m_canvasTabs, &QTabWidget::currentChanged, this, [this](int) {
+        clearPlaceMode();
+        refreshCurrentCanvasContext();
+    });
+    connect(m_canvasTabs, &QTabWidget::tabBarDoubleClicked, this, [this](int index) {
+        if (!m_canvasTabs || index < 0 || index >= m_canvasTabs->count()) {
+            return;
+        }
+        QWidget* page = m_canvasTabs->widget(index);
+        if (!page) {
+            return;
+        }
+        bool ok = false;
+        const QString currentName = m_canvasTabs->tabText(index);
+        const QString newName = QInputDialog::getText(this,
+                                                      tr("重命名网络"),
+                                                      tr("网络名称"),
+                                                      QLineEdit::Normal,
+                                                      currentName,
+                                                      &ok)
+                                    .trimmed();
+        if (!ok) {
+            return;
+        }
+        if (newName.isEmpty()) {
+            QMessageBox::warning(this, tr("重命名失败"), tr("网络名称不能为空。"));
+            return;
+        }
+        m_canvasTabs->setTabText(index, newName);
+        const QString scopeToken = page->property(kCanvasTabScopeProperty).toString();
+        if (!scopeToken.isEmpty()) {
+            savePersistedTabName(scopeToken, newName);
+        }
+    });
+
+    createCanvasTab();
+
+    connect(showBtn, &ShowButton::toggled, this, [this](bool visible) {
+        if (auto* scene = currentScene()) {
+            scene->setAllEdgeWeightsVisible(visible);
+        }
+    });
     connect(clearCanvasBtn, &ElaPushButton::clicked, this, [this]() {
         clearPlaceMode();
         if (m_scene) {
@@ -412,6 +470,60 @@ CanvasPage::CanvasPage(QWidget* parent)
             m_scene->redo();
         }
     });
+#ifdef Q_OS_MACOS
+    auto* redoShortcutMacCommandY
+        = new QShortcut(QKeySequence(Qt::META | Qt::Key_Y), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(redoShortcutMacCommandY, &QShortcut::activated, this, [this]() {
+        if (m_scene) {
+            m_scene->redo();
+        }
+    });
+#endif
+    auto* newTabShortcutCtrlT
+        = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_T), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(newTabShortcutCtrlT, &QShortcut::activated, this, [this]() {
+        createCanvasTab();
+    });
+#ifdef Q_OS_MACOS
+    auto* newTabShortcutCommandT
+        = new QShortcut(QKeySequence(Qt::META | Qt::Key_T), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(newTabShortcutCommandT, &QShortcut::activated, this, [this]() {
+        createCanvasTab();
+    });
+#endif
+    auto* nextTabShortcutCtrlTab
+        = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Tab), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(nextTabShortcutCtrlTab, &QShortcut::activated, this, [this]() {
+        if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
+            return;
+        }
+        const int current = m_canvasTabs->currentIndex();
+        const int next = (current + 1) % m_canvasTabs->count();
+        m_canvasTabs->setCurrentIndex(next);
+    });
+    auto* prevTabShortcutCtrlShiftTab = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab),
+                                                      this,
+                                                      nullptr,
+                                                      nullptr,
+                                                      Qt::WindowShortcut);
+    connect(prevTabShortcutCtrlShiftTab, &QShortcut::activated, this, [this]() {
+        if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
+            return;
+        }
+        const int current = m_canvasTabs->currentIndex();
+        const int prev = (current - 1 + m_canvasTabs->count()) % m_canvasTabs->count();
+        m_canvasTabs->setCurrentIndex(prev);
+    });
+    auto* prevTabShortcutCtrlBacktab
+        = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Backtab), this, nullptr, nullptr, Qt::WindowShortcut);
+    connect(prevTabShortcutCtrlBacktab, &QShortcut::activated, this, [this]() {
+        if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
+            return;
+        }
+        const int current = m_canvasTabs->currentIndex();
+        const int prev = (current - 1 + m_canvasTabs->count()) % m_canvasTabs->count();
+        m_canvasTabs->setCurrentIndex(prev);
+    });
 
     auto bindCanvasShortcut = [this](const QKeySequence& seq, const std::function<void()>& fn) {
         auto* sc = new QShortcut(seq, this, nullptr, nullptr, Qt::WindowShortcut);
@@ -447,28 +559,6 @@ CanvasPage::CanvasPage(QWidget* parent)
         m_graphView->resetZoomToDefault();
     });
 #endif
-
-    connect(m_scene, &GraphScene::nodeConfigureRequested, [this](GraphNode* node) {
-        if (node && node->getType() == GraphNode::Router) {
-            RouterConfigDialog dialog(node->getId(), this);
-            dialog.setConfig(m_scene->getRouterConfig(node->getId()));
-            if (dialog.exec() == QDialog::Accepted) {
-                m_scene->setRouterConfig(node->getId(), dialog.getConfig());
-            }
-        }
-    });
-
-    connect(m_scene, &GraphScene::topologyBlockConfigureRequested, this, [this](GraphTopologyBlock* block) {
-        if (!block) {
-            return;
-        }
-        const BooksimTopologyParams cur = block->params();
-        BooksimTopologyPlaceDialog dlg(cur.topologyId, cur.displayLabel, this);
-        dlg.setParams(cur);
-        if (dlg.exec() == QDialog::Accepted) {
-            m_scene->updateTopologyBlockParams(block, dlg.getParams());
-        }
-    });
 
     auto centralWidget = new QWidget(this);
     centralWidget->setWindowTitle("Canvas");
@@ -516,17 +606,27 @@ CanvasPage::CanvasPage(QWidget* parent)
 }
 
 QMap<QString, QString> CanvasPage::globalConfig() const {
-    return m_scene ? m_scene->getGlobalConfig() : QMap<QString, QString>{};
+    return currentScene() ? currentScene()->getGlobalConfig() : QMap<QString, QString>{};
 }
 
 void CanvasPage::setGlobalConfig(const QMap<QString, QString>& config) {
-    if (m_scene) {
-        m_scene->setGlobalConfig(config);
+    if (auto* scene = currentScene()) {
+        scene->setGlobalConfig(config);
     }
 }
 
+QString CanvasPage::currentTopologyExportPath() const {
+    return BooksimPaths::scopedExportPath(BooksimPaths::topologyExportPathFromSettings(),
+                                          currentTabScopeToken());
+}
+
+QString CanvasPage::currentConfigExportPath() const {
+    return BooksimPaths::scopedExportPath(BooksimPaths::configExportPathFromSettings(),
+                                          currentTabScopeToken());
+}
+
 bool CanvasPage::exportTopologySilently(QString* errorMessage) {
-    const QString path = BooksimPaths::topologyExportPathFromSettings();
+    const QString path = currentTopologyExportPath();
     if (path.isEmpty()) {
         if (errorMessage) {
             *errorMessage = QObject::tr("未配置拓扑导出路径，请在「设置」中设置 BookSim 拓扑文件路径。");
@@ -539,19 +639,20 @@ bool CanvasPage::exportTopologySilently(QString* errorMessage) {
         }
         return false;
     }
-    if (!m_scene) {
+    auto* scene = currentScene();
+    if (!scene) {
         if (errorMessage) {
             *errorMessage = QObject::tr("画布场景未初始化。");
         }
         return false;
     }
-    m_scene->exportGraph(path);
+    scene->exportGraph(path);
     return true;
 }
 
 bool CanvasPage::exportConfigJsonSilently(QString* errorMessage) {
-    const QString cfgPath = BooksimPaths::configExportPathFromSettings();
-    const QString topoPath = BooksimPaths::topologyExportPathFromSettings();
+    const QString cfgPath = currentConfigExportPath();
+    const QString topoPath = currentTopologyExportPath();
     if (cfgPath.isEmpty()) {
         if (errorMessage) {
             *errorMessage = QObject::tr("未配置 JSON 导出路径，请在「设置」中设置 BookSim 配置文件路径。");
@@ -564,19 +665,20 @@ bool CanvasPage::exportConfigJsonSilently(QString* errorMessage) {
         }
         return false;
     }
-    if (!m_scene) {
+    auto* scene = currentScene();
+    if (!scene) {
         if (errorMessage) {
             *errorMessage = QObject::tr("画布场景未初始化。");
         }
         return false;
     }
     const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
-    m_scene->exportJSONConfig(cfgPath, netField);
+    scene->exportJSONConfig(cfgPath, netField);
     return true;
 }
 
 void CanvasPage::exportConfigJson() {
-    if (m_scene && m_scene->topologyBlockCount() > 1) {
+    if (auto* scene = currentScene(); scene && scene->topologyBlockCount() > 1) {
         QMessageBox::warning(
             this,
             tr("导出提示"),
@@ -588,12 +690,147 @@ void CanvasPage::exportConfigJson() {
         QMessageBox::warning(this, QObject::tr("导出失败"), errorMessage);
         return;
     }
-    const QString cfgPath = BooksimPaths::configExportPathFromSettings();
+    const QString cfgPath = currentConfigExportPath();
     QMessageBox::information(this, QObject::tr("导出成功"), QObject::tr("JSON 配置已导出到:\n%1").arg(cfgPath));
 }
 
 CanvasPage::~CanvasPage() {
     qApp->removeEventFilter(this);
+}
+
+QString CanvasPage::tabNameSettingKey(const QString& scopeToken) {
+    return QStringLiteral("canvas/tabName/%1").arg(scopeToken);
+}
+
+QString CanvasPage::loadPersistedTabName(const QString& scopeToken, const QString& fallbackName) {
+    if (scopeToken.isEmpty()) {
+        return fallbackName;
+    }
+    const QString name = settings.value(tabNameSettingKey(scopeToken), fallbackName).toString().trimmed();
+    return name.isEmpty() ? fallbackName : name;
+}
+
+void CanvasPage::savePersistedTabName(const QString& scopeToken, const QString& name) {
+    if (scopeToken.isEmpty()) {
+        return;
+    }
+    settings.setValue(tabNameSettingKey(scopeToken), name);
+}
+
+void CanvasPage::removePersistedTabName(const QString& scopeToken) {
+    if (scopeToken.isEmpty()) {
+        return;
+    }
+    settings.remove(tabNameSettingKey(scopeToken));
+}
+
+void CanvasPage::createCanvasTab() {
+    if (!m_canvasTabs) {
+        return;
+    }
+    const int tabId = m_nextCanvasTabId++;
+    const QString scopeToken = QStringLiteral("tab_%1").arg(tabId);
+    auto* tabPage = new QWidget(m_canvasTabs);
+    tabPage->setProperty(kCanvasTabScopeProperty, scopeToken);
+
+    auto* tabLayout = new QVBoxLayout(tabPage);
+    tabLayout->setContentsMargins(0, 0, 0, 0);
+    tabLayout->setSpacing(0);
+
+    auto* scene = new GraphScene(tabPage);
+    scene->setGlobalConfig(RouterGlobalConfigDialog::getDefaultConfig());
+    auto* view = new GraphView(scene, tabPage);
+    tabLayout->addWidget(view);
+
+    connect(scene, &GraphScene::nodeConfigureRequested, this, [this, scene](GraphNode* node) {
+        if (node && node->getType() == GraphNode::Router) {
+            RouterConfigDialog dialog(node->getId(), this);
+            dialog.setConfig(scene->getRouterConfig(node->getId()));
+            if (dialog.exec() == QDialog::Accepted) {
+                scene->setRouterConfig(node->getId(), dialog.getConfig());
+            }
+        }
+    });
+    connect(scene,
+            &GraphScene::topologyBlockConfigureRequested,
+            this,
+            [this, scene](GraphTopologyBlock* block) {
+                if (!block) {
+                    return;
+                }
+                const BooksimTopologyParams cur = block->params();
+                BooksimTopologyPlaceDialog dlg(cur.topologyId, cur.displayLabel, this);
+                dlg.setParams(cur);
+                if (dlg.exec() == QDialog::Accepted) {
+                    scene->updateTopologyBlockParams(block, dlg.getParams());
+                }
+            });
+
+    const QString defaultName = tr("网络 %1").arg(tabId);
+    const QString tabName = loadPersistedTabName(scopeToken, defaultName);
+    const int index = m_canvasTabs->addTab(tabPage, tabName);
+    m_canvasTabs->setCurrentIndex(index);
+    refreshCurrentCanvasContext();
+}
+
+void CanvasPage::closeCanvasTab(int index) {
+    if (!m_canvasTabs || index < 0 || index >= m_canvasTabs->count()) {
+        return;
+    }
+    if (m_canvasTabs->count() <= 1) {
+        createCanvasTab();
+        if (index >= m_canvasTabs->count()) {
+            index = 0;
+        }
+    }
+    QWidget* w = m_canvasTabs->widget(index);
+    if (w) {
+        const QString scopeToken = w->property(kCanvasTabScopeProperty).toString();
+        removePersistedTabName(scopeToken);
+    }
+    m_canvasTabs->removeTab(index);
+    if (w) {
+        w->deleteLater();
+    }
+    refreshCurrentCanvasContext();
+}
+
+void CanvasPage::refreshCurrentCanvasContext() {
+    m_scene = currentScene();
+    m_graphView = currentGraphView();
+}
+
+GraphScene* CanvasPage::currentScene() const {
+    if (!m_canvasTabs) {
+        return nullptr;
+    }
+    auto* page = m_canvasTabs->currentWidget();
+    if (!page) {
+        return nullptr;
+    }
+    return page->findChild<GraphScene*>();
+}
+
+GraphView* CanvasPage::currentGraphView() const {
+    if (!m_canvasTabs) {
+        return nullptr;
+    }
+    auto* page = m_canvasTabs->currentWidget();
+    if (!page) {
+        return nullptr;
+    }
+    return page->findChild<GraphView*>();
+}
+
+QString CanvasPage::currentTabScopeToken() const {
+    if (!m_canvasTabs || !m_canvasTabs->currentWidget()) {
+        return QStringLiteral("tab_0");
+    }
+    const QVariant scope = m_canvasTabs->currentWidget()->property(kCanvasTabScopeProperty);
+    if (scope.isValid() && !scope.toString().isEmpty()) {
+        return scope.toString();
+    }
+    return QStringLiteral("tab_0");
 }
 
 void CanvasPage::clearPlaceMode() {

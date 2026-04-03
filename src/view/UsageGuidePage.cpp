@@ -518,37 +518,46 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
     m_sectionLayout->setContentsMargins(0, 0, 0, 0);
     m_sectionLayout->setSpacing(10);
 
-    addSection(tr("快捷键"),
-               tr("操作"),
-               tr("Canvas 页面支持键盘放置、平移与缩放。"),
-               tr("<h4>放置与模式切换</h4>"
-                  "<ul>"
-                  "<li><b>N</b>：进入“终端点击放置”模式。</li>"
-                  "<li><b>R</b>：进入“路由器点击放置”模式。</li>"
-                  "<li><b>Esc</b>：退出点击放置模式，回到普通编辑状态。</li>"
-                  "</ul>"
-                  "<h4>撤销与重做</h4>"
-                  "<ul>"
-                  "<li><b>Windows / Linux</b>：<b>Ctrl + Z</b> 撤销，<b>Ctrl + Y</b>（或 "
-                  "<b>Ctrl + Shift + Z</b>）重做。</li>"
-                  "<li><b>macOS</b>：<b>Command + Z</b> 撤销，<b>Command + Shift + Z</b> "
-                  "重做。</li>"
-                  "</ul>"
-                  "<h4>视口平移</h4>"
-                  "<ul>"
-                  "<li><b>↑ / ↓ / ← / →</b>：按固定步长平移画布视口。该操作与当前缩放比例解耦，"
-                  "在大图或空白区域同样可用。</li>"
-                  "</ul>"
-                  "<h4>缩放控制</h4>"
-                  "<ul>"
-                  "<li><b>Windows / Linux</b>：<b>Ctrl + +</b> 放大，<b>Ctrl + -</b> 缩小，"
-                  "<b>Ctrl + 0</b> 重置为 1.0 倍。</li>"
-                  "<li><b>macOS</b>：<b>Command + +</b> 放大，<b>Command + -</b> 缩小，"
-                  "<b>Command + 0</b> 重置为 1.0 倍。</li>"
-                  "</ul>"),
-               QStringLiteral(
-                   "快捷键 键盘 canvas n r esc 上下左右 平移 视口 缩放 ctrl command cmd plus "
-                   "minus zoom reset undo redo ctrl+z ctrl+y ctrl+shift+z cmd+z cmd+shift+z"));
+    addSection(
+        tr("快捷键"),
+        tr("操作"),
+        tr("Canvas 页面支持键盘放置、平移与缩放。"),
+        tr("<h4>Tab 管理</h4>"
+           "<ul>"
+           "<li><b>Windows / Linux</b>：<b>Ctrl + T</b> 新建网络 Tab。</li>"
+           "<li><b>macOS</b>：<b>Ctrl + T</b> 或 <b>Command + T</b> 新建网络 Tab。</li>"
+           "<li><b>所有平台</b>：<b>Ctrl + Tab</b> 切到下一个 Tab；"
+           "<b>Ctrl + Shift + Tab</b> 切回上一个 Tab。</li>"
+           "</ul>"
+           "<h4>放置与模式切换</h4>"
+           "<ul>"
+           "<li><b>N</b>：进入“终端点击放置”模式。</li>"
+           "<li><b>R</b>：进入“路由器点击放置”模式。</li>"
+           "<li><b>Esc</b>：退出点击放置模式，回到普通编辑状态。</li>"
+           "</ul>"
+           "<h4>撤销与重做</h4>"
+           "<ul>"
+           "<li><b>Windows / Linux</b>：<b>Ctrl + Z</b> 撤销，<b>Ctrl + Y</b>（或 "
+           "<b>Ctrl + Shift + Z</b>）重做。</li>"
+           "<li><b>macOS</b>：<b>Command + Z</b> 撤销，<b>Command + Y</b>（或 "
+           "<b>Command + Shift + Z</b>）重做。</li>"
+           "</ul>"
+           "<h4>视口平移</h4>"
+           "<ul>"
+           "<li><b>↑ / ↓ / ← / →</b>：按固定步长平移画布视口。该操作与当前缩放比例解耦，"
+           "在大图或空白区域同样可用。</li>"
+           "</ul>"
+           "<h4>缩放控制</h4>"
+           "<ul>"
+           "<li><b>Windows / Linux</b>：<b>Ctrl + +</b> 放大，<b>Ctrl + -</b> 缩小，"
+           "<b>Ctrl + 0</b> 重置为 1.0 倍。</li>"
+           "<li><b>macOS</b>：<b>Command + +</b> 放大，<b>Command + -</b> 缩小，"
+           "<b>Command + 0</b> 重置为 1.0 倍。</li>"
+           "</ul>"),
+        QStringLiteral(
+            "快捷键 键盘 canvas tab ctrl+t command+t ctrl+tab ctrl+shift+tab n r esc 上下左右 "
+            "平移 视口 缩放 ctrl command cmd plus minus zoom reset undo redo ctrl+z ctrl+y "
+            "ctrl+shift+z cmd+z cmd+shift+z"));
 
     addSection(
         tr("配置文件路径"),

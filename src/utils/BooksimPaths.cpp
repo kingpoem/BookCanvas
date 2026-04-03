@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 namespace BooksimPaths {
 
@@ -121,6 +122,34 @@ QString topologyExportPathFromSettings() {
 
 QString configExportPathFromSettings() {
     return settings.value(QStringLiteral("booksimConfigExportPath")).toString().trimmed();
+}
+
+QString scopedExportPath(const QString& basePath, const QString& scopeToken) {
+    const QString path = basePath.trimmed();
+    if (path.isEmpty()) {
+        return {};
+    }
+    QString token = scopeToken.trimmed();
+    token.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]+")), QStringLiteral("_"));
+    while (token.contains(QStringLiteral("__"))) {
+        token.replace(QStringLiteral("__"), QStringLiteral("_"));
+    }
+    token = token.trimmed();
+    if (token.isEmpty()) {
+        return path;
+    }
+
+    const QFileInfo fi(path);
+    const QString dir = fi.absolutePath();
+    const QString fileName = fi.fileName();
+    const qsizetype dot = fileName.lastIndexOf(QLatin1Char('.'));
+    QString name = fileName;
+    QString ext;
+    if (dot > 0) {
+        name = fileName.left(dot);
+        ext = fileName.mid(dot);
+    }
+    return QDir(dir).filePath(QStringLiteral("%1__%2%3").arg(name, token, ext));
 }
 
 QString networkFileFieldForJson(const QString& topologyFilePath, const QString& configFilePath) {

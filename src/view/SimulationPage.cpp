@@ -115,7 +115,7 @@ void SimulationPage::onRunSimulation() {
         return;
     }
 
-    const QString configFile = BooksimPaths::configExportPathFromSettings();
+    const QString configFile = m_canvasPage ? m_canvasPage->currentConfigExportPath() : QString{};
     if (configFile.isEmpty() || !QFileInfo::exists(configFile)) {
         appendOutput("错误: 找不到配置文件: " + configFile + "\n");
         appendOutput("请在「设置」中确认 BookSim JSON 路径。\n");

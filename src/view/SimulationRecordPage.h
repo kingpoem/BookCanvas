@@ -27,6 +27,11 @@ private:
     void rebuildCards();
     void applyTheme();
     void refreshTopologyFilterOptions();
+    void refreshNumericLabelOptions();
+    void updateNumericFilterEditors();
+    [[nodiscard]] static double numericLabelValue(const SimulationRecordSnapshot& record,
+                                                  const QString& labelKey);
+    [[nodiscard]] bool hasNumericFilter() const;
     [[nodiscard]] bool matchesKeyword(const SimulationRecordSnapshot& record) const;
     [[nodiscard]] bool matchesFilters(const SimulationRecordSnapshot& record) const;
     [[nodiscard]] int findRecordIndexById(const QString& id) const;
@@ -36,8 +41,11 @@ private:
     QList<SimulationRecordSnapshot> m_records;
     ElaLineEdit* m_searchEdit = nullptr;
     ElaComboBox* m_topologyFilter = nullptr;
-    ElaComboBox* m_latencyFilter = nullptr;
+    ElaComboBox* m_numericFilterMode = nullptr;
     ElaComboBox* m_sortCombo = nullptr;
+    ElaComboBox* m_numericLabelCombo = nullptr;
+    ElaLineEdit* m_rangeMinEdit = nullptr;
+    ElaLineEdit* m_rangeMaxEdit = nullptr;
     ElaText* m_statusText = nullptr;
     QScrollArea* m_scrollArea = nullptr;
     QWidget* m_scrollInner = nullptr;

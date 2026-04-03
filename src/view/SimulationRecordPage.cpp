@@ -44,14 +44,15 @@ enum class RecordSortMode {
     PacketLatencyDesc,
     ThroughputMatchDesc,
     RunTimeDesc,
+    LabelValueAsc,
+    LabelValueDesc,
 };
 
-enum class LatencyFilterMode {
+enum class NumericFilterMode {
     All = 0,
-    Low,
-    Medium,
-    High,
-    Unknown,
+    GreaterThan,
+    LessThan,
+    Between,
 };
 
 double compareValue(double value, bool ascending) {
@@ -59,6 +60,18 @@ double compareValue(double value, bool ascending) {
         return ascending ? 1e12 : -1e12;
     }
     return value;
+}
+
+bool tryParseDouble(const QString& text, double* outValue) {
+    bool ok = false;
+    const double v = text.trimmed().toDouble(&ok);
+    if (!ok) {
+        return false;
+    }
+    if (outValue) {
+        *outValue = v;
+    }
+    return true;
 }
 
 } // namespace
@@ -87,13 +100,26 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     m_topologyFilter->addItem(tr("全部拓扑"), QStringLiteral("__all__"));
     toolbarLay->addWidget(m_topologyFilter);
 
-    m_latencyFilter = new ElaComboBox(this);
-    m_latencyFilter->addItem(tr("全部延迟"), static_cast<int>(LatencyFilterMode::All));
-    m_latencyFilter->addItem(tr("低延迟(<20)"), static_cast<int>(LatencyFilterMode::Low));
-    m_latencyFilter->addItem(tr("中延迟(20~60)"), static_cast<int>(LatencyFilterMode::Medium));
-    m_latencyFilter->addItem(tr("高延迟(>=60)"), static_cast<int>(LatencyFilterMode::High));
-    m_latencyFilter->addItem(tr("延迟未知"), static_cast<int>(LatencyFilterMode::Unknown));
-    toolbarLay->addWidget(m_latencyFilter);
+    m_numericLabelCombo = new ElaComboBox(this);
+    m_numericLabelCombo->setMaximumWidth(180);
+    toolbarLay->addWidget(m_numericLabelCombo);
+
+    m_numericFilterMode = new ElaComboBox(this);
+    m_numericFilterMode->addItem(tr("不限数值"), static_cast<int>(NumericFilterMode::All));
+    m_numericFilterMode->addItem(tr("大于"), static_cast<int>(NumericFilterMode::GreaterThan));
+    m_numericFilterMode->addItem(tr("小于"), static_cast<int>(NumericFilterMode::LessThan));
+    m_numericFilterMode->addItem(tr("区间"), static_cast<int>(NumericFilterMode::Between));
+    toolbarLay->addWidget(m_numericFilterMode);
+
+    m_rangeMinEdit = new ElaLineEdit(this);
+    m_rangeMinEdit->setPlaceholderText(tr("输入下限"));
+    m_rangeMinEdit->setFixedWidth(96);
+    toolbarLay->addWidget(m_rangeMinEdit);
+
+    m_rangeMaxEdit = new ElaLineEdit(this);
+    m_rangeMaxEdit->setPlaceholderText(tr("输入上限"));
+    m_rangeMaxEdit->setFixedWidth(96);
+    toolbarLay->addWidget(m_rangeMaxEdit);
 
     m_sortCombo = new ElaComboBox(this);
     m_sortCombo->addItem(tr("按更新时间(新->旧)"), static_cast<int>(RecordSortMode::UpdatedDesc));
@@ -105,9 +131,16 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     m_sortCombo->addItem(tr("按吞吐匹配(高->低)"),
                          static_cast<int>(RecordSortMode::ThroughputMatchDesc));
     m_sortCombo->addItem(tr("按运行时长(长->短)"), static_cast<int>(RecordSortMode::RunTimeDesc));
+    m_sortCombo->addItem(tr("按选定标签数值(低->高)"),
+                         static_cast<int>(RecordSortMode::LabelValueAsc));
+    m_sortCombo->addItem(tr("按选定标签数值(高->低)"),
+                         static_cast<int>(RecordSortMode::LabelValueDesc));
     toolbarLay->addWidget(m_sortCombo);
 
-    auto* clearAllBtn = new ElaPushButton(tr("一键清除"), this);
+    auto* resetFilterBtn = new ElaPushButton(tr("重置筛选"), this);
+    toolbarLay->addWidget(resetFilterBtn);
+
+    auto* clearAllBtn = new ElaPushButton(tr("清空记录"), this);
     toolbarLay->addWidget(clearAllBtn);
 
     m_statusText = new ElaText(tr("正在加载仿真记录..."), this);
@@ -134,11 +167,40 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
             QOverload<int>::of(&ElaComboBox::currentIndexChanged),
             this,
             [this](int) { rebuildCards(); });
-    connect(m_latencyFilter,
+    connect(m_numericFilterMode,
+            QOverload<int>::of(&ElaComboBox::currentIndexChanged),
+            this,
+            [this](int) {
+                updateNumericFilterEditors();
+                rebuildCards();
+            });
+    connect(m_sortCombo, QOverload<int>::of(&ElaComboBox::currentIndexChanged), this, [this](int) {
+        rebuildCards();
+    });
+    connect(m_numericLabelCombo,
             QOverload<int>::of(&ElaComboBox::currentIndexChanged),
             this,
             [this](int) { rebuildCards(); });
-    connect(m_sortCombo, QOverload<int>::of(&ElaComboBox::currentIndexChanged), this, [this](int) {
+    connect(m_rangeMinEdit, &ElaLineEdit::textChanged, this, [this]() { rebuildCards(); });
+    connect(m_rangeMaxEdit, &ElaLineEdit::textChanged, this, [this]() { rebuildCards(); });
+    connect(resetFilterBtn, &ElaPushButton::clicked, this, [this]() {
+        if (m_searchEdit) {
+            m_searchEdit->clear();
+        }
+        if (m_topologyFilter) {
+            const int allIndex = m_topologyFilter->findData(QStringLiteral("__all__"));
+            m_topologyFilter->setCurrentIndex(std::max(0, allIndex));
+        }
+        if (m_numericFilterMode) {
+            m_numericFilterMode->setCurrentIndex(0);
+        }
+        if (m_rangeMinEdit) {
+            m_rangeMinEdit->clear();
+        }
+        if (m_rangeMaxEdit) {
+            m_rangeMaxEdit->clear();
+        }
+        updateNumericFilterEditors();
         rebuildCards();
     });
     connect(clearAllBtn, &ElaPushButton::clicked, this, [this]() {
@@ -165,6 +227,7 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     addCentralWidget(central, true, true, 0);
     reloadRecords();
     applyTheme();
+    updateNumericFilterEditors();
     rebuildCards();
 }
 
@@ -244,22 +307,54 @@ bool SimulationRecordPage::matchesFilters(const SimulationRecordSnapshot& record
         return false;
     }
 
-    const auto latencyMode = static_cast<LatencyFilterMode>(
-        m_latencyFilter ? m_latencyFilter->currentData().toInt()
-                        : static_cast<int>(LatencyFilterMode::All));
-    const double latency = record.packetLatencyAvg;
-    switch (latencyMode) {
-    case LatencyFilterMode::All:
-        return true;
-    case LatencyFilterMode::Low:
-        return latency >= 0.0 && latency < 20.0;
-    case LatencyFilterMode::Medium:
-        return latency >= 20.0 && latency < 60.0;
-    case LatencyFilterMode::High:
-        return latency >= 60.0;
-    case LatencyFilterMode::Unknown:
-        return latency < 0.0;
+    if (hasNumericFilter()) {
+        const QString labelKey = m_numericLabelCombo ? m_numericLabelCombo->currentData().toString()
+                                                     : QStringLiteral("packetLatencyAvg");
+        const double value = numericLabelValue(record, labelKey);
+        if (value < 0.0) {
+            return false;
+        }
+
+        double minValue = 0.0;
+        double maxValue = 0.0;
+        const bool hasMin = m_rangeMinEdit && tryParseDouble(m_rangeMinEdit->text(), &minValue);
+        const bool hasMax = m_rangeMaxEdit && tryParseDouble(m_rangeMaxEdit->text(), &maxValue);
+        const auto filterMode = static_cast<NumericFilterMode>(
+            m_numericFilterMode ? m_numericFilterMode->currentData().toInt()
+                                : static_cast<int>(NumericFilterMode::All));
+
+        switch (filterMode) {
+        case NumericFilterMode::All:
+            break;
+        case NumericFilterMode::GreaterThan:
+            if (hasMin && value <= minValue) {
+                return false;
+            }
+            break;
+        case NumericFilterMode::LessThan:
+            if (hasMax && value >= maxValue) {
+                return false;
+            }
+            break;
+        case NumericFilterMode::Between:
+            if (hasMin && hasMax) {
+                const double lo = std::min(minValue, maxValue);
+                const double hi = std::max(minValue, maxValue);
+                if (value < lo || value > hi) {
+                    return false;
+                }
+            } else {
+                if (hasMin && value < minValue) {
+                    return false;
+                }
+                if (hasMax && value > maxValue) {
+                    return false;
+                }
+            }
+            break;
+        }
     }
+
     return true;
 }
 
@@ -354,15 +449,6 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
         if (index < 0 || index >= m_records.size()) {
             return;
         }
-        const auto reply
-            = QMessageBox::question(this,
-                                    tr("删除记录"),
-                                    tr("确定删除记录“%1”吗？").arg(m_records[index].name),
-                                    QMessageBox::Yes | QMessageBox::No,
-                                    QMessageBox::No);
-        if (reply != QMessageBox::Yes) {
-            return;
-        }
         m_records.removeAt(index);
         persistRecords();
         rebuildCards();
@@ -418,6 +504,131 @@ void SimulationRecordPage::refreshTopologyFilterOptions() {
     m_topologyFilter->setCurrentIndex(target);
 }
 
+void SimulationRecordPage::refreshNumericLabelOptions() {
+    if (!m_numericLabelCombo) {
+        return;
+    }
+
+    const QString previousSelection = m_numericLabelCombo->currentData().toString();
+
+    QVector<QPair<QString, QString>> options = {
+        {tr("Packet 延迟均值"), QStringLiteral("packetLatencyAvg")},
+        {tr("Network 延迟均值"), QStringLiteral("networkLatencyAvg")},
+        {tr("Flit 延迟均值"), QStringLiteral("flitLatencyAvg")},
+        {tr("吞吐匹配(%)"), QStringLiteral("throughputMatchPercent")},
+        {tr("运行时长(s)"), QStringLiteral("totalRunTimeSec")},
+        {tr("Traffic Class 数"), QStringLiteral("trafficClassCount")},
+    };
+
+    QSet<QString> dynamicNumericKeys;
+    for (const auto& record : m_records) {
+        for (auto it = record.config.begin(); it != record.config.end(); ++it) {
+            double parsed = 0.0;
+            if (tryParseDouble(it.value(), &parsed)) {
+                dynamicNumericKeys.insert(it.key());
+            }
+        }
+    }
+    QStringList dynamicKeys = dynamicNumericKeys.values();
+    std::sort(dynamicKeys.begin(), dynamicKeys.end());
+    for (const QString& key : dynamicKeys) {
+        options.push_back({tr("配置: %1").arg(key), QStringLiteral("config:%1").arg(key)});
+    }
+
+    QSignalBlocker blocker(m_numericLabelCombo);
+    m_numericLabelCombo->clear();
+    for (const auto& pair : options) {
+        m_numericLabelCombo->addItem(pair.first, pair.second);
+    }
+    int target = m_numericLabelCombo->findData(previousSelection);
+    if (target < 0) {
+        target = m_numericLabelCombo->findData(QStringLiteral("packetLatencyAvg"));
+    }
+    m_numericLabelCombo->setCurrentIndex(std::max(0, target));
+}
+
+double SimulationRecordPage::numericLabelValue(const SimulationRecordSnapshot& record,
+                                               const QString& labelKey) {
+    if (labelKey == QStringLiteral("packetLatencyAvg")) {
+        return record.packetLatencyAvg;
+    }
+    if (labelKey == QStringLiteral("networkLatencyAvg")) {
+        return record.networkLatencyAvg;
+    }
+    if (labelKey == QStringLiteral("flitLatencyAvg")) {
+        return record.flitLatencyAvg;
+    }
+    if (labelKey == QStringLiteral("throughputMatchPercent")) {
+        return record.throughputMatchPercent;
+    }
+    if (labelKey == QStringLiteral("totalRunTimeSec")) {
+        return record.totalRunTimeSec;
+    }
+    if (labelKey == QStringLiteral("trafficClassCount")) {
+        return static_cast<double>(record.trafficClassCount);
+    }
+    if (labelKey.startsWith(QStringLiteral("config:"))) {
+        const QString configKey = labelKey.mid(QStringLiteral("config:").size());
+        double value = 0.0;
+        if (tryParseDouble(record.config.value(configKey), &value)) {
+            return value;
+        }
+    }
+    return -1.0;
+}
+
+bool SimulationRecordPage::hasNumericFilter() const {
+    if (!m_numericFilterMode || !m_rangeMinEdit || !m_rangeMaxEdit) {
+        return false;
+    }
+    const auto mode = static_cast<NumericFilterMode>(m_numericFilterMode->currentData().toInt());
+    if (mode == NumericFilterMode::All) {
+        return false;
+    }
+    double parsed = 0.0;
+    const bool hasMin = tryParseDouble(m_rangeMinEdit->text(), &parsed);
+    const bool hasMax = tryParseDouble(m_rangeMaxEdit->text(), &parsed);
+    return hasMin || hasMax;
+}
+
+void SimulationRecordPage::updateNumericFilterEditors() {
+    if (!m_numericFilterMode || !m_rangeMinEdit || !m_rangeMaxEdit) {
+        return;
+    }
+
+    const auto mode = static_cast<NumericFilterMode>(m_numericFilterMode->currentData().toInt());
+    switch (mode) {
+    case NumericFilterMode::All:
+        m_rangeMinEdit->clear();
+        m_rangeMaxEdit->clear();
+        m_rangeMinEdit->setEnabled(false);
+        m_rangeMaxEdit->setEnabled(false);
+        m_rangeMinEdit->setPlaceholderText(tr("输入下限"));
+        m_rangeMaxEdit->setPlaceholderText(tr("输入上限"));
+        break;
+    case NumericFilterMode::GreaterThan:
+        m_rangeMinEdit->setEnabled(true);
+        m_rangeMaxEdit->setEnabled(false);
+        m_rangeMaxEdit->clear();
+        m_rangeMinEdit->setPlaceholderText(tr("大于该值"));
+        m_rangeMaxEdit->setPlaceholderText(tr("未使用"));
+        break;
+    case NumericFilterMode::LessThan:
+        m_rangeMinEdit->setEnabled(false);
+        m_rangeMinEdit->clear();
+        m_rangeMaxEdit->setEnabled(true);
+        m_rangeMinEdit->setPlaceholderText(tr("未使用"));
+        m_rangeMaxEdit->setPlaceholderText(tr("小于该值"));
+        break;
+    case NumericFilterMode::Between:
+        m_rangeMinEdit->setEnabled(true);
+        m_rangeMaxEdit->setEnabled(true);
+        m_rangeMinEdit->setPlaceholderText(tr("最小值"));
+        m_rangeMaxEdit->setPlaceholderText(tr("最大值"));
+        break;
+    }
+}
+
 void SimulationRecordPage::rebuildCards() {
     while (QLayoutItem* item = m_cardsLayout->takeAt(0)) {
         delete item->widget();
@@ -425,6 +636,7 @@ void SimulationRecordPage::rebuildCards() {
     }
 
     refreshTopologyFilterOptions();
+    refreshNumericLabelOptions();
 
     QVector<int> visibleIndices;
     visibleIndices.reserve(m_records.size());
@@ -459,6 +671,20 @@ void SimulationRecordPage::rebuildCards() {
                    > compareValue(b.throughputMatchPercent, false);
         case RecordSortMode::RunTimeDesc:
             return compareValue(a.totalRunTimeSec, false) > compareValue(b.totalRunTimeSec, false);
+        case RecordSortMode::LabelValueAsc: {
+            const QString labelKey = m_numericLabelCombo
+                                         ? m_numericLabelCombo->currentData().toString()
+                                         : QStringLiteral("packetLatencyAvg");
+            return compareValue(numericLabelValue(a, labelKey), true)
+                   < compareValue(numericLabelValue(b, labelKey), true);
+        }
+        case RecordSortMode::LabelValueDesc: {
+            const QString labelKey = m_numericLabelCombo
+                                         ? m_numericLabelCombo->currentData().toString()
+                                         : QStringLiteral("packetLatencyAvg");
+            return compareValue(numericLabelValue(a, labelKey), false)
+                   > compareValue(numericLabelValue(b, labelKey), false);
+        }
         }
         return true;
     });

@@ -498,9 +498,7 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
     toolbarLay->addWidget(m_pasteButton);
     toolbarLay->addStretch();
 
-    m_statusText
-        = new ElaText(tr("运行 Simulation 结束后将自动载入；也可粘贴完整终端输出后点击解析。"),
-                      this);
+    m_statusText = new ElaText(tr("运行 Simulation 结束后将自动载入"), this);
     m_statusText->setTextPixelSize(BookSimResultUi::TypePx::kStatus);
     m_statusText->setWordWrap(true);
 
@@ -524,7 +522,7 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
 
     connect(m_pasteButton, &ElaPushButton::clicked, this, &BookSimResultPage::loadFromClipboard);
 
-    setStatus(tr("运行 Simulation 结束后将自动载入；也可粘贴完整终端输出后点击解析。"), false);
+    setStatus(tr("运行 Simulation 结束后将自动载入"), false);
 
     connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
         // 主题切换时先刷新状态文案颜色，避免保留上一个主题的黑/白字。
@@ -620,9 +618,7 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
         return;
     }
 
-    setStatus(tr("解析成功：共 %1 个 traffic class")
-                  .arg(result.classes.size()),
-              false);
+    setStatus(tr("解析成功：共 %1 个 traffic class").arg(result.classes.size()), false);
 
     if (result.totalRunTimeSec.has_value()) {
         auto* wall = new QFrame(m_scrollInner);

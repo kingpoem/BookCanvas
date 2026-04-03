@@ -108,7 +108,7 @@ SettingPage::SettingPage(QWidget* parent)
     auto* topoV = new QVBoxLayout(topoBlock);
     topoV->setContentsMargins(0, 0, 0, 0);
     topoV->setSpacing(6);
-    auto* topoLabel = new ElaText(tr("拓扑文件（Canvas「导出拓扑」）"), this);
+    auto* topoLabel = new ElaText(tr("拓扑文件模板（Canvas 多 Tab 导出会自动追加后缀）"), this);
     topoLabel->setTextPixelSize(14);
     topoV->addWidget(topoLabel);
     auto* topoH = new QHBoxLayout();
@@ -124,7 +124,8 @@ SettingPage::SettingPage(QWidget* parent)
     auto* cfgV = new QVBoxLayout(cfgBlock);
     cfgV->setContentsMargins(0, 0, 0, 0);
     cfgV->setSpacing(6);
-    auto* cfgLabel = new ElaText(tr("JSON 配置（Canvas「导出配置」与仿真）"), this);
+    auto* cfgLabel = new ElaText(tr("JSON 配置模板（Canvas 多 Tab 导出与仿真会自动追加后缀）"),
+                                 this);
     cfgLabel->setTextPixelSize(14);
     cfgV->addWidget(cfgLabel);
     auto* cfgH = new QHBoxLayout();
