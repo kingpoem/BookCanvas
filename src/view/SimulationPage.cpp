@@ -154,6 +154,8 @@ void SimulationPage::onProcessFinished(int exitCode, QProcess::ExitStatus exitSt
         appendOutput("- qtree 推荐 nca\n");
         appendOutput("- tree4 推荐 nca / anca\n");
         appendOutput("- fattree 推荐 nca / anca\n");
+        appendOutput("- flatfly 推荐 ran_min / xyyx / adaptive_xyyx\n");
+        appendOutput("- dragonflynew 推荐 min / ugal\n");
         appendOutput("- anynet 使用 min\n");
         appendOutput("注意不要手动填写 *_topology 后缀，BookSim 会自动拼接。\n");
     }

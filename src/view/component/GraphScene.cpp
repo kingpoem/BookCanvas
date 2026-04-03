@@ -117,7 +117,9 @@ void GraphScene::updateTopologyBlockParams(GraphTopologyBlock* block,
         || params.topologyId == QLatin1String("cmesh") || params.topologyId == QLatin1String("fly")
         || params.topologyId == QLatin1String("qtree")
         || params.topologyId == QLatin1String("tree4")
-        || params.topologyId == QLatin1String("fattree")) {
+        || params.topologyId == QLatin1String("fattree")
+        || params.topologyId == QLatin1String("flatfly")
+        || params.topologyId == QLatin1String("dragonflynew")) {
         rebuildManagedTopology(block);
     }
 }
@@ -139,7 +141,9 @@ void GraphScene::createTopologyBlockAt(const QPointF& pos) {
         || m_pendingBooksimTopology.topologyId == QLatin1String("fly")
         || m_pendingBooksimTopology.topologyId == QLatin1String("qtree")
         || m_pendingBooksimTopology.topologyId == QLatin1String("tree4")
-        || m_pendingBooksimTopology.topologyId == QLatin1String("fattree")) {
+        || m_pendingBooksimTopology.topologyId == QLatin1String("fattree")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("flatfly")
+        || m_pendingBooksimTopology.topologyId == QLatin1String("dragonflynew")) {
         ManagedTopologyState st;
         st.params = m_pendingBooksimTopology;
         m_managedTopologies.insert(block, st);
@@ -222,6 +226,8 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
     const bool isQTree = (topologyId == QLatin1String("qtree"));
     const bool isTree4 = (topologyId == QLatin1String("tree4"));
     const bool isFatTree = (topologyId == QLatin1String("fattree"));
+    const bool isFlatFly = (topologyId == QLatin1String("flatfly"));
+    const bool isDragonfly = (topologyId == QLatin1String("dragonflynew"));
     const QPointF base = block->pos() + QPointF(0.0, 120.0);
 
     auto addTerminalAt = [this, &st](GraphNode* router, const QPointF& pos) {
@@ -506,6 +512,194 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
                 addTerminalAt(leafRouter,
                               QPointF(rPos.x() - ((fatK - 1) * 14.0 / 2.0) + i * 14.0,
                                       rPos.y() + 66.0));
+            }
+        }
+        return;
+    }
+
+    if (isFlatFly) {
+        const int ffK = qMax(2, k);
+        const int ffN = qMax(1, n);
+        const int ffC = qMax(1, c);
+        int routerCount = 0;
+        if (!safePowInt(ffK, ffN, kMeshMaxRouters, routerCount)) {
+            QMessageBox::warning(nullptr,
+                                 tr("FlatFly 规模过大"),
+                                 tr("当前参数生成的 FlatFly 规模过大，请减小 k / n 后重试。"));
+            return;
+        }
+        if (routerCount * ffC > kMeshMaxTerminals) {
+            QMessageBox::warning(nullptr,
+                                 tr("FlatFly 规模过大"),
+                                 tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。")
+                                     .arg(routerCount * ffC)
+                                     .arg(kMeshMaxTerminals));
+            return;
+        }
+
+        int planeCount = 1;
+        if (!safePowInt(ffK, qMax(0, ffN - 2), kMeshMaxRouters, planeCount)) {
+            planeCount = 1;
+        }
+        const int planeCols = qMax(1,
+                                   static_cast<int>(
+                                       std::ceil(std::sqrt(static_cast<double>(planeCount)))));
+        const qreal routerStepX = 105.0;
+        const qreal routerStepY = 85.0;
+        const qreal planeGapX = 130.0;
+        const qreal planeGapY = 120.0;
+        const qreal layerSpanX = (ffK - 1) * routerStepX + planeGapX;
+        const qreal layerSpanY = ((ffN >= 2 ? (ffK - 1) : 0) * routerStepY) + planeGapY;
+
+        QVector<GraphNode*> routers;
+        routers.resize(routerCount);
+        for (int idx = 0; idx < routerCount; ++idx) {
+            const QVector<int> coords = decodeRouterCoords(idx, ffK, ffN);
+            const int plane = planeIndexForCoords(coords, ffK);
+            const int planeCol = plane % planeCols;
+            const int planeRow = plane / planeCols;
+            const qreal x = base.x() + planeCol * layerSpanX + coords[0] * routerStepX;
+            const qreal y = base.y() + planeRow * layerSpanY
+                            + ((ffN >= 2 ? coords[1] : 0) * routerStepY);
+            GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
+                                           QPointF(x, y),
+                                           GraphNode::Router);
+            routers[idx] = router;
+            st.routers.append(router);
+        }
+
+        QSet<quint64> createdRouterEdges;
+        for (int idx = 0; idx < routerCount; ++idx) {
+            const QVector<int> coords = decodeRouterCoords(idx, ffK, ffN);
+            for (int d = 0; d < ffN; ++d) {
+                for (int v = 0; v < ffK; ++v) {
+                    if (v == coords[d]) {
+                        continue;
+                    }
+                    QVector<int> next = coords;
+                    next[d] = v;
+                    const int nb = encodeRouterCoords(next, ffK);
+                    const quint64 edgeKey = undirectedEdgeKey(idx, nb);
+                    if (createdRouterEdges.contains(edgeKey)) {
+                        continue;
+                    }
+                    GraphEdge* e = createEdge(routers[idx], routers[nb], 1.0);
+                    if (e) {
+                        createdRouterEdges.insert(edgeKey);
+                        st.edges.append(e);
+                    }
+                }
+            }
+        }
+
+        for (int idx = 0; idx < routerCount; ++idx) {
+            GraphNode* router = routers[idx];
+            const QPointF rPos = router->pos();
+            for (int i = 0; i < ffC; ++i) {
+                addTerminalAt(router,
+                              QPointF(rPos.x() - ((ffC - 1) * 14.0 / 2.0) + i * 14.0,
+                                      rPos.y() + 64.0));
+            }
+        }
+        return;
+    }
+
+    if (isDragonfly) {
+        const int p = qMax(2, k);
+        const int a = 2 * p;
+        const int g = a * p + 1;
+        const int routerCount = a * g;
+        if (routerCount > kMeshMaxRouters) {
+            QMessageBox::warning(nullptr,
+                                 tr("Dragonfly 规模过大"),
+                                 tr("当前参数会生成 %1 个路由器，超过当前支持上限 %2。\n"
+                                    "请减小 k 后重试。")
+                                     .arg(routerCount)
+                                     .arg(kMeshMaxRouters));
+            return;
+        }
+        if (routerCount * p > kMeshMaxTerminals) {
+            QMessageBox::warning(nullptr,
+                                 tr("Dragonfly 规模过大"),
+                                 tr("当前参数会生成 %1 个终端，超过当前支持上限 %2。\n"
+                                    "请减小 k 后重试。")
+                                     .arg(routerCount * p)
+                                     .arg(kMeshMaxTerminals));
+            return;
+        }
+
+        const int groupCols = qMax(1,
+                                   static_cast<int>(std::ceil(std::sqrt(static_cast<double>(g)))));
+        const int aCols = qMax(1, static_cast<int>(std::ceil(std::sqrt(static_cast<double>(a)))));
+        const qreal groupStepX = 310.0;
+        const qreal groupStepY = 240.0;
+        const qreal routerStepX = 52.0;
+        const qreal routerStepY = 52.0;
+
+        QVector<GraphNode*> routers;
+        routers.resize(routerCount);
+        for (int grp = 0; grp < g; ++grp) {
+            const int grpCol = grp % groupCols;
+            const int grpRow = grp / groupCols;
+            const QPointF gBase(base.x() + grpCol * groupStepX, base.y() + grpRow * groupStepY);
+            for (int r = 0; r < a; ++r) {
+                const int idx = grp * a + r;
+                const int rc = r % aCols;
+                const int rr = r / aCols;
+                GraphNode* router = createNode(allocateNextNodeId(GraphNode::Router),
+                                               QPointF(gBase.x() + rc * routerStepX,
+                                                       gBase.y() + rr * routerStepY),
+                                               GraphNode::Router);
+                routers[idx] = router;
+                st.routers.append(router);
+            }
+        }
+
+        QSet<quint64> createdRouterEdges;
+        for (int grp = 0; grp < g; ++grp) {
+            const int begin = grp * a;
+            for (int i = 0; i < a; ++i) {
+                for (int j = i + 1; j < a; ++j) {
+                    const int lhs = begin + i;
+                    const int rhs = begin + j;
+                    const quint64 edgeKey = undirectedEdgeKey(lhs, rhs);
+                    if (createdRouterEdges.contains(edgeKey)) {
+                        continue;
+                    }
+                    GraphEdge* e = createEdge(routers[lhs], routers[rhs], 1.0);
+                    if (e) {
+                        createdRouterEdges.insert(edgeKey);
+                        st.edges.append(e);
+                    }
+                }
+            }
+        }
+
+        for (int srcGrp = 0; srcGrp < g; ++srcGrp) {
+            for (int dstGrp = srcGrp + 1; dstGrp < g; ++dstGrp) {
+                const int srcLocal = (dstGrp > srcGrp) ? ((dstGrp - 1) / p) : (dstGrp / p);
+                const int dstLocal = (srcGrp > dstGrp) ? ((srcGrp - 1) / p) : (srcGrp / p);
+                const int lhs = srcGrp * a + qBound(0, srcLocal, a - 1);
+                const int rhs = dstGrp * a + qBound(0, dstLocal, a - 1);
+                const quint64 edgeKey = undirectedEdgeKey(lhs, rhs);
+                if (createdRouterEdges.contains(edgeKey)) {
+                    continue;
+                }
+                GraphEdge* e = createEdge(routers[lhs], routers[rhs], 1.0);
+                if (e) {
+                    createdRouterEdges.insert(edgeKey);
+                    st.edges.append(e);
+                }
+            }
+        }
+
+        for (int idx = 0; idx < routerCount; ++idx) {
+            GraphNode* router = routers[idx];
+            const QPointF rPos = router->pos();
+            for (int i = 0; i < p; ++i) {
+                addTerminalAt(router,
+                              QPointF(rPos.x() - ((p - 1) * 13.0 / 2.0) + i * 13.0,
+                                      rPos.y() + 64.0));
             }
         }
         return;
@@ -1154,18 +1348,35 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
         const bool isCMesh = (p.topologyId == QLatin1String("cmesh"));
         const bool isQTree = (p.topologyId == QLatin1String("qtree"));
         const bool isTree4 = (p.topologyId == QLatin1String("tree4"));
+        const bool isFlatFly = (p.topologyId == QLatin1String("flatfly"));
+        const bool isDragonfly = (p.topologyId == QLatin1String("dragonflynew"));
         const bool isFixedTree = (isQTree || isTree4);
+        int exportC = isCMesh ? 4 : p.c;
+        int exportN = isCMesh ? 2 : (isFixedTree ? 3 : p.n);
+        if (isDragonfly) {
+            exportN = 1;
+        }
         globalConfigToExport.insert(QStringLiteral("topology"), p.topologyId);
         globalConfigToExport.insert(QStringLiteral("k"), QString::number(isFixedTree ? 4 : p.k));
-        globalConfigToExport.insert(QStringLiteral("n"),
-                                    QString::number(isCMesh ? 2 : (isFixedTree ? 3 : p.n)));
-        globalConfigToExport.insert(QStringLiteral("c"), QString::number(isCMesh ? 4 : p.c));
+        globalConfigToExport.insert(QStringLiteral("n"), QString::number(exportN));
+        globalConfigToExport.insert(QStringLiteral("c"), QString::number(exportC));
         globalConfigToExport.insert(QStringLiteral("routing_function"), p.routingFunction);
         if (isCMesh) {
             globalConfigToExport.insert(QStringLiteral("x"), QString::number(p.k));
             globalConfigToExport.insert(QStringLiteral("y"), QString::number(p.k));
             globalConfigToExport.insert(QStringLiteral("xr"), QStringLiteral("2"));
             globalConfigToExport.insert(QStringLiteral("yr"), QStringLiteral("2"));
+        } else if (isFlatFly) {
+            int xr = static_cast<int>(std::sqrt(static_cast<double>(qMax(1, exportC))));
+            if (xr * xr != exportC) {
+                xr = 1;
+                exportC = 1;
+                globalConfigToExport.insert(QStringLiteral("c"), QString::number(exportC));
+            }
+            globalConfigToExport.insert(QStringLiteral("x"), QString::number(p.k));
+            globalConfigToExport.insert(QStringLiteral("y"), QString::number(p.k));
+            globalConfigToExport.insert(QStringLiteral("xr"), QString::number(xr));
+            globalConfigToExport.insert(QStringLiteral("yr"), QString::number(xr));
         }
     }
 

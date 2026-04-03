@@ -87,6 +87,20 @@ namespace {
         static const QSet<QString> allowed = {QStringLiteral("nca"), QStringLiteral("anca")};
         return allowed.contains(rf);
     }
+    if (topo == QLatin1String("flatfly")) {
+        static const QSet<QString> allowed = {QStringLiteral("ran_min"),
+                                              QStringLiteral("adaptive_xyyx"),
+                                              QStringLiteral("xyyx"),
+                                              QStringLiteral("valiant"),
+                                              QStringLiteral("ugal"),
+                                              QStringLiteral("ugal_pni"),
+                                              QStringLiteral("ugal_xyyx")};
+        return allowed.contains(rf);
+    }
+    if (topo == QLatin1String("dragonflynew")) {
+        static const QSet<QString> allowed = {QStringLiteral("min"), QStringLiteral("ugal")};
+        return allowed.contains(rf);
+    }
     return true;
 }
 
@@ -132,7 +146,9 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
                                     || m_topologyId == QLatin1String("fly")
                                     || m_topologyId == QLatin1String("qtree")
                                     || m_topologyId == QLatin1String("tree4")
-                                    || m_topologyId == QLatin1String("fattree"));
+                                    || m_topologyId == QLatin1String("fattree")
+                                    || m_topologyId == QLatin1String("flatfly")
+                                    || m_topologyId == QLatin1String("dragonflynew"));
     const QString hintText
         = autoBuildTopology ? tr("确认参数后，在画布空白处单击一次会放置 %1 组件，并自动生成"
                                  "路由器、终端与内部连线。\n你仍可与现有节点继续手动连线。")
@@ -158,6 +174,9 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
                           ? 4
                           : 8);
     m_kSpin->setToolTip(tr("k：每维路由器数量（基数）"));
+    if (topo == QLatin1String("dragonflynew")) {
+        m_kSpin->setValue(2);
+    }
 
     m_nSpin = new QSpinBox(this);
     m_nSpin->setRange(1, 8);
@@ -183,6 +202,11 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
         m_kSpin->setEnabled(false);
         m_nSpin->setRange(3, 3);
         m_nSpin->setValue(3);
+        m_nSpin->setEnabled(false);
+    } else if (topo == QLatin1String("dragonflynew")) {
+        // 当前内置 BookSim2 dragonflynew 仅支持 n=1。
+        m_nSpin->setRange(1, 1);
+        m_nSpin->setValue(1);
         m_nSpin->setEnabled(false);
     }
 
@@ -238,6 +262,18 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
                                 this);
         tips->setWordWrap(true);
         root->addWidget(tips);
+    } else if (m_topologyId == QLatin1String("flatfly")) {
+        auto* tips = new QLabel(tr("flatfly 推荐：ran_min（默认）/ xyyx / adaptive_xyyx。\n"
+                                   "建议起步：k=4、n=2、c=1。"),
+                                this);
+        tips->setWordWrap(true);
+        root->addWidget(tips);
+    } else if (m_topologyId == QLatin1String("dragonflynew")) {
+        auto* tips = new QLabel(tr("dragonflynew 推荐：min（默认）/ ugal。\n"
+                                   "当前 BookSim2 内置 dragonflynew 仅支持 n=1。"),
+                                this);
+        tips->setWordWrap(true);
+        root->addWidget(tips);
     }
 
     auto* box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -259,6 +295,8 @@ BooksimTopologyParams BooksimTopologyPlaceDialog::getParams() const {
     } else if (p.topologyId == QLatin1String("qtree") || p.topologyId == QLatin1String("tree4")) {
         p.k = 4;
         p.n = 3;
+    } else if (p.topologyId == QLatin1String("dragonflynew")) {
+        p.n = 1;
     }
     p.routingFunction = normalizeRoutingFunction(m_rfEdit ? m_rfEdit->text() : QString(),
                                                  m_topologyId);
@@ -275,12 +313,16 @@ void BooksimTopologyPlaceDialog::setParams(const BooksimTopologyParams& p) {
                 : p.k);
     }
     if (m_nSpin) {
-        m_nSpin->setValue((p.topologyId == QLatin1String("cmesh"))
-                              ? 2
-                              : ((p.topologyId == QLatin1String("qtree")
-                                  || p.topologyId == QLatin1String("tree4"))
-                                     ? 3
-                                     : p.n));
+        int nVal = p.n;
+        if (p.topologyId == QLatin1String("cmesh")) {
+            nVal = 2;
+        } else if (p.topologyId == QLatin1String("qtree")
+                   || p.topologyId == QLatin1String("tree4")) {
+            nVal = 3;
+        } else if (p.topologyId == QLatin1String("dragonflynew")) {
+            nVal = 1;
+        }
+        m_nSpin->setValue(nVal);
     }
     if (m_cSpin) {
         m_cSpin->setValue((p.topologyId == QLatin1String("cmesh")) ? 4 : p.c);

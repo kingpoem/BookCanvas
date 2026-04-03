@@ -237,7 +237,6 @@ CanvasPage::CanvasPage(QWidget* parent)
     addTopoButton(QStringLiteral("fattree"), QStringLiteral("fattree"));
     addTopoButton(QStringLiteral("flatfly"), QStringLiteral("flatfly"));
     addTopoButton(QStringLiteral("dragonflynew"), QStringLiteral("dragonflynew"));
-    addTopoButton(QStringLiteral("anynet"), QStringLiteral("anynet"));
 
     auto* showBtn = new ShowButton(ElaIconType::Eye, "eye", stripInner);
     showBtn->setToolTip(tr("显示 / 隐藏非单位链路权重"));
