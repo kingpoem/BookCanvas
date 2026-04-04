@@ -1997,16 +1997,8 @@ namespace {
 
 } // namespace
 
-// 导出JSON配置
-void GraphScene::exportJSONConfig(const QString& filePath, const QString& networkFileOverride) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-        return;
-
-    QTextStream out(&file);
-
-    out << "{\n";
-
+QMap<QString, QString> GraphScene::mergedGlobalConfigForExport(
+    const QString& networkFileOverride) const {
     QMap<QString, QString> globalConfigToExport = m_globalConfig;
     if (globalConfigToExport.isEmpty()) {
         globalConfigToExport = RouterGlobalConfigDialog::getDefaultConfig();
@@ -2051,6 +2043,21 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
             globalConfigToExport.insert(QStringLiteral("yr"), QString::number(xr));
         }
     }
+
+    return globalConfigToExport;
+}
+
+// 导出JSON配置
+void GraphScene::exportJSONConfig(const QString& filePath, const QString& networkFileOverride) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return;
+
+    QTextStream out(&file);
+
+    out << "{\n";
+
+    QMap<QString, QString> globalConfigToExport = mergedGlobalConfigForExport(networkFileOverride);
 
     bool first = true;
     for (auto it = globalConfigToExport.begin(); it != globalConfigToExport.end(); ++it) {

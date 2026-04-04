@@ -625,6 +625,17 @@ QString CanvasPage::currentConfigExportPath() const {
                                           currentTabScopeToken());
 }
 
+QMap<QString, QString> CanvasPage::mergedBooksimConfigForSimulationRecord() const {
+    auto* scene = currentScene();
+    if (!scene) {
+        return {};
+    }
+    const QString cfgPath = currentConfigExportPath();
+    const QString topoPath = currentTopologyExportPath();
+    const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
+    return scene->mergedGlobalConfigForExport(netField);
+}
+
 bool CanvasPage::exportTopologySilently(QString* errorMessage) {
     const QString path = currentTopologyExportPath();
     if (path.isEmpty()) {

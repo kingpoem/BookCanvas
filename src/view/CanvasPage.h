@@ -22,6 +22,8 @@ public:
     [[nodiscard]] bool exportConfigJsonSilently(QString* errorMessage = nullptr);
     [[nodiscard]] QString currentTopologyExportPath() const;
     [[nodiscard]] QString currentConfigExportPath() const;
+    /// 与当前页导出到 BookSim 的 JSON 顶层参数一致（含单拓扑块的 k/n/c/routing 等），供仿真记录存档
+    [[nodiscard]] QMap<QString, QString> mergedBooksimConfigForSimulationRecord() const;
 
 protected:
     void showEvent(QShowEvent* event) override;

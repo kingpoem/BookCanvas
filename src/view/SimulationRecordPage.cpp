@@ -93,7 +93,7 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     toolbarLay->setSpacing(8);
 
     m_searchEdit = new ElaLineEdit(this);
-    m_searchEdit->setPlaceholderText(tr("搜索记录名/拓扑/路由/注入率/延迟/吞吐/运行时长..."));
+    m_searchEdit->setPlaceholderText(tr("搜索记录名/拓扑/k,n,c/路由/注入率/延迟/吞吐/运行时长..."));
     toolbarLay->addWidget(m_searchEdit, 1);
 
     m_topologyFilter = new ElaComboBox(this);
@@ -260,11 +260,34 @@ bool SimulationRecordPage::matchesKeyword(const SimulationRecordSnapshot& record
     if (record.name.toLower().contains(k)) {
         return true;
     }
-    if (record.config.value(QStringLiteral("topology")).toLower().contains(k)) {
+    const QString topologyVal = record.config.value(QStringLiteral("topology"), QStringLiteral("-"));
+    if (topologyVal.toLower().contains(k) || tr("拓扑: %1").arg(topologyVal).toLower().contains(k)) {
         return true;
     }
     if (record.config.value(QStringLiteral("routing_function")).toLower().contains(k)) {
         return true;
+    }
+    {
+        const QString kDim = record.config.value(QStringLiteral("k"), QStringLiteral("-"));
+        const QString nDim = record.config.value(QStringLiteral("n"), QStringLiteral("-"));
+        const QString cDim = record.config.value(QStringLiteral("c"), QStringLiteral("-"));
+        const QString routingVal = record.config.value(QStringLiteral("routing_function"),
+                                                       QStringLiteral("-"));
+        if (tr("k: %1").arg(kDim).toLower().contains(k)
+            || tr("n: %1").arg(nDim).toLower().contains(k)
+            || tr("c: %1").arg(cDim).toLower().contains(k)
+            || tr("路由: %1").arg(routingVal).toLower().contains(k)) {
+            return true;
+        }
+    }
+    {
+        const QString inj = record.config.value(QStringLiteral("injection_rate"),
+                                                QStringLiteral("-"));
+        const QString nvc = record.config.value(QStringLiteral("num_vcs"), QStringLiteral("-"));
+        if (tr("注入率: %1").arg(inj).toLower().contains(k)
+            || tr("VC: %1").arg(nvc).toLower().contains(k)) {
+            return true;
+        }
     }
     if (record.config.value(QStringLiteral("injection_rate")).toLower().contains(k)) {
         return true;
@@ -272,9 +295,7 @@ bool SimulationRecordPage::matchesKeyword(const SimulationRecordSnapshot& record
     if (record.config.value(QStringLiteral("num_vcs")).toLower().contains(k)) {
         return true;
     }
-    if (record.config.value(QStringLiteral("k")).toLower().contains(k)
-        || record.config.value(QStringLiteral("n")).toLower().contains(k)
-        || record.config.value(QStringLiteral("c")).toLower().contains(k)) {
+    if (tr("网络参数").toLower().contains(k) || tr("仿真结果").toLower().contains(k)) {
         return true;
     }
 
@@ -288,12 +309,23 @@ bool SimulationRecordPage::matchesKeyword(const SimulationRecordSnapshot& record
         && QString::number(record.packetLatencyAvg, 'f', 3).contains(kw)) {
         return true;
     }
-    if (record.throughputMatchPercent >= 0.0
-        && QString::number(record.throughputMatchPercent, 'f', 1).contains(kw)) {
-        return true;
+    if (record.throughputMatchPercent >= 0.0) {
+        const QString thrLabel = tr("吞吐匹配: %1%")
+                                     .arg(QString::number(record.throughputMatchPercent, 'f', 1))
+                                     .toLower();
+        if (thrLabel.contains(k)
+            || QString::number(record.throughputMatchPercent, 'f', 1).contains(kw)) {
+            return true;
+        }
     }
-    if (record.totalRunTimeSec >= 0.0
-        && QString::number(record.totalRunTimeSec, 'f', 3).contains(kw)) {
+    if (record.totalRunTimeSec >= 0.0) {
+        const QString rtLabel
+            = tr("运行时长: %1s").arg(QString::number(record.totalRunTimeSec, 'f', 3)).toLower();
+        if (rtLabel.contains(k) || QString::number(record.totalRunTimeSec, 'f', 3).contains(kw)) {
+            return true;
+        }
+    }
+    if (tr("Traffic Class: %1").arg(record.trafficClassCount).toLower().contains(k)) {
         return true;
     }
     return false;
@@ -399,46 +431,74 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
     time->setWordWrap(true);
     layout->addWidget(time);
 
-    auto* tagsWrap = new QWidget(card);
-    auto* tagsLayout = new QHBoxLayout(tagsWrap);
-    tagsLayout->setContentsMargins(0, 0, 0, 0);
-    tagsLayout->setSpacing(6);
-
-    const auto addTag = [card, tagsLayout](const QString& text) {
+    const auto addTag = [card](QHBoxLayout* row, const QString& text) {
         auto* tag = new QLabel(text, card);
         tag->setProperty("isRecordTag", true);
-        tagsLayout->addWidget(tag);
+        row->addWidget(tag);
     };
 
+    auto* netHeading = new QLabel(tr("网络参数"), card);
+    QFont headingFont = netHeading->font();
+    headingFont.setBold(true);
+    headingFont.setPointSize(qMax(8, headingFont.pointSize() - 1));
+    netHeading->setFont(headingFont);
+    layout->addWidget(netHeading);
+
+    auto* netRowWrap = new QWidget(card);
+    auto* netRow = new QHBoxLayout(netRowWrap);
+    netRow->setContentsMargins(0, 0, 0, 0);
+    netRow->setSpacing(6);
+
     const QString topology = record.config.value(QStringLiteral("topology"), QStringLiteral("-"));
+    const QString kDim = record.config.value(QStringLiteral("k"), QStringLiteral("-"));
+    const QString nDim = record.config.value(QStringLiteral("n"), QStringLiteral("-"));
+    const QString cDim = record.config.value(QStringLiteral("c"), QStringLiteral("-"));
     const QString routing = record.config.value(QStringLiteral("routing_function"),
                                                 QStringLiteral("-"));
     const QString inj = record.config.value(QStringLiteral("injection_rate"), QStringLiteral("-"));
-    addTag(tr("拓扑: %1").arg(topology));
-    addTag(tr("路由: %1").arg(routing));
-    addTag(tr("注入率: %1").arg(inj));
-    addTag(record.packetLatencyAvg >= 0.0
+    const QString numVc = record.config.value(QStringLiteral("num_vcs"), QStringLiteral("-"));
+    addTag(netRow, tr("拓扑: %1").arg(topology));
+    addTag(netRow, tr("k: %1").arg(kDim));
+    addTag(netRow, tr("n: %1").arg(nDim));
+    addTag(netRow, tr("c: %1").arg(cDim));
+    addTag(netRow, tr("路由: %1").arg(routing));
+    addTag(netRow, tr("注入率: %1").arg(inj));
+    addTag(netRow, tr("VC: %1").arg(numVc));
+    netRow->addStretch();
+    layout->addWidget(netRowWrap);
+
+    auto* resHeading = new QLabel(tr("仿真结果"), card);
+    resHeading->setFont(headingFont);
+    layout->addWidget(resHeading);
+
+    auto* resRowWrap = new QWidget(card);
+    auto* resRow = new QHBoxLayout(resRowWrap);
+    resRow->setContentsMargins(0, 0, 0, 0);
+    resRow->setSpacing(6);
+
+    addTag(resRow,
+           record.packetLatencyAvg >= 0.0
                ? tr("Packet延迟: %1").arg(QString::number(record.packetLatencyAvg, 'f', 3))
                : tr("Packet延迟: --"));
-    addTag(record.networkLatencyAvg >= 0.0
+    addTag(resRow,
+           record.networkLatencyAvg >= 0.0
                ? tr("Network延迟: %1").arg(QString::number(record.networkLatencyAvg, 'f', 3))
                : tr("Network延迟: --"));
-    addTag(record.flitLatencyAvg >= 0.0
+    addTag(resRow,
+           record.flitLatencyAvg >= 0.0
                ? tr("Flit延迟: %1").arg(QString::number(record.flitLatencyAvg, 'f', 3))
                : tr("Flit延迟: --"));
-    addTag(record.throughputMatchPercent >= 0.0
+    addTag(resRow,
+           record.throughputMatchPercent >= 0.0
                ? tr("吞吐匹配: %1%").arg(QString::number(record.throughputMatchPercent, 'f', 1))
                : tr("吞吐匹配: --"));
-    addTag(record.totalRunTimeSec >= 0.0
+    addTag(resRow,
+           record.totalRunTimeSec >= 0.0
                ? tr("运行时长: %1s").arg(QString::number(record.totalRunTimeSec, 'f', 3))
                : tr("运行时长: --"));
-    addTag(tr("Traffic Class: %1").arg(record.trafficClassCount));
-    tagsLayout->addStretch();
-    layout->addWidget(tagsWrap);
-
-    auto* classes = new QLabel(tr("Traffic Class 数: %1").arg(record.trafficClassCount), card);
-    classes->setWordWrap(true);
-    layout->addWidget(classes);
+    addTag(resRow, tr("Traffic Class: %1").arg(record.trafficClassCount));
+    resRow->addStretch();
+    layout->addWidget(resRowWrap);
 
     connect(showBtn, &ElaPushButton::clicked, this, [this, record]() {
         emit showRecordInResultRequested(record.simulationLog);

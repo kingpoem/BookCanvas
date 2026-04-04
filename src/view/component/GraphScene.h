@@ -79,6 +79,9 @@ public:
     // 从 BookSim network 文件恢复图；失败时返回 false，并可写出错误信息
     [[nodiscard]] bool importGraph(const QString& filePath, QString* errorMessage = nullptr);
 
+    /// 与 exportJSONConfig 写入的顶层键一致：全局配置 + 单拓扑块覆盖 + network_file
+    [[nodiscard]] QMap<QString, QString> mergedGlobalConfigForExport(
+        const QString& networkFileOverride = {}) const;
     // 导出JSON配置；networkFileOverride 非空时覆盖写入的 network_file，便于与拓扑导出路径一致
     void exportJSONConfig(const QString& filePath, const QString& networkFileOverride = {});
 

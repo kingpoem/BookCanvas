@@ -180,7 +180,14 @@ void SimulationPage::onProcessFinished(int exitCode, QProcess::ExitStatus exitSt
         appendOutput("注意不要手动填写 *_topology 后缀，BookSim 会自动拼接。\n");
     }
     emit simulationFinished(m_capturedOutput);
-    emit simulationFinishedWithContext(m_capturedOutput, m_lastRunConfig);
+    QMap<QString, QString> recordConfig = m_lastRunConfig;
+    if (m_canvasPage) {
+        const QMap<QString, QString> merged = m_canvasPage->mergedBooksimConfigForSimulationRecord();
+        if (!merged.isEmpty()) {
+            recordConfig = merged;
+        }
+    }
+    emit simulationFinishedWithContext(m_capturedOutput, recordConfig);
 }
 
 void SimulationPage::appendOutput(const QString& text) {
