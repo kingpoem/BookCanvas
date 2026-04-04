@@ -21,6 +21,11 @@ public:
     void initContent();
     void initModel();
 
+    [[nodiscard]] bool isCanvasPageActive() const;
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
     // pages
     CanvasPage* canvasPage{};

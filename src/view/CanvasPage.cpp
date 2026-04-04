@@ -9,6 +9,7 @@
 #include "component/RouterGlobalConfigDialog.h"
 #include "component/ShowButton.h"
 #include "utils/BooksimPaths.h"
+#include "utils/CanvasDebugLog.h"
 #include "utils/Settings.hpp"
 #include <ElaDef.h>
 #include <ElaGraphicsScene.h>
@@ -93,6 +94,11 @@ bool canvasWidgetIsDescendantOf(QWidget* w, QWidget* ancestor) {
 }
 
 } // namespace
+
+void CanvasPage::installNetworkTabKeyboardShortcuts() {
+    // Tab 前一项/后一项：Ctrl+Tab / Ctrl+Shift+Tab 由 MainWindow 的全局拦截统一处理，
+    // 与点 ◀ ▶ 按钮保持同一路径；数字跳转快捷键已移除。
+}
 
 static QWidget* createButtonWithLabel(QWidget* button, const QString& labelText, QWidget* parent) {
     auto* container = new QWidget(parent);
@@ -296,10 +302,35 @@ CanvasPage::CanvasPage(QWidget* parent)
     m_canvasTabs->setMovable(true);
     m_canvasTabs->setDocumentMode(true);
 
-    auto* addTabBtn = new ElaPushButton(QStringLiteral("+"), m_canvasTabs);
+    auto* tabCorner = new QWidget(m_canvasTabs);
+    auto* tabCornerLay = new QHBoxLayout(tabCorner);
+    tabCornerLay->setContentsMargins(0, 0, 4, 0);
+    tabCornerLay->setSpacing(2);
+
+    m_tabPrevBtn = new ElaIconButton(ElaIconType::ChevronLeft, 18, tabCorner);
+    m_tabNextBtn = new ElaIconButton(ElaIconType::ChevronRight, 18, tabCorner);
+    m_tabPrevBtn->setFixedSize(28, 28);
+    m_tabNextBtn->setFixedSize(28, 28);
+    m_tabPrevBtn->setToolTip(tr("上一个网络 Tab（循环）\n快捷键：Ctrl+Shift+Tab（等同点此按钮）"));
+    m_tabNextBtn->setToolTip(tr("下一个网络 Tab（循环）\n快捷键：Ctrl+Tab（等同点此按钮）"));
+
+    auto* addTabBtn = new ElaPushButton(QStringLiteral("+"), tabCorner);
     addTabBtn->setFixedWidth(28);
+    addTabBtn->setFixedHeight(28);
     addTabBtn->setToolTip(tr("新建网络 Tab"));
-    m_canvasTabs->setCornerWidget(addTabBtn, Qt::TopRightCorner);
+    addTabBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    tabCornerLay->addWidget(m_tabPrevBtn);
+    tabCornerLay->addWidget(m_tabNextBtn);
+    tabCornerLay->addWidget(addTabBtn);
+    m_canvasTabs->setCornerWidget(tabCorner, Qt::TopRightCorner);
+
+    connect(m_tabPrevBtn, &ElaIconButton::clicked, this, [this]() {
+        activateAdjacentCanvasTab(true);
+    });
+    connect(m_tabNextBtn, &ElaIconButton::clicked, this, [this]() {
+        activateAdjacentCanvasTab(false);
+    });
 
     viewFrameLay->addWidget(m_canvasTabs);
     rightColumn->addWidget(viewFrame, 1);
@@ -363,6 +394,7 @@ CanvasPage::CanvasPage(QWidget* parent)
         }
     });
 
+    installNetworkTabKeyboardShortcuts();
     createCanvasTab();
 
     connect(showBtn, &ShowButton::toggled, this, [this](bool visible) {
@@ -491,39 +523,6 @@ CanvasPage::CanvasPage(QWidget* parent)
         createCanvasTab();
     });
 #endif
-    auto* nextTabShortcutCtrlTab
-        = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Tab), this, nullptr, nullptr, Qt::WindowShortcut);
-    connect(nextTabShortcutCtrlTab, &QShortcut::activated, this, [this]() {
-        if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
-            return;
-        }
-        const int current = m_canvasTabs->currentIndex();
-        const int next = (current + 1) % m_canvasTabs->count();
-        m_canvasTabs->setCurrentIndex(next);
-    });
-    auto* prevTabShortcutCtrlShiftTab = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab),
-                                                      this,
-                                                      nullptr,
-                                                      nullptr,
-                                                      Qt::WindowShortcut);
-    connect(prevTabShortcutCtrlShiftTab, &QShortcut::activated, this, [this]() {
-        if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
-            return;
-        }
-        const int current = m_canvasTabs->currentIndex();
-        const int prev = (current - 1 + m_canvasTabs->count()) % m_canvasTabs->count();
-        m_canvasTabs->setCurrentIndex(prev);
-    });
-    auto* prevTabShortcutCtrlBacktab
-        = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Backtab), this, nullptr, nullptr, Qt::WindowShortcut);
-    connect(prevTabShortcutCtrlBacktab, &QShortcut::activated, this, [this]() {
-        if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
-            return;
-        }
-        const int current = m_canvasTabs->currentIndex();
-        const int prev = (current - 1 + m_canvasTabs->count()) % m_canvasTabs->count();
-        m_canvasTabs->setCurrentIndex(prev);
-    });
 
     auto bindCanvasShortcut = [this](const QKeySequence& seq, const std::function<void()>& fn) {
         auto* sc = new QShortcut(seq, this, nullptr, nullptr, Qt::WindowShortcut);
@@ -705,8 +704,29 @@ void CanvasPage::exportConfigJson() {
     QMessageBox::information(this, QObject::tr("导出成功"), QObject::tr("JSON 配置已导出到:\n%1").arg(cfgPath));
 }
 
-CanvasPage::~CanvasPage() {
-    qApp->removeEventFilter(this);
+CanvasPage::~CanvasPage() = default;
+
+void CanvasPage::activateAdjacentCanvasTab(bool backward) {
+    if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
+        return;
+    }
+    const int n = m_canvasTabs->count();
+    const int c = m_canvasTabs->currentIndex();
+    m_canvasTabs->setCurrentIndex(backward ? (c - 1 + n) % n : (c + 1) % n);
+}
+
+void CanvasPage::activateCanvasTabByIndex(int zeroBasedIndex) {
+    if (!m_canvasTabs || zeroBasedIndex < 0 || zeroBasedIndex >= m_canvasTabs->count()) {
+        return;
+    }
+    m_canvasTabs->setCurrentIndex(zeroBasedIndex);
+}
+
+void CanvasPage::closeCurrentCanvasTab() {
+    if (!m_canvasTabs) {
+        return;
+    }
+    closeCanvasTab(m_canvasTabs->currentIndex());
 }
 
 QString CanvasPage::tabNameSettingKey(const QString& scopeToken) {
@@ -752,6 +772,10 @@ void CanvasPage::createCanvasTab() {
     scene->setGlobalConfig(RouterGlobalConfigDialog::getDefaultConfig());
     auto* view = new GraphView(scene, tabPage);
     tabLayout->addWidget(view);
+    view->installEventFilter(this);
+    if (QWidget* vp = view->viewport()) {
+        vp->installEventFilter(this);
+    }
 
     connect(scene, &GraphScene::nodeConfigureRequested, this, [this, scene](GraphNode* node) {
         if (node && node->getType() == GraphNode::Router) {
@@ -809,6 +833,47 @@ void CanvasPage::closeCanvasTab(int index) {
 void CanvasPage::refreshCurrentCanvasContext() {
     m_scene = currentScene();
     m_graphView = currentGraphView();
+    updateCanvasTabNavigateButtons();
+}
+
+void CanvasPage::updateCanvasTabNavigateButtons() {
+    const bool canCycle = m_canvasTabs && m_canvasTabs->count() > 1;
+    if (m_tabPrevBtn) {
+        m_tabPrevBtn->setEnabled(canCycle);
+    }
+    if (m_tabNextBtn) {
+        m_tabNextBtn->setEnabled(canCycle);
+    }
+}
+
+void CanvasPage::clickCanvasTabNavigateButton(bool backward) {
+    ElaIconButton* btn = backward ? m_tabPrevBtn : m_tabNextBtn;
+    if (!btn || !btn->isEnabled()) {
+        canvasDebugLog(QStringLiteral(
+                           "[ctrl-tab-debug] clickCanvasTabNavigateButton skip backward=%1 btn=%2 enabled=%3 "
+                           "tabCount=%4 current=%5")
+                           .arg(backward)
+                           .arg(btn ? QStringLiteral("ok") : QStringLiteral("null"))
+                           .arg((btn && btn->isEnabled()) ? QStringLiteral("true")
+                                                          : QStringLiteral("false"))
+                           .arg(m_canvasTabs ? m_canvasTabs->count() : -1)
+                           .arg(m_canvasTabs ? m_canvasTabs->currentIndex() : -1));
+        return;
+    }
+    const int before = m_canvasTabs ? m_canvasTabs->currentIndex() : -1;
+    btn->click();
+    const int after = m_canvasTabs ? m_canvasTabs->currentIndex() : -1;
+    canvasDebugLog(
+        QStringLiteral("[ctrl-tab-debug] clickCanvasTabNavigateButton backward=%1 before=%2 after=%3 tabCount=%4")
+            .arg(backward)
+            .arg(before)
+            .arg(after)
+            .arg(m_canvasTabs ? m_canvasTabs->count() : -1));
+}
+
+void CanvasPage::triggerNetworkTabNavigateClick(bool backward) {
+    canvasDebugLog(QStringLiteral("[ctrl-tab-debug] triggerNetworkTabNavigateClick backward=%1").arg(backward));
+    clickCanvasTabNavigateButton(backward);
 }
 
 GraphScene* CanvasPage::currentScene() const {
@@ -861,11 +926,9 @@ void CanvasPage::clearPlaceMode() {
 
 void CanvasPage::showEvent(QShowEvent* event) {
     BasePage::showEvent(event);
-    qApp->installEventFilter(this);
 }
 
 void CanvasPage::hideEvent(QHideEvent* event) {
-    qApp->removeEventFilter(this);
     BasePage::hideEvent(event);
 }
 

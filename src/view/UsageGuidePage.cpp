@@ -523,11 +523,12 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
         tr("操作"),
         tr("Canvas 页面支持键盘放置、平移与缩放。"),
         tr("<h4>Tab 管理</h4>"
+           "<p><b>Ctrl+Tab</b> / <b>Ctrl+Shift+Tab</b> 与点击标题栏右侧 <b>&lt; &gt;</b> "
+           "按钮相同（循环）。</p>"
            "<ul>"
-           "<li><b>Windows / Linux</b>：<b>Ctrl + T</b> 新建网络 Tab。</li>"
-           "<li><b>macOS</b>：<b>Ctrl + T</b> 或 <b>Command + T</b> 新建网络 Tab。</li>"
-           "<li><b>所有平台</b>：<b>Ctrl + Tab</b> 切到下一个 Tab；"
-           "<b>Ctrl + Shift + Tab</b> 切回上一个 Tab。</li>"
+           "<li>新建：<b>Ctrl+T</b>；macOS 另支持 <b>⌘T</b>。</li>"
+           "<li>关闭：<b>Ctrl+W</b>；macOS <b>⌘W</b>（仅剩一个时会先新开再关）。</li>"
+           "<li>上一个 / 下一个：<b>Ctrl+Shift+Tab</b> / <b>Ctrl+Tab</b>（与 ◀ ▶ 一致）。</li>"
            "</ul>"
            "<h4>放置与模式切换</h4>"
            "<ul>"
@@ -554,10 +555,8 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
            "<li><b>macOS</b>：<b>Command + +</b> 放大，<b>Command + -</b> 缩小，"
            "<b>Command + 0</b> 重置为 1.0 倍。</li>"
            "</ul>"),
-        QStringLiteral(
-            "快捷键 键盘 canvas tab ctrl+t command+t ctrl+tab ctrl+shift+tab n r esc 上下左右 "
-            "平移 视口 缩放 ctrl command cmd plus minus zoom reset undo redo ctrl+z ctrl+y "
-            "ctrl+shift+z cmd+z cmd+shift+z"));
+        QStringLiteral("快捷键 canvas tab ctrl+tab 切换 新建 关闭 cmd+w ctrl+t cmd+t n r "
+                       "esc 平移 缩放 undo redo"));
 
     addSection(
         tr("配置文件路径"),

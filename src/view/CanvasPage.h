@@ -25,6 +25,12 @@ public:
     /// 与当前页导出到 BookSim 的 JSON 顶层参数一致（含单拓扑块的 k/n/c/routing 等），供仿真记录存档
     [[nodiscard]] QMap<QString, QString> mergedBooksimConfigForSimulationRecord() const;
 
+    void activateAdjacentCanvasTab(bool backward);
+    void activateCanvasTabByIndex(int zeroBasedIndex);
+    void closeCurrentCanvasTab();
+    /// 与点击 Tab 栏 ◀ ▶ 相同（主窗口 ApplicationShortcut 调此方法，确保走按钮 `click()`）
+    void triggerNetworkTabNavigateClick(bool backward);
+
 protected:
     void showEvent(QShowEvent* event) override;
     void hideEvent(QHideEvent* event) override;
@@ -43,12 +49,17 @@ private:
     [[nodiscard]] GraphView* currentGraphView() const;
     [[nodiscard]] QString currentTabScopeToken() const;
     void clearPlaceMode();
+    void installNetworkTabKeyboardShortcuts();
+    void updateCanvasTabNavigateButtons();
+    void clickCanvasTabNavigateButton(bool backward);
 
     QTabWidget* m_canvasTabs = nullptr;
     GraphScene* m_scene = nullptr;
     GraphView* m_graphView = nullptr;
     ElaIconButton* m_placeTermPick = nullptr;
     ElaIconButton* m_placeRouterPick = nullptr;
+    ElaIconButton* m_tabPrevBtn = nullptr;
+    ElaIconButton* m_tabNextBtn = nullptr;
     QWidget* m_leftBuildPanel = nullptr;
     int m_nextCanvasTabId = 1;
 };
