@@ -110,8 +110,8 @@ void SimulationPage::onRunSimulation() {
     const QString booksimExec = BooksimPaths::findBooksimExecutable();
     if (booksimExec.isEmpty()) {
         appendOutput("错误: 找不到 booksim 可执行文件！\n");
-        appendOutput("请确保可执行文件位于 3rdpart/booksim2/src（Windows 为 "
-                     "booksim.exe，其他平台为 booksim）。\n");
+        appendOutput("请在「设置」中指定 BookSim 后端引擎路径，或将可执行文件放在应用目录 / "
+                     "3rdpart/booksim2/src。\n");
         return;
     }
 

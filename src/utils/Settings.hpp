@@ -54,5 +54,6 @@ inline void initSettings() {
     if (!settings.contains("micaEffect")) {
         settings.setValue("micaEffect", false);
     }
+    BooksimPaths::ensureDefaultEnginePathSettings();
     BooksimPaths::ensureDefaultExportPathSettings();
 }

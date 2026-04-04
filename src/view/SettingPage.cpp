@@ -10,6 +10,7 @@
 #include <ElaToggleSwitch.h>
 #include <ElaWindow.h>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
@@ -96,9 +97,53 @@ SettingPage::SettingPage(QWidget* parent)
         autoButton->setChecked(true);
     }
 
-    auto* bookSimHeading = new ElaText(tr("BookSim 导出"), this);
+    auto* bookSimHeading = new ElaText(tr("BookSim"), this);
     bookSimHeading->setWordWrap(false);
     bookSimHeading->setTextPixelSize(18);
+
+    auto* engineEdit = new ElaLineEdit(this);
+    engineEdit->setText(settings.value(QStringLiteral("booksimEnginePath")).toString());
+    engineEdit->setClearButtonEnabled(true);
+    auto* engineBrowse = new ElaPushButton(tr("浏览…"), this);
+    auto* engineBlock = new QWidget(this);
+    auto* engineV = new QVBoxLayout(engineBlock);
+    engineV->setContentsMargins(0, 0, 0, 0);
+    engineV->setSpacing(6);
+    auto* engineLabel = new ElaText(tr("booksim 可执行文件"), this);
+    engineLabel->setTextPixelSize(14);
+    engineV->addWidget(engineLabel);
+    auto* engineH = new QHBoxLayout();
+    engineH->addWidget(engineEdit, 1);
+    engineH->addWidget(engineBrowse);
+    engineV->addLayout(engineH);
+
+    connect(engineEdit, &ElaLineEdit::editingFinished, this, [engineEdit]() {
+        settings.setValue(QStringLiteral("booksimEnginePath"), engineEdit->text().trimmed());
+    });
+    connect(engineBrowse, &ElaPushButton::clicked, this, [this, engineEdit]() {
+        const QString filter
+#ifdef Q_OS_WIN
+            = tr("可执行文件 (*.exe);;All Files (*)");
+#else
+            = tr("All Files (*)");
+#endif
+        const QString startDir = [&] {
+            if (!engineEdit->text().trimmed().isEmpty()) {
+                return QFileInfo(engineEdit->text().trimmed()).absolutePath();
+            }
+            const QString def = BooksimPaths::defaultBooksimEnginePath();
+            return def.isEmpty() ? BooksimPaths::booksimWorkingDirectory()
+                                 : QFileInfo(def).absolutePath();
+        }();
+        const QString path = QFileDialog::getOpenFileName(this,
+                                                          tr("选择 booksim 可执行文件"),
+                                                          startDir,
+                                                          filter);
+        if (!path.isEmpty()) {
+            engineEdit->setText(path);
+            settings.setValue(QStringLiteral("booksimEnginePath"), path.trimmed());
+        }
+    });
 
     auto* topoEdit = new ElaLineEdit(this);
     topoEdit->setText(settings.value(QStringLiteral("booksimTopologyExportPath")).toString());
@@ -133,8 +178,8 @@ SettingPage::SettingPage(QWidget* parent)
     cfgH->addWidget(cfgBrowse);
     cfgV->addLayout(cfgH);
 
-    auto* resetBookSimPaths = new ElaPushButton(tr("恢复为检测到的 BookSim 工作目录中的默认文件名"),
-                                                this);
+    auto* resetBookSimPaths
+        = new ElaPushButton(tr("恢复为检测到的 BookSim 默认路径（引擎与导出模板）"), this);
 
     connect(topoEdit, &ElaLineEdit::editingFinished, this, [topoEdit]() {
         settings.setValue(QStringLiteral("booksimTopologyExportPath"), topoEdit->text().trimmed());
@@ -169,7 +214,10 @@ SettingPage::SettingPage(QWidget* parent)
             settings.setValue(QStringLiteral("booksimConfigExportPath"), path.trimmed());
         }
     });
-    connect(resetBookSimPaths, &ElaPushButton::clicked, this, [topoEdit, cfgEdit]() {
+    connect(resetBookSimPaths, &ElaPushButton::clicked, this, [topoEdit, cfgEdit, engineEdit]() {
+        const QString eng = BooksimPaths::defaultBooksimEnginePath();
+        settings.setValue(QStringLiteral("booksimEnginePath"), eng);
+        engineEdit->setText(eng);
         const QString td = BooksimPaths::defaultTopologyExportPath();
         const QString cd = BooksimPaths::defaultConfigExportPath();
         topoEdit->setText(td);
@@ -177,6 +225,15 @@ SettingPage::SettingPage(QWidget* parent)
         settings.setValue(QStringLiteral("booksimTopologyExportPath"), td);
         settings.setValue(QStringLiteral("booksimConfigExportPath"), cd);
     });
+
+    auto* bookSimFields = new QWidget(this);
+    auto* bookSimFieldsLayout = new QVBoxLayout(bookSimFields);
+    bookSimFieldsLayout->setContentsMargins(0, 0, 0, 0);
+    bookSimFieldsLayout->setSpacing(16);
+    bookSimFieldsLayout->addWidget(engineBlock);
+    bookSimFieldsLayout->addWidget(topoBlock);
+    bookSimFieldsLayout->addWidget(cfgBlock);
+    bookSimFieldsLayout->addWidget(resetBookSimPaths);
 
     auto centralWidget = new QWidget(this);
     centralWidget->setWindowTitle("Setting");
@@ -189,9 +246,7 @@ SettingPage::SettingPage(QWidget* parent)
     centerLayout->addSpacing(24);
     centerLayout->addWidget(bookSimHeading);
     centerLayout->addSpacing(8);
-    centerLayout->addWidget(topoBlock);
-    centerLayout->addWidget(cfgBlock);
-    centerLayout->addWidget(resetBookSimPaths);
+    centerLayout->addWidget(bookSimFields);
     centerLayout->addSpacing(15);
     centerLayout->addStretch();
     centerLayout->setContentsMargins(0, 0, 20, 0);
