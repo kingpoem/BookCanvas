@@ -2,6 +2,7 @@
 
 #include "BasePage.h"
 #include <QMap>
+#include <QVector>
 
 class QWidget;
 class ElaLineEdit;
@@ -9,6 +10,8 @@ class ElaComboBox;
 class ElaPushButton;
 class QVBoxLayout;
 class QScrollArea;
+class QFrame;
+class QToolButton;
 
 class GlobalConfigPage : public BasePage {
     Q_OBJECT
@@ -23,6 +26,13 @@ signals:
     void globalConfigChanged(const QMap<QString, QString>& config);
 
 private:
+    struct SectionUi {
+        QFrame* card = nullptr;
+        QWidget* body = nullptr;
+        QToolButton* toggle = nullptr;
+        QVBoxLayout* bodyLayout = nullptr;
+    };
+
     void setupUi();
     void applyTheme();
     void addSectionTitle(const QString& title);
@@ -35,7 +45,9 @@ private:
 
     QMap<QString, QString> m_config;
     QVBoxLayout* m_formLayout = nullptr;
+    QVBoxLayout* m_activeSectionLayout = nullptr;
     QScrollArea* m_scrollArea = nullptr;
+    QVector<SectionUi> m_sections;
     QMap<QString, QWidget*> m_inputs;
     ElaPushButton* m_viewRawBtn = nullptr;
     ElaPushButton* m_importBtn = nullptr;

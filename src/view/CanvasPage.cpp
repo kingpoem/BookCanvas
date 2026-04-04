@@ -635,6 +635,21 @@ QMap<QString, QString> CanvasPage::mergedBooksimConfigForSimulationRecord() cons
     return scene->mergedGlobalConfigForExport(netField);
 }
 
+int CanvasPage::canvasTabCount() const {
+    return m_canvasTabs ? m_canvasTabs->count() : 0;
+}
+
+int CanvasPage::currentCanvasTabIndex() const {
+    return m_canvasTabs ? m_canvasTabs->currentIndex() : -1;
+}
+
+QString CanvasPage::canvasTabTitle(int zeroBasedIndex) const {
+    if (!m_canvasTabs || zeroBasedIndex < 0 || zeroBasedIndex >= m_canvasTabs->count()) {
+        return {};
+    }
+    return m_canvasTabs->tabText(zeroBasedIndex);
+}
+
 bool CanvasPage::exportTopologySilently(QString* errorMessage) {
     const QString path = currentTopologyExportPath();
     if (path.isEmpty()) {

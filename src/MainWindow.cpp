@@ -88,8 +88,16 @@ bool MainWindow::isCanvasPageActive() const {
     return !key.isEmpty() && key == getCurrentNavigationPageKey();
 }
 
+bool MainWindow::isSimulationPageActive() const {
+    if (!simulationPage) {
+        return false;
+    }
+    const QString key = simulationPage->property("ElaPageKey").toString();
+    return !key.isEmpty() && key == getCurrentNavigationPageKey();
+}
+
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
-    if (!event || !canvasPage) {
+    if (!event || (!canvasPage && !simulationPage)) {
         return ElaWindow::eventFilter(watched, event);
     }
     if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
@@ -110,7 +118,9 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
                          fw ? fw->metaObject()->className() : "null",
                          fw ? fw->objectName() : ""));
         }
-        if (!isCanvasPageActive()) {
+        const bool canvasActive = isCanvasPageActive();
+        const bool simulationActive = isSimulationPageActive();
+        if (!canvasActive && !simulationActive) {
             return ElaWindow::eventFilter(watched, event);
         }
         bool backward = false;
@@ -128,16 +138,23 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
                                 "[ctrl-tab-debug] trigger from ShortcutOverride backward=%1")
                                 .arg(backward));
                         canvasPage->triggerNetworkTabNavigateClick(backward);
+                    } else if (isSimulationPageActive() && simulationPage) {
+                        simulationPage->activateAdjacentSimulationTab(backward);
                     }
                 });
                 keyEvent->accept();
                 return true;
             }
-            canvasDebugLog(
-                QStringLiteral("[ctrl-tab-debug] trigger canvas click backward=%1").arg(backward));
-            canvasPage->triggerNetworkTabNavigateClick(backward);
-            canvasDebugLog(QStringLiteral("[ctrl-tab-debug] trigger done backward=%1 accepted=true")
-                               .arg(backward));
+            if (canvasActive && canvasPage) {
+                canvasDebugLog(QStringLiteral("[ctrl-tab-debug] trigger canvas click backward=%1")
+                                   .arg(backward));
+                canvasPage->triggerNetworkTabNavigateClick(backward);
+                canvasDebugLog(
+                    QStringLiteral("[ctrl-tab-debug] trigger done backward=%1 accepted=true")
+                        .arg(backward));
+            } else if (simulationActive && simulationPage) {
+                simulationPage->activateAdjacentSimulationTab(backward);
+            }
             keyEvent->accept();
             return true;
         }
@@ -172,6 +189,8 @@ void MainWindow::initContent() {
         connect(canvasNextNetworkTabAct, &QAction::triggered, this, [this]() {
             if (isCanvasPageActive()) {
                 canvasPage->triggerNetworkTabNavigateClick(false);
+            } else if (isSimulationPageActive() && simulationPage) {
+                simulationPage->activateAdjacentSimulationTab(false);
             }
         });
         addAction(canvasNextNetworkTabAct);
@@ -184,6 +203,8 @@ void MainWindow::initContent() {
         connect(canvasPrevNetworkTabAct, &QAction::triggered, this, [this]() {
             if (isCanvasPageActive()) {
                 canvasPage->triggerNetworkTabNavigateClick(true);
+            } else if (isSimulationPageActive() && simulationPage) {
+                simulationPage->activateAdjacentSimulationTab(true);
             }
         });
         addAction(canvasPrevNetworkTabAct);
@@ -198,6 +219,8 @@ void MainWindow::initContent() {
         connect(closeCanvasTabAct, &QAction::triggered, this, [this]() {
             if (isCanvasPageActive()) {
                 canvasPage->closeCurrentCanvasTab();
+            } else if (isSimulationPageActive() && simulationPage) {
+                simulationPage->closeCurrentSimulationTab();
             }
         });
         addAction(closeCanvasTabAct);
@@ -225,6 +248,21 @@ void MainWindow::initContent() {
             this,
             [this, resultPageTitle](const QString& log) {
                 bookSimResultPage->ingestSimulationLog(log);
+                navigation(resultPageTitle);
+            });
+    connect(simulationRecordPage,
+            &SimulationRecordPage::showLineChartInResultRequested,
+            this,
+            [this, resultPageTitle](const QList<SimulationRecordSnapshot>& records,
+                                    const QString& metricAKey,
+                                    const QString& metricALabel,
+                                    const QString& metricBKey,
+                                    const QString& metricBLabel) {
+                bookSimResultPage->ingestRecordLineChart(records,
+                                                         metricAKey,
+                                                         metricALabel,
+                                                         metricBKey,
+                                                         metricBLabel);
                 navigation(resultPageTitle);
             });
 

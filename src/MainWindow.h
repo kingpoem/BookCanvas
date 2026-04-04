@@ -22,6 +22,7 @@ public:
     void initModel();
 
     [[nodiscard]] bool isCanvasPageActive() const;
+    [[nodiscard]] bool isSimulationPageActive() const;
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

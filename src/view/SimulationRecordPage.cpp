@@ -6,11 +6,15 @@
 #include <ElaText.h>
 #include <ElaTheme.h>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QMessageBox>
 #include <QPalette>
 #include <QScrollArea>
@@ -96,10 +100,6 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     m_searchEdit->setPlaceholderText(tr("搜索记录名/拓扑/k,n,c/路由/注入率/延迟/吞吐/运行时长..."));
     toolbarLay->addWidget(m_searchEdit, 1);
 
-    m_topologyFilter = new ElaComboBox(this);
-    m_topologyFilter->addItem(tr("全部拓扑"), QStringLiteral("__all__"));
-    toolbarLay->addWidget(m_topologyFilter);
-
     m_numericLabelCombo = new ElaComboBox(this);
     m_numericLabelCombo->setMaximumWidth(180);
     toolbarLay->addWidget(m_numericLabelCombo);
@@ -143,6 +143,9 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     auto* clearAllBtn = new ElaPushButton(tr("清空记录"), this);
     toolbarLay->addWidget(clearAllBtn);
 
+    auto* createLineChartBtn = new ElaPushButton(tr("创建折线图"), this);
+    toolbarLay->addWidget(createLineChartBtn);
+
     m_statusText = new ElaText(tr("正在加载仿真记录..."), this);
     m_statusText->setWordWrap(true);
     m_statusText->setTextPixelSize(14);
@@ -163,10 +166,6 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     root->addWidget(m_scrollArea, 1);
 
     connect(m_searchEdit, &ElaLineEdit::textChanged, this, [this]() { rebuildCards(); });
-    connect(m_topologyFilter,
-            QOverload<int>::of(&ElaComboBox::currentIndexChanged),
-            this,
-            [this](int) { rebuildCards(); });
     connect(m_numericFilterMode,
             QOverload<int>::of(&ElaComboBox::currentIndexChanged),
             this,
@@ -186,10 +185,6 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     connect(resetFilterBtn, &ElaPushButton::clicked, this, [this]() {
         if (m_searchEdit) {
             m_searchEdit->clear();
-        }
-        if (m_topologyFilter) {
-            const int allIndex = m_topologyFilter->findData(QStringLiteral("__all__"));
-            m_topologyFilter->setCurrentIndex(std::max(0, allIndex));
         }
         if (m_numericFilterMode) {
             m_numericFilterMode->setCurrentIndex(0);
@@ -219,6 +214,7 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
         persistRecords();
         rebuildCards();
     });
+    connect(createLineChartBtn, &ElaPushButton::clicked, this, [this]() { openLineChartDialog(); });
     connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
         applyTheme();
         rebuildCards();
@@ -332,13 +328,6 @@ bool SimulationRecordPage::matchesKeyword(const SimulationRecordSnapshot& record
 }
 
 bool SimulationRecordPage::matchesFilters(const SimulationRecordSnapshot& record) const {
-    const QString selectedTopology = m_topologyFilter ? m_topologyFilter->currentData().toString()
-                                                      : QStringLiteral("__all__");
-    if (!selectedTopology.isEmpty() && selectedTopology != QStringLiteral("__all__")
-        && record.config.value(QStringLiteral("topology")) != selectedTopology) {
-        return false;
-    }
-
     if (hasNumericFilter()) {
         const QString labelKey = m_numericLabelCombo ? m_numericLabelCombo->currentData().toString()
                                                      : QStringLiteral("packetLatencyAvg");
@@ -537,33 +526,6 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
     return card;
 }
 
-void SimulationRecordPage::refreshTopologyFilterOptions() {
-    if (!m_topologyFilter) {
-        return;
-    }
-
-    const QString previousSelection = m_topologyFilter->currentData().toString();
-    QSet<QString> topologies;
-    for (const auto& record : m_records) {
-        const QString topology = record.config.value(QStringLiteral("topology")).trimmed();
-        if (!topology.isEmpty()) {
-            topologies.insert(topology);
-        }
-    }
-
-    QStringList sorted = topologies.values();
-    std::sort(sorted.begin(), sorted.end());
-
-    QSignalBlocker blocker(m_topologyFilter);
-    m_topologyFilter->clear();
-    m_topologyFilter->addItem(tr("全部拓扑"), QStringLiteral("__all__"));
-    for (const QString& topology : sorted) {
-        m_topologyFilter->addItem(topology, topology);
-    }
-    const int target = std::max(0, m_topologyFilter->findData(previousSelection));
-    m_topologyFilter->setCurrentIndex(target);
-}
-
 void SimulationRecordPage::refreshNumericLabelOptions() {
     if (!m_numericLabelCombo) {
         return;
@@ -571,7 +533,80 @@ void SimulationRecordPage::refreshNumericLabelOptions() {
 
     const QString previousSelection = m_numericLabelCombo->currentData().toString();
 
-    QVector<QPair<QString, QString>> options = {
+    const QVector<MetricOption> options = buildMetricOptions();
+
+    QSignalBlocker blocker(m_numericLabelCombo);
+    m_numericLabelCombo->clear();
+    for (const auto& option : options) {
+        m_numericLabelCombo->addItem(option.label, option.key);
+    }
+    int target = m_numericLabelCombo->findData(previousSelection);
+    if (target < 0) {
+        target = m_numericLabelCombo->findData(QStringLiteral("packetLatencyAvg"));
+    }
+    m_numericLabelCombo->setCurrentIndex(std::max(0, target));
+}
+
+QVector<int> SimulationRecordPage::buildVisibleRecordIndices(bool sorted) const {
+    QVector<int> visibleIndices;
+    visibleIndices.reserve(m_records.size());
+    for (int i = 0; i < m_records.size(); ++i) {
+        const auto& record = m_records.at(i);
+        if (!matchesKeyword(record) || !matchesFilters(record)) {
+            continue;
+        }
+        visibleIndices.push_back(i);
+    }
+
+    if (!sorted) {
+        return visibleIndices;
+    }
+
+    const auto sortMode = static_cast<RecordSortMode>(
+        m_sortCombo ? m_sortCombo->currentData().toInt()
+                    : static_cast<int>(RecordSortMode::UpdatedDesc));
+    std::sort(visibleIndices.begin(), visibleIndices.end(), [this, sortMode](int lhs, int rhs) {
+        const auto& a = m_records.at(lhs);
+        const auto& b = m_records.at(rhs);
+        const QDateTime aTime = QDateTime::fromString(a.updatedAtIso, Qt::ISODate);
+        const QDateTime bTime = QDateTime::fromString(b.updatedAtIso, Qt::ISODate);
+        switch (sortMode) {
+        case RecordSortMode::UpdatedDesc:
+            return aTime > bTime;
+        case RecordSortMode::UpdatedAsc:
+            return aTime < bTime;
+        case RecordSortMode::PacketLatencyAsc:
+            return compareValue(a.packetLatencyAvg, true) < compareValue(b.packetLatencyAvg, true);
+        case RecordSortMode::PacketLatencyDesc:
+            return compareValue(a.packetLatencyAvg, false)
+                   > compareValue(b.packetLatencyAvg, false);
+        case RecordSortMode::ThroughputMatchDesc:
+            return compareValue(a.throughputMatchPercent, false)
+                   > compareValue(b.throughputMatchPercent, false);
+        case RecordSortMode::RunTimeDesc:
+            return compareValue(a.totalRunTimeSec, false) > compareValue(b.totalRunTimeSec, false);
+        case RecordSortMode::LabelValueAsc: {
+            const QString labelKey = m_numericLabelCombo
+                                         ? m_numericLabelCombo->currentData().toString()
+                                         : QStringLiteral("packetLatencyAvg");
+            return compareValue(numericLabelValue(a, labelKey), true)
+                   < compareValue(numericLabelValue(b, labelKey), true);
+        }
+        case RecordSortMode::LabelValueDesc: {
+            const QString labelKey = m_numericLabelCombo
+                                         ? m_numericLabelCombo->currentData().toString()
+                                         : QStringLiteral("packetLatencyAvg");
+            return compareValue(numericLabelValue(a, labelKey), false)
+                   > compareValue(numericLabelValue(b, labelKey), false);
+        }
+        }
+        return true;
+    });
+    return visibleIndices;
+}
+
+QVector<SimulationRecordPage::MetricOption> SimulationRecordPage::buildMetricOptions() const {
+    QVector<MetricOption> options = {
         {tr("Packet 延迟均值"), QStringLiteral("packetLatencyAvg")},
         {tr("Network 延迟均值"), QStringLiteral("networkLatencyAvg")},
         {tr("Flit 延迟均值"), QStringLiteral("flitLatencyAvg")},
@@ -594,17 +629,113 @@ void SimulationRecordPage::refreshNumericLabelOptions() {
     for (const QString& key : dynamicKeys) {
         options.push_back({tr("配置: %1").arg(key), QStringLiteral("config:%1").arg(key)});
     }
+    return options;
+}
 
-    QSignalBlocker blocker(m_numericLabelCombo);
-    m_numericLabelCombo->clear();
-    for (const auto& pair : options) {
-        m_numericLabelCombo->addItem(pair.first, pair.second);
+void SimulationRecordPage::openLineChartDialog() {
+    const QVector<int> visibleIndices = buildVisibleRecordIndices(true);
+    if (visibleIndices.size() < 2) {
+        QMessageBox::information(this,
+                                 tr("无法创建折线图"),
+                                 tr("当前可见记录不足 2 条。请先调整筛选条件或新增记录。"));
+        return;
     }
-    int target = m_numericLabelCombo->findData(previousSelection);
-    if (target < 0) {
-        target = m_numericLabelCombo->findData(QStringLiteral("packetLatencyAvg"));
+
+    const QVector<MetricOption> metricOptions = buildMetricOptions();
+    if (metricOptions.size() < 2) {
+        QMessageBox::information(this, tr("无法创建折线图"), tr("可用指标不足 2 项。"));
+        return;
     }
-    m_numericLabelCombo->setCurrentIndex(std::max(0, target));
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("创建折线图"));
+    dialog.resize(680, 520);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(10);
+
+    auto* tip = new QLabel(tr("选择两个指标与若干记录后，将在“BookSim 结果”页面展示双折线图。"),
+                           &dialog);
+    tip->setWordWrap(true);
+    layout->addWidget(tip);
+
+    auto* metricRow = new QHBoxLayout();
+    auto* metricALabel = new QLabel(tr("指标 A"), &dialog);
+    auto* metricACombo = new ElaComboBox(&dialog);
+    auto* metricBLabel = new QLabel(tr("指标 B"), &dialog);
+    auto* metricBCombo = new ElaComboBox(&dialog);
+    for (const auto& metric : metricOptions) {
+        metricACombo->addItem(metric.label, metric.key);
+        metricBCombo->addItem(metric.label, metric.key);
+    }
+    metricBCombo->setCurrentIndex(std::min(1, metricBCombo->count() - 1));
+    metricRow->addWidget(metricALabel);
+    metricRow->addWidget(metricACombo, 1);
+    metricRow->addSpacing(10);
+    metricRow->addWidget(metricBLabel);
+    metricRow->addWidget(metricBCombo, 1);
+    layout->addLayout(metricRow);
+
+    auto* recordLabel = new QLabel(tr("勾选记录（至少 2 条）"), &dialog);
+    layout->addWidget(recordLabel);
+
+    auto* recordList = new QListWidget(&dialog);
+    recordList->setSelectionMode(QAbstractItemView::NoSelection);
+    for (int i = 0; i < visibleIndices.size(); ++i) {
+        const int recordIndex = visibleIndices[i];
+        const auto& record = m_records.at(recordIndex);
+        auto* item = new QListWidgetItem(tr("%1 | 更新: %2")
+                                             .arg(record.name, formatIsoLocal(record.updatedAtIso)),
+                                         recordList);
+        item->setData(Qt::UserRole, recordIndex);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(i < 6 ? Qt::Checked : Qt::Unchecked);
+    }
+    layout->addWidget(recordList, 1);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const QString metricAKey = metricACombo->currentData().toString();
+    const QString metricBKey = metricBCombo->currentData().toString();
+    const QString metricALabelText = metricACombo->currentText();
+    const QString metricBLabelText = metricBCombo->currentText();
+    if (metricAKey == metricBKey) {
+        QMessageBox::warning(this, tr("指标重复"), tr("请为折线图选择两个不同指标。"));
+        return;
+    }
+
+    QList<SimulationRecordSnapshot> selectedRecords;
+    for (int i = 0; i < recordList->count(); ++i) {
+        QListWidgetItem* item = recordList->item(i);
+        if (!item || item->checkState() != Qt::Checked) {
+            continue;
+        }
+        const int recordIndex = item->data(Qt::UserRole).toInt();
+        if (recordIndex < 0 || recordIndex >= m_records.size()) {
+            continue;
+        }
+        selectedRecords.push_back(m_records.at(recordIndex));
+    }
+
+    if (selectedRecords.size() < 2) {
+        QMessageBox::warning(this, tr("记录不足"), tr("请至少勾选 2 条记录。"));
+        return;
+    }
+
+    emit showLineChartInResultRequested(selectedRecords,
+                                        metricAKey,
+                                        metricALabelText,
+                                        metricBKey,
+                                        metricBLabelText);
+    m_statusText->setText(tr("已创建折线图，请切换到“BookSim 结果”查看。"));
 }
 
 double SimulationRecordPage::numericLabelValue(const SimulationRecordSnapshot& record,
@@ -695,59 +826,9 @@ void SimulationRecordPage::rebuildCards() {
         delete item;
     }
 
-    refreshTopologyFilterOptions();
     refreshNumericLabelOptions();
 
-    QVector<int> visibleIndices;
-    visibleIndices.reserve(m_records.size());
-    for (int i = 0; i < m_records.size(); ++i) {
-        const auto& record = m_records.at(i);
-        if (!matchesKeyword(record) || !matchesFilters(record)) {
-            continue;
-        }
-        visibleIndices.push_back(i);
-    }
-
-    const auto sortMode = static_cast<RecordSortMode>(
-        m_sortCombo ? m_sortCombo->currentData().toInt()
-                    : static_cast<int>(RecordSortMode::UpdatedDesc));
-    std::sort(visibleIndices.begin(), visibleIndices.end(), [this, sortMode](int lhs, int rhs) {
-        const auto& a = m_records.at(lhs);
-        const auto& b = m_records.at(rhs);
-        const QDateTime aTime = QDateTime::fromString(a.updatedAtIso, Qt::ISODate);
-        const QDateTime bTime = QDateTime::fromString(b.updatedAtIso, Qt::ISODate);
-        switch (sortMode) {
-        case RecordSortMode::UpdatedDesc:
-            return aTime > bTime;
-        case RecordSortMode::UpdatedAsc:
-            return aTime < bTime;
-        case RecordSortMode::PacketLatencyAsc:
-            return compareValue(a.packetLatencyAvg, true) < compareValue(b.packetLatencyAvg, true);
-        case RecordSortMode::PacketLatencyDesc:
-            return compareValue(a.packetLatencyAvg, false)
-                   > compareValue(b.packetLatencyAvg, false);
-        case RecordSortMode::ThroughputMatchDesc:
-            return compareValue(a.throughputMatchPercent, false)
-                   > compareValue(b.throughputMatchPercent, false);
-        case RecordSortMode::RunTimeDesc:
-            return compareValue(a.totalRunTimeSec, false) > compareValue(b.totalRunTimeSec, false);
-        case RecordSortMode::LabelValueAsc: {
-            const QString labelKey = m_numericLabelCombo
-                                         ? m_numericLabelCombo->currentData().toString()
-                                         : QStringLiteral("packetLatencyAvg");
-            return compareValue(numericLabelValue(a, labelKey), true)
-                   < compareValue(numericLabelValue(b, labelKey), true);
-        }
-        case RecordSortMode::LabelValueDesc: {
-            const QString labelKey = m_numericLabelCombo
-                                         ? m_numericLabelCombo->currentData().toString()
-                                         : QStringLiteral("packetLatencyAvg");
-            return compareValue(numericLabelValue(a, labelKey), false)
-                   > compareValue(numericLabelValue(b, labelKey), false);
-        }
-        }
-        return true;
-    });
+    const QVector<int> visibleIndices = buildVisibleRecordIndices(true);
 
     for (int idx : visibleIndices) {
         m_cardsLayout->addWidget(buildRecordCard(m_records.at(idx)));

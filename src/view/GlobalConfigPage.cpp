@@ -21,6 +21,7 @@
 #include <QScrollArea>
 #include <QSet>
 #include <QTextStream>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace {
@@ -385,7 +386,10 @@ void GlobalConfigPage::setupUi() {
     addConfigItem("channel_width", "通道宽度 (channel_width)", "128");
     addConfigItem("channel_sweep", "通道扫描 (channel_sweep)", "0");
 
-    m_formLayout->addStretch();
+    if (m_activeSectionLayout) {
+        m_activeSectionLayout->addStretch(1);
+    }
+    m_formLayout->addStretch(1);
     m_scrollArea->setWidget(scrollContent);
     root->addWidget(m_scrollArea);
 
@@ -457,20 +461,43 @@ void GlobalConfigPage::setConfig(const QMap<QString, QString>& config) {
 }
 
 void GlobalConfigPage::addSectionTitle(const QString& title) {
-    if (m_formLayout->count() > 0) {
-        auto* line = new QFrame(this);
-        line->setFrameShape(QFrame::HLine);
-        line->setFrameShadow(QFrame::Sunken);
-        m_formLayout->addWidget(line);
-    }
-    auto* titleLabel = new QLabel(title, this);
-    QFont font = titleLabel->font();
-    font.setBold(true);
-    font.setPointSize(font.pointSize() + 1);
-    titleLabel->setFont(font);
-    titleLabel->setProperty("isSectionTitle", true);
-    titleLabel->setStyleSheet("margin-top: 5px; margin-bottom: 5px;");
-    m_formLayout->addWidget(titleLabel);
+    auto* card = new QFrame(this);
+    card->setObjectName(QStringLiteral("globalConfigSectionCard"));
+    auto* cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(10, 8, 10, 10);
+    cardLayout->setSpacing(8);
+
+    auto* toggle = new QToolButton(card);
+    toggle->setObjectName(QStringLiteral("globalConfigSectionToggle"));
+    toggle->setText(title);
+    toggle->setCheckable(true);
+    toggle->setChecked(false);
+    toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    toggle->setArrowType(Qt::RightArrow);
+    toggle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    cardLayout->addWidget(toggle);
+
+    auto* body = new QWidget(card);
+    body->setObjectName(QStringLiteral("globalConfigSectionBody"));
+    auto* bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(0, 0, 0, 0);
+    bodyLayout->setSpacing(6);
+    body->setVisible(false);
+    cardLayout->addWidget(body);
+
+    connect(toggle, &QToolButton::toggled, this, [toggle, body](bool on) {
+        body->setVisible(on);
+        toggle->setArrowType(on ? Qt::DownArrow : Qt::RightArrow);
+    });
+
+    SectionUi sec;
+    sec.card = card;
+    sec.body = body;
+    sec.toggle = toggle;
+    sec.bodyLayout = bodyLayout;
+    m_sections.append(sec);
+    m_activeSectionLayout = bodyLayout;
+    m_formLayout->addWidget(card);
 }
 
 void GlobalConfigPage::addConfigItem(const QString& key,
@@ -527,7 +554,11 @@ void GlobalConfigPage::addConfigItem(const QString& key,
     auto* itemLayout = new QHBoxLayout();
     itemLayout->addWidget(labelWidget);
     itemLayout->addWidget(input);
-    m_formLayout->addLayout(itemLayout);
+    if (m_activeSectionLayout) {
+        m_activeSectionLayout->addLayout(itemLayout);
+    } else {
+        m_formLayout->addLayout(itemLayout);
+    }
 }
 
 QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
@@ -677,10 +708,17 @@ void GlobalConfigPage::applyTheme() {
     const QColor border = ElaThemeColor(mode, BasicBorder);
 
     m_pageRoot->setAttribute(Qt::WA_StyledBackground, true);
-    m_pageRoot->setStyleSheet(QStringLiteral("#ElaScrollPage_CentralPage { background-color: %1; } "
-                                             "QLabel { color: %2; } "
-                                             "QLabel[isSectionTitle=\"true\"] { color: %2; }")
-                                  .arg(pageBg.name(QColor::HexRgb), textMain.name(QColor::HexRgb)));
+    m_pageRoot->setStyleSheet(
+        QStringLiteral("#ElaScrollPage_CentralPage { background-color: %1; } "
+                       "QLabel { color: %2; } "
+                       "QFrame#globalConfigSectionCard { border: 1px solid %3; "
+                       "border-radius: 10px; background: %1; } "
+                       "QToolButton#globalConfigSectionToggle { border: none; "
+                       "background: transparent; color: %2; font-weight: 600; "
+                       "text-align: left; padding: 2px 0; }")
+            .arg(pageBg.name(QColor::HexRgb),
+                 textMain.name(QColor::HexRgb),
+                 border.name(QColor::HexRgb)));
 
     if (QWidget* outerVp = m_pageRoot->parentWidget()) {
         outerVp->setAutoFillBackground(true);
