@@ -539,6 +539,19 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
         }
     };
 
+    // 自动生成时统一把终端摆在路由器斜右上方（场景坐标 y 向下为正）
+    const qreal kRouterBox = 50.0;
+    const qreal kTerminalBoxH = 50.0;
+    const qreal kTermGapAboveRouter = 12.0;
+    const qreal kTermGapRightOfRouter = 10.0;
+    auto terminalPosUpperRightOfRouter =
+        [&](const QPointF& rPos, int index, int count, qreal stepX) -> QPointF {
+        const qreal y = rPos.y() - kTermGapAboveRouter - kTerminalBoxH;
+        const qreal x0 = rPos.x() + kRouterBox + kTermGapRightOfRouter
+                         - ((count - 1) * stepX / 2.0);
+        return QPointF(x0 + index * stepX, y);
+    };
+
     if (isFly) {
         const int flyK = qMax(2, k);
         const int flyN = qMax(1, n);
@@ -594,9 +607,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
             GraphNode* router = routers[(flyN - 1) * perStage + addr];
             const QPointF rPos = router->pos();
             for (int port = 0; port < flyK; ++port) {
-                const qreal x = rPos.x() - ((flyK - 1) * 14.0 / 2.0) + port * 14.0;
-                const qreal y = rPos.y() + 66.0;
-                addTerminalAt(router, QPointF(x, y));
+                addTerminalAt(router, terminalPosUpperRightOfRouter(rPos, port, flyK, 14.0));
             }
         }
         return;
@@ -650,7 +661,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
             for (GraphNode* leafRouter : levels[2]) {
                 const QPointF rPos = leafRouter->pos();
                 for (int i = 0; i < treeK; ++i) {
-                    addTerminalAt(leafRouter, QPointF(rPos.x() - 22.0 + i * 14.0, rPos.y() + 66.0));
+                    addTerminalAt(leafRouter, terminalPosUpperRightOfRouter(rPos, i, treeK, 14.0));
                 }
             }
         } else {
@@ -706,7 +717,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
             for (GraphNode* leafRouter : levels[2]) {
                 const QPointF rPos = leafRouter->pos();
                 for (int i = 0; i < treeK; ++i) {
-                    addTerminalAt(leafRouter, QPointF(rPos.x() - 22.0 + i * 14.0, rPos.y() + 66.0));
+                    addTerminalAt(leafRouter, terminalPosUpperRightOfRouter(rPos, i, treeK, 14.0));
                 }
             }
         }
@@ -780,9 +791,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
             GraphNode* leafRouter = levels[leafLevel][pos];
             const QPointF rPos = leafRouter->pos();
             for (int i = 0; i < fatK; ++i) {
-                addTerminalAt(leafRouter,
-                              QPointF(rPos.x() - ((fatK - 1) * 14.0 / 2.0) + i * 14.0,
-                                      rPos.y() + 66.0));
+                addTerminalAt(leafRouter, terminalPosUpperRightOfRouter(rPos, i, fatK, 14.0));
             }
         }
         return;
@@ -859,9 +868,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
             GraphNode* router = routers[idx];
             const QPointF rPos = router->pos();
             for (int i = 0; i < ffC; ++i) {
-                addTerminalAt(router,
-                              QPointF(rPos.x() - ((ffC - 1) * 14.0 / 2.0) + i * 14.0,
-                                      rPos.y() + 64.0));
+                addTerminalAt(router, terminalPosUpperRightOfRouter(rPos, i, ffC, 14.0));
             }
         }
         return;
@@ -942,9 +949,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
             GraphNode* router = routers[idx];
             const QPointF rPos = router->pos();
             for (int i = 0; i < p; ++i) {
-                addTerminalAt(router,
-                              QPointF(rPos.x() - ((p - 1) * 13.0 / 2.0) + i * 13.0,
-                                      rPos.y() + 64.0));
+                addTerminalAt(router, terminalPosUpperRightOfRouter(rPos, i, p, 13.0));
             }
         }
         return;
@@ -1055,16 +1060,7 @@ void GraphScene::rebuildManagedTopology(GraphTopologyBlock* block) {
         GraphNode* router = routers[idx];
         const QPointF rPos = router->pos();
         for (int i = 0; i < c; ++i) {
-            const qreal x = rPos.x() - ((c - 1) * 18.0 / 2.0) + i * 18.0;
-            const qreal y = rPos.y() + 68.0;
-            GraphNode* node = createNode(allocateNextNodeId(GraphNode::Node),
-                                         QPointF(x, y),
-                                         GraphNode::Node);
-            st.terminals.append(node);
-            GraphEdge* e = createEdge(node, router, 1.0);
-            if (e) {
-                st.edges.append(e);
-            }
+            addTerminalAt(router, terminalPosUpperRightOfRouter(rPos, i, c, 18.0));
         }
     }
 }
