@@ -4,7 +4,7 @@
 #include <QDialog>
 
 class QSpinBox;
-class ElaLineEdit;
+class ElaComboBox;
 class ElaPushButton;
 
 /// 放置或编辑单个 BookSim2 内置拓扑时的参数对话框（k / n / c / routing_function）
@@ -20,11 +20,12 @@ public:
 
 private:
     void buildUi(const QString& displayLabel);
+    void syncRoutingCombo(const QString& topologyId, const QString& routingOrEmpty);
 
     QString m_topologyId;
     QString m_displayLabel;
     QSpinBox* m_kSpin = nullptr;
     QSpinBox* m_nSpin = nullptr;
     QSpinBox* m_cSpin = nullptr;
-    ElaLineEdit* m_rfEdit = nullptr;
+    ElaComboBox* m_rfCombo = nullptr;
 };

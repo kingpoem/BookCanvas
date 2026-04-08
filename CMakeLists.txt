@@ -55,9 +55,10 @@ endif()
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Concurrent)
 
-file(GLOB_RECURSE PROJECT_SOURCES
-    src/*.cpp
-    src/*.h
+# 须匹配 src 下任意深度的源码（如 src/utils、src/view/component）
+file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
 qt_add_executable(BookCanvas MACOSX_BUNDLE

@@ -553,8 +553,14 @@ void SimulationPage::appendRoutingHint(const QString& prefix, int simulationTabI
     appendOutput(QStringLiteral("\n") + prefix + "[参数提示]\n", simulationTabId);
     appendOutput(prefix + "检测到 routing_function 与 topology 不匹配。\n", simulationTabId);
     appendOutput(prefix + "请在 Canvas 的拓扑参数中检查 routing_function：\n", simulationTabId);
-    appendOutput(prefix + "- mesh 推荐 dor / dim_order / xy_yx\n", simulationTabId);
-    appendOutput(prefix + "- torus 推荐 dim_order / dor\n", simulationTabId);
+    appendOutput(prefix
+                     + "- mesh：dor、dim_order、xy_yx、adaptive_xy_yx、romm、min_adapt、"
+                       "planar_adapt、valiant、chaos 等（与 BookSim2 注册项一致）\n",
+                 simulationTabId);
+    appendOutput(prefix
+                     + "- torus：dim_order、dim_order_ni、dim_order_bal、min_adapt、"
+                       "valiant、valiant_ni、chaos（无 dor_torus）\n",
+                 simulationTabId);
     appendOutput(prefix + "- cmesh 推荐 dor_no_express / xy_yx_no_express\n", simulationTabId);
     appendOutput(prefix + "- fly 推荐 dest_tag\n", simulationTabId);
     appendOutput(prefix + "- qtree 推荐 nca\n", simulationTabId);

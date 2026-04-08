@@ -1,5 +1,6 @@
 #include "GlobalConfigPage.h"
 #include "component/RouterGlobalConfigDialog.h"
+#include "utils/BooksimRoutingCatalog.h"
 #include <ElaComboBox.h>
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
@@ -20,6 +21,7 @@
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
 #include <QSet>
+#include <QSignalBlocker>
 #include <QTextStream>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -31,6 +33,7 @@ enum class InputKind {
     Float,
     Boolean,
     Enum,
+    RoutingPick,
 };
 
 struct InputSpec {
@@ -54,6 +57,11 @@ struct InputSpec {
 }
 
 [[nodiscard]] InputSpec inputSpecForKey(const QString& key) {
+    if (key == QLatin1String("routing_function")) {
+        InputSpec spec;
+        spec.kind = InputKind::RoutingPick;
+        return spec;
+    }
     static const QSet<QString> kBooleanKeys = {
         QStringLiteral("use_noc_latency"),
         QStringLiteral("noq"),
@@ -116,8 +124,6 @@ struct InputSpec {
           QStringLiteral("fattree"),
           QStringLiteral("flatfly"),
           QStringLiteral("dragonflynew")}},
-        {QStringLiteral("routing_function"),
-         {QStringLiteral("min"), QStringLiteral("dim_order"), QStringLiteral("none")}},
         {QStringLiteral("router"), {QStringLiteral("iq"), QStringLiteral("event")}},
         {QStringLiteral("buffer_policy"), {QStringLiteral("private"), QStringLiteral("shared")}},
         {QStringLiteral("spec_sw_allocator"), {QStringLiteral("prio"), QStringLiteral("islip")}},
@@ -173,7 +179,13 @@ struct InputSpec {
         if (key == QLatin1String("topology") || combo->isEditable()) {
             return combo->currentText().trimmed();
         }
-        return combo->currentData().toString().trimmed();
+        if (inputSpecForKey(key).kind == InputKind::RoutingPick) {
+            const QString id = combo->currentData(Qt::UserRole).toString().trimmed();
+            if (!id.isEmpty()) {
+                return id;
+            }
+        }
+        return combo->currentData(Qt::UserRole).toString().trimmed();
     }
     return QString();
 }
@@ -420,14 +432,78 @@ void GlobalConfigPage::setupUi() {
     connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
         applyTheme();
     });
+    wireTopologyRoutingForGlobalConfig();
     addCentralWidget(centralWidget, true, true, 0);
     applyTheme();
+}
+
+void GlobalConfigPage::wireTopologyRoutingForGlobalConfig() {
+    if (m_topologyRoutingWired) {
+        return;
+    }
+    auto* topoInput = m_inputs.value(QStringLiteral("topology"));
+    auto* routeInput = m_inputs.value(QStringLiteral("routing_function"));
+    auto* topo = qobject_cast<ElaComboBox*>(topoInput);
+    auto* route = qobject_cast<ElaComboBox*>(routeInput);
+    if (!topo || !route) {
+        return;
+    }
+    if (inputSpecForKey(QStringLiteral("routing_function")).kind != InputKind::RoutingPick) {
+        return;
+    }
+    m_topologyRoutingWired = true;
+    connect(topo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        refreshGlobalRoutingComboFromUiConfig();
+    });
+    connect(topo, &QComboBox::currentTextChanged, this, [this](const QString&) {
+        refreshGlobalRoutingComboFromUiConfig();
+    });
+}
+
+void GlobalConfigPage::refreshGlobalRoutingComboFromUiConfig(const QString& preferredRouting) {
+    auto* rcombo = qobject_cast<ElaComboBox*>(m_inputs.value(QStringLiteral("routing_function")));
+    if (!rcombo
+        || inputSpecForKey(QStringLiteral("routing_function")).kind != InputKind::RoutingPick) {
+        return;
+    }
+    auto* tcombo = qobject_cast<ElaComboBox*>(m_inputs.value(QStringLiteral("topology")));
+    QString topo = QStringLiteral("anynet");
+    if (tcombo) {
+        const QString td = tcombo->currentData(Qt::UserRole).toString().trimmed().toLower();
+        topo = td.isEmpty() ? tcombo->currentText().trimmed().toLower() : td;
+        if (topo.isEmpty()) {
+            topo = QStringLiteral("anynet");
+        }
+    }
+    QString keep = preferredRouting.trimmed();
+    if (keep.isEmpty()) {
+        keep = rcombo->currentData(Qt::UserRole).toString().trimmed();
+        if (keep.isEmpty()) {
+            keep = rcombo->currentText().trimmed();
+        }
+    }
+    const QSignalBlocker blocker(rcombo);
+    rcombo->clear();
+    const QStringList ids = routingIdsForTopology(topo);
+    for (const QString& id : ids) {
+        rcombo->addItem(routingUiLabel(topo, id), id);
+    }
+    if (rcombo->count() == 0) {
+        const QString fb = defaultRoutingIdForTopology(topo);
+        rcombo->addItem(routingUiLabel(topo, fb), fb);
+    }
+    const QString pick = normalizeRoutingForTopology(keep, topo);
+    const int idx = rcombo->findData(pick);
+    rcombo->setCurrentIndex(idx >= 0 ? idx : 0);
 }
 
 void GlobalConfigPage::setConfig(const QMap<QString, QString>& config) {
     m_config = config;
     for (auto it = m_inputs.begin(); it != m_inputs.end(); ++it) {
         const QString& key = it.key();
+        if (key == QLatin1String("routing_function")) {
+            continue;
+        }
         const QString raw = m_config.value(key);
         if (auto* edit = qobject_cast<ElaLineEdit*>(it.value())) {
             edit->setText(raw);
@@ -458,6 +534,7 @@ void GlobalConfigPage::setConfig(const QMap<QString, QString>& config) {
             combo->setEditText(raw);
         }
     }
+    refreshGlobalRoutingComboFromUiConfig(m_config.value(QStringLiteral("routing_function")));
 }
 
 void GlobalConfigPage::addSectionTitle(const QString& title) {
@@ -530,6 +607,12 @@ void GlobalConfigPage::addConfigItem(const QString& key,
             combo->setEditText(defaultValue);
         }
         input = combo;
+    } else if (spec.kind == InputKind::RoutingPick) {
+        auto* combo = new ElaComboBox(this);
+        combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+        combo->setToolTip(tr(
+            "选项随「拓扑结构」变化；保存值为 BookSim routing_function 基名（不含 _拓扑 后缀）。"));
+        input = combo;
     } else {
         auto* edit = new ElaLineEdit(this);
         edit->setText(defaultValue);
@@ -573,6 +656,12 @@ QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
             }
         }
         config[key] = value;
+    }
+    if (config.contains(QStringLiteral("routing_function"))
+        && config.contains(QStringLiteral("topology"))) {
+        config.insert(QStringLiteral("routing_function"),
+                      normalizeRoutingForTopology(config.value(QStringLiteral("routing_function")),
+                                                  config.value(QStringLiteral("topology"))));
     }
     return config;
 }

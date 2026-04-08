@@ -37,6 +37,8 @@ private:
     void applyTheme();
     void addSectionTitle(const QString& title);
     void addConfigItem(const QString& key, const QString& label, const QString& defaultValue);
+    void wireTopologyRoutingForGlobalConfig();
+    void refreshGlobalRoutingComboFromUiConfig(const QString& preferredRouting = {});
     [[nodiscard]] QMap<QString, QString> collectConfigFromUi() const;
     void onViewRawConfigFileClicked();
     void onImportConfigClicked();
@@ -53,4 +55,5 @@ private:
     ElaPushButton* m_importBtn = nullptr;
     ElaPushButton* m_resetBtn = nullptr;
     QWidget* m_pageRoot = nullptr;
+    bool m_topologyRoutingWired = false;
 };

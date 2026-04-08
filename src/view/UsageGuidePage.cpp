@@ -173,131 +173,141 @@ struct CoreParamCard {
 };
 
 QVector<CoreParamCard> coreParameterCards() {
-    return {{QStringLiteral("topology"),
-             QStringLiteral("决定网络结构与路径集合，是所有参数的前置约束。"),
-             QStringLiteral(
-                 "<h4>参数定义</h4>"
-                 "<p><code>topology</code> 用于指定网络拓扑类型，会直接决定节点连接关系、"
-                 "最短路径分布与可选路由算法集合。</p>"
-                 "<h4>常见取值</h4>"
-                 "<ul>"
-                 "<li><code>mesh</code> / <code>torus</code>：规则二维/多维网络。</li>"
-                 "<li><code>cmesh</code> / <code>flatfly</code> / <code>dragonflynew</code>："
-                 "面向高带宽或低直径设计。</li>"
-                 "<li><code>fattree</code> / <code>anynet</code>：分层或自定义结构。</li>"
-                 "</ul>"
-                 "<h4>调参建议</h4>"
-                 "<p>先确定 <code>topology</code>，再设置 <code>routing_function</code> "
-                 "与结构参数（如 <code>k</code>、<code>n</code>、<code>c</code>）。</p>"),
-             QStringLiteral("核心参数 topology 拓扑 网络结构 mesh torus cmesh flatfly dragonflynew "
-                            "fattree anynet")},
-            {QStringLiteral("routing_function"),
-             QStringLiteral("路由算法必须与拓扑匹配，直接影响拥塞与尾延迟。"),
-             QStringLiteral("<h4>参数定义</h4>"
-                            "<p><code>routing_function</code> 用于指定路由算法，如 "
-                            "<code>dor</code>、<code>dim_order</code>、<code>min</code>。</p>"
-                            "<h4>调参建议</h4>"
-                            "<ul>"
-                            "<li>优先使用该拓扑已验证可用的算法组合。</li>"
-                            "<li>关注是否仅最短路，或允许受控非最短路分流。</li>"
-                            "<li>若出现吞吐异常低、延迟曲线突变，优先排查拓扑-路由兼容性。</li>"
-                            "</ul>"),
-             QStringLiteral("核心参数 routing_function 路由算法 dor dim_order min nca ran_min "
-                            "dest_tag 死锁规避 最短路")},
-            {QStringLiteral("k"),
-             QStringLiteral("规则拓扑中的每维规模参数，影响节点总量与并行链路数。"),
-             QStringLiteral(
-                 "<h4>参数定义</h4>"
-                 "<p><code>k</code> 表示每维路由器规模。通常 <code>k</code> 越大，"
-                 "并行路径潜力越高，但链路与状态开销也会同步增加。</p>"
-                 "<h4>关联关系</h4>"
-                 "<p>在 mesh/torus 等规则拓扑中，常与 <code>n</code> 一起决定规模。</p>"),
-             QStringLiteral("核心参数 k 每维规模 router scale 规则拓扑 mesh torus")},
-            {QStringLiteral("n"),
-             QStringLiteral("维度参数，决定路径长度分布和规模增长速度。"),
-             QStringLiteral("<h4>参数定义</h4>"
-                            "<p><code>n</code> 表示网络维度。以规则拓扑为例，规模通常随 "
-                            "<code>k^n</code> 快速增长。</p>"
-                            "<h4>调参建议</h4>"
-                            "<p>增大 <code>n</code> 可能改善并行度，但也会提升配置复杂度，"
-                            "建议配合注入率扫描观察拐点变化。</p>"),
-             QStringLiteral("核心参数 n 维度 k^n 跳数 路径长度 规模")},
-            {QStringLiteral("c"),
-             QStringLiteral("每路由器终端挂接数，决定注入端口密度与局部竞争程度。"),
-             QStringLiteral("<h4>参数定义</h4>"
-                            "<p><code>c</code> 为每个路由器挂接的终端数量。</p>"
-                            "<h4>调参建议</h4>"
-                            "<ul>"
-                            "<li><code>c</code> 增大可提升注入能力上限。</li>"
-                            "<li>同时会抬高局部仲裁竞争，需结合 <code>num_vcs</code> "
-                            "和缓冲参数评估。</li>"
-                            "</ul>"),
-             QStringLiteral("核心参数 c concentration terminal 终端挂接 注入密度")},
-            {QStringLiteral("traffic"),
-             QStringLiteral("流量模式决定源宿分布，是压测结论可比性的关键条件。"),
-             QStringLiteral("<h4>参数定义</h4>"
-                            "<p><code>traffic</code> 指定业务模式，如 <code>uniform</code>、"
-                            "<code>transpose</code> 等。</p>"
-                            "<h4>调参建议</h4>"
-                            "<p>不同模式热点性质差异明显，跨实验比较时应保持 "
-                            "<code>traffic</code> 一致。</p>"),
-             QStringLiteral("核心参数 traffic uniform transpose 流量模式 热点 源宿分布")},
-            {QStringLiteral("injection_rate"),
-             QStringLiteral("最关键自变量，用于构建延迟-负载/吞吐-负载曲线。"),
-             QStringLiteral("<h4>参数定义</h4>"
-                            "<p><code>injection_rate</code> 为归一化注入率，通常作为横轴扫描。</p>"
-                            "<h4>扫描建议</h4>"
-                            "<ul>"
-                            "<li>低负载区可用较大步长（如 0.01）。</li>"
-                            "<li>接近拐点时缩小步长（如 0.002~0.005）。</li>"
-                            "<li>建议记录饱和前后关键点，便于跨拓扑对比。</li>"
-                            "</ul>"),
-             QStringLiteral("核心参数 injection_rate 注入率 offered load 负载扫描 拐点 饱和")},
-            {QStringLiteral("num_vcs"),
-             QStringLiteral("每端口 VC 数，主要影响 HOL 缓解能力与资源开销。"),
-             QStringLiteral(
-                 "<h4>参数定义</h4>"
-                 "<p><code>num_vcs</code> 表示每端口虚通道数量。</p>"
-                 "<h4>调参建议</h4>"
-                 "<p>提高 <code>num_vcs</code> 往往可缓解 HOL 队首阻塞，但会增加仲裁和状态成本。"
-                 "建议与 <code>vc_buf_size</code> 联动评估。</p>"),
-             QStringLiteral("核心参数 num_vcs vc virtual channel hol blocking 队首阻塞")},
-            {QStringLiteral("vc_buf_size"),
-             QStringLiteral("每 VC 缓冲深度，影响反压出现时机与突发吸收能力。"),
-             QStringLiteral("<h4>参数定义</h4>"
-                            "<p><code>vc_buf_size</code> 表示每个 VC 的缓冲深度。</p>"
-                            "<h4>调参建议</h4>"
-                            "<ul>"
-                            "<li>过小会导致反压提前传播，吞吐受限。</li>"
-                            "<li>过大虽可提升容忍度，但资源成本显著增加。</li>"
-                            "<li>建议与 <code>num_vcs</code> 一起做二维扫描。</li>"
-                            "</ul>"),
-             QStringLiteral("核心参数 vc_buf_size 缓冲深度 backpressure 反压 buffer")},
-            {QStringLiteral("warmup_periods"),
-             QStringLiteral("预热阶段长度，用于消除初始瞬态统计偏差。"),
-             QStringLiteral(
-                 "<h4>参数定义</h4>"
-                 "<p><code>warmup_periods</code> 指预热样本长度，通常不计入最终统计。</p>"
-                 "<h4>调参建议</h4>"
-                 "<p>当低负载波动大或系统初始状态敏感时，适当增加预热长度可提高稳定性。</p>"),
-             QStringLiteral("核心参数 warmup_periods 预热 瞬态 统计稳定性")},
-            {QStringLiteral("sample_period / max_samples"),
-             QStringLiteral("控制采样窗口与样本总量，决定结果方差与置信度。"),
-             QStringLiteral(
-                 "<h4>参数定义</h4>"
-                 "<p><code>sample_period</code> 控制单次采样窗口，"
-                 "<code>max_samples</code> 控制累计样本数量。</p>"
-                 "<h4>调参建议</h4>"
-                 "<p>采样不足会让结论不稳定。若延迟曲线抖动明显，优先增加采样长度。</p>"),
-             QStringLiteral("核心参数 sample_period max_samples 采样窗口 方差 置信区间")},
-            {QStringLiteral("sim_type"),
-             QStringLiteral("仿真模式开关，决定统计口径与输出解释上下文。"),
-             QStringLiteral("<h4>参数定义</h4>"
-                            "<p><code>sim_type</code> 用于指定仿真模式（如延迟导向等）。</p>"
-                            "<h4>调参建议</h4>"
-                            "<p>做参数对比时保持 <code>sim_type</code> 一致，"
-                            "避免统计口径差异影响结论。</p>"),
-             QStringLiteral("核心参数 sim_type 仿真模式 latency 吞吐 统计口径")}};
+    return {
+        {QStringLiteral("topology"),
+         QStringLiteral("决定网络结构与路径集合，是所有参数的前置约束。"),
+         QStringLiteral(
+             "<h4>参数定义</h4>"
+             "<p><code>topology</code> 用于指定网络拓扑类型，会直接决定节点连接关系、"
+             "最短路径分布与可选路由算法集合。</p>"
+             "<h4>常见取值</h4>"
+             "<ul>"
+             "<li><code>mesh</code> / <code>torus</code>：规则二维/多维网络。</li>"
+             "<li><code>cmesh</code> / <code>flatfly</code> / <code>dragonflynew</code>："
+             "面向高带宽或低直径设计。</li>"
+             "<li><code>fattree</code> / <code>anynet</code>：分层或自定义结构。</li>"
+             "</ul>"
+             "<h4>调参建议</h4>"
+             "<p>先确定 <code>topology</code>，再设置 <code>routing_function</code> "
+             "与结构参数（如 <code>k</code>、<code>n</code>、<code>c</code>）。</p>"),
+         QStringLiteral("核心参数 topology 拓扑 网络结构 mesh torus cmesh flatfly dragonflynew "
+                        "fattree anynet")},
+        {QStringLiteral("routing_function"),
+         QStringLiteral("路由算法必须与拓扑匹配，直接影响拥塞与尾延迟。"),
+         QStringLiteral(
+             "<h4>参数定义</h4>"
+             "<p><code>routing_function</code> 为 BookSim 中的路由基名；运行时会自动拼上 "
+             "<code>_&lt;topology&gt;</code> 查找实现（无需手写后缀）。</p>"
+             "<h4>mesh（与内置 BookSim2 一致）</h4>"
+             "<p>维序：<code>dor</code>、<code>dim_order</code>、<code>dim_order_ni</code>、"
+             "<code>dim_order_pni</code>；XY/YX：<code>xy_yx</code>、<code>adaptive_xy_yx</code>；"
+             "其它：<code>romm</code>、<code>romm_ni</code>、<code>min_adapt</code>、"
+             "<code>planar_adapt</code>、<code>valiant</code>、<code>chaos</code>。"
+             "<code>limited_adapt</code> 在上游未注册。</p>"
+             "<h4>torus</h4>"
+             "<p><code>dim_order</code>、<code>dim_order_ni</code>、<code>dim_order_bal</code>、"
+             "<code>min_adapt</code>、<code>valiant</code>、<code>valiant_ni</code>、"
+             "<code>chaos</code>；不存在 <code>dor_torus</code>。</p>"
+             "<h4>调参建议</h4>"
+             "<ul>"
+             "<li>优先使用该拓扑已验证可用的算法组合。</li>"
+             "<li>关注是否仅最短路，或允许受控非最短路分流。</li>"
+             "<li>若出现吞吐异常低、延迟曲线突变，优先排查拓扑-路由兼容性。</li>"
+             "</ul>"),
+         QStringLiteral("核心参数 routing_function 路由算法 dor dim_order min nca ran_min "
+                        "dest_tag mesh torus 死锁规避 最短路")},
+        {QStringLiteral("k"),
+         QStringLiteral("规则拓扑中的每维规模参数，影响节点总量与并行链路数。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>k</code> 表示每维路由器规模。通常 <code>k</code> 越大，"
+                        "并行路径潜力越高，但链路与状态开销也会同步增加。</p>"
+                        "<h4>关联关系</h4>"
+                        "<p>在 mesh/torus 等规则拓扑中，常与 <code>n</code> 一起决定规模。</p>"),
+         QStringLiteral("核心参数 k 每维规模 router scale 规则拓扑 mesh torus")},
+        {QStringLiteral("n"),
+         QStringLiteral("维度参数，决定路径长度分布和规模增长速度。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>n</code> 表示网络维度。以规则拓扑为例，规模通常随 "
+                        "<code>k^n</code> 快速增长。</p>"
+                        "<h4>调参建议</h4>"
+                        "<p>增大 <code>n</code> 可能改善并行度，但也会提升配置复杂度，"
+                        "建议配合注入率扫描观察拐点变化。</p>"),
+         QStringLiteral("核心参数 n 维度 k^n 跳数 路径长度 规模")},
+        {QStringLiteral("c"),
+         QStringLiteral("每路由器终端挂接数，决定注入端口密度与局部竞争程度。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>c</code> 为每个路由器挂接的终端数量。</p>"
+                        "<h4>调参建议</h4>"
+                        "<ul>"
+                        "<li><code>c</code> 增大可提升注入能力上限。</li>"
+                        "<li>同时会抬高局部仲裁竞争，需结合 <code>num_vcs</code> "
+                        "和缓冲参数评估。</li>"
+                        "</ul>"),
+         QStringLiteral("核心参数 c concentration terminal 终端挂接 注入密度")},
+        {QStringLiteral("traffic"),
+         QStringLiteral("流量模式决定源宿分布，是压测结论可比性的关键条件。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>traffic</code> 指定业务模式，如 <code>uniform</code>、"
+                        "<code>transpose</code> 等。</p>"
+                        "<h4>调参建议</h4>"
+                        "<p>不同模式热点性质差异明显，跨实验比较时应保持 "
+                        "<code>traffic</code> 一致。</p>"),
+         QStringLiteral("核心参数 traffic uniform transpose 流量模式 热点 源宿分布")},
+        {QStringLiteral("injection_rate"),
+         QStringLiteral("最关键自变量，用于构建延迟-负载/吞吐-负载曲线。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>injection_rate</code> 为归一化注入率，通常作为横轴扫描。</p>"
+                        "<h4>扫描建议</h4>"
+                        "<ul>"
+                        "<li>低负载区可用较大步长（如 0.01）。</li>"
+                        "<li>接近拐点时缩小步长（如 0.002~0.005）。</li>"
+                        "<li>建议记录饱和前后关键点，便于跨拓扑对比。</li>"
+                        "</ul>"),
+         QStringLiteral("核心参数 injection_rate 注入率 offered load 负载扫描 拐点 饱和")},
+        {QStringLiteral("num_vcs"),
+         QStringLiteral("每端口 VC 数，主要影响 HOL 缓解能力与资源开销。"),
+         QStringLiteral(
+             "<h4>参数定义</h4>"
+             "<p><code>num_vcs</code> 表示每端口虚通道数量。</p>"
+             "<h4>调参建议</h4>"
+             "<p>提高 <code>num_vcs</code> 往往可缓解 HOL 队首阻塞，但会增加仲裁和状态成本。"
+             "建议与 <code>vc_buf_size</code> 联动评估。</p>"),
+         QStringLiteral("核心参数 num_vcs vc virtual channel hol blocking 队首阻塞")},
+        {QStringLiteral("vc_buf_size"),
+         QStringLiteral("每 VC 缓冲深度，影响反压出现时机与突发吸收能力。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>vc_buf_size</code> 表示每个 VC 的缓冲深度。</p>"
+                        "<h4>调参建议</h4>"
+                        "<ul>"
+                        "<li>过小会导致反压提前传播，吞吐受限。</li>"
+                        "<li>过大虽可提升容忍度，但资源成本显著增加。</li>"
+                        "<li>建议与 <code>num_vcs</code> 一起做二维扫描。</li>"
+                        "</ul>"),
+         QStringLiteral("核心参数 vc_buf_size 缓冲深度 backpressure 反压 buffer")},
+        {QStringLiteral("warmup_periods"),
+         QStringLiteral("预热阶段长度，用于消除初始瞬态统计偏差。"),
+         QStringLiteral(
+             "<h4>参数定义</h4>"
+             "<p><code>warmup_periods</code> 指预热样本长度，通常不计入最终统计。</p>"
+             "<h4>调参建议</h4>"
+             "<p>当低负载波动大或系统初始状态敏感时，适当增加预热长度可提高稳定性。</p>"),
+         QStringLiteral("核心参数 warmup_periods 预热 瞬态 统计稳定性")},
+        {QStringLiteral("sample_period / max_samples"),
+         QStringLiteral("控制采样窗口与样本总量，决定结果方差与置信度。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>sample_period</code> 控制单次采样窗口，"
+                        "<code>max_samples</code> 控制累计样本数量。</p>"
+                        "<h4>调参建议</h4>"
+                        "<p>采样不足会让结论不稳定。若延迟曲线抖动明显，优先增加采样长度。</p>"),
+         QStringLiteral("核心参数 sample_period max_samples 采样窗口 方差 置信区间")},
+        {QStringLiteral("sim_type"),
+         QStringLiteral("仿真模式开关，决定统计口径与输出解释上下文。"),
+         QStringLiteral("<h4>参数定义</h4>"
+                        "<p><code>sim_type</code> 用于指定仿真模式（如延迟导向等）。</p>"
+                        "<h4>调参建议</h4>"
+                        "<p>做参数对比时保持 <code>sim_type</code> 一致，"
+                        "避免统计口径差异影响结论。</p>"),
+         QStringLiteral("核心参数 sim_type 仿真模式 latency 吞吐 统计口径")}};
 }
 
 void enableAutoHeight(QTextBrowser* browser, int minHeight = 0) {
