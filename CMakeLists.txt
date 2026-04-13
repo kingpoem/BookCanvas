@@ -53,7 +53,7 @@ if(APPLE)
 endif()
 
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Concurrent Svg)
 
 # 须匹配 src 下任意深度的源码（如 src/utils、src/view/component）
 file(GLOB_RECURSE PROJECT_SOURCES CONFIGURE_DEPENDS
@@ -123,6 +123,7 @@ target_link_libraries(BookCanvas PRIVATE
     Qt6::Multimedia
     Qt6::MultimediaWidgets
     Qt6::Concurrent
+    Qt6::Svg
     ElaWidgetTools
     version::version
 )

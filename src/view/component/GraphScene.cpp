@@ -2124,14 +2124,7 @@ int GraphScene::extractNumberId(const QString& id) {
     return 0;
 }
 
-// 导出图信息
-void GraphScene::exportGraph(const QString& filePath) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-        return;
-
-    QTextStream out(&file);
-
+void GraphScene::writeTopologyToStream(QTextStream& out) const {
     // 存储每个路由器的连接信息
     QMap<int, QList<QPair<QString, double>>> routerConnections; // 路由器ID -> 连接列表(类型+ID, 权重)
 
@@ -2184,8 +2177,23 @@ void GraphScene::exportGraph(const QString& filePath) {
         }
         out << "\n";
     }
+}
 
-    file.close();
+// 导出图信息
+void GraphScene::exportGraph(const QString& filePath) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return;
+    }
+    QTextStream out(&file);
+    writeTopologyToStream(out);
+}
+
+QString GraphScene::exportTopologyFileText() const {
+    QString s;
+    QTextStream out(&s);
+    writeTopologyToStream(out);
+    return s;
 }
 
 bool GraphScene::importGraph(const QString& filePath, QString* errorMessage) {
@@ -2453,14 +2461,8 @@ QMap<QString, QString> GraphScene::mergedGlobalConfigForExport(
     return globalConfigToExport;
 }
 
-// 导出JSON配置
-void GraphScene::exportJSONConfig(const QString& filePath, const QString& networkFileOverride) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-        return;
-
-    QTextStream out(&file);
-
+void GraphScene::writeJSONConfigToStream(QTextStream& out,
+                                         const QString& networkFileOverride) const {
     out << "{\n";
 
     QMap<QString, QString> globalConfigToExport = mergedGlobalConfigForExport(networkFileOverride);
@@ -2502,8 +2504,9 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
         out << ",\n\n  \"routers\": {\n";
         bool firstRouter = true;
         for (auto it = routerIds.begin(); it != routerIds.end(); ++it) {
-            if (!firstRouter)
+            if (!firstRouter) {
                 out << ",\n";
+            }
             firstRouter = false;
 
             // 获取路由器配置（如果有），否则使用默认配置
@@ -2516,8 +2519,9 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
 
             bool firstParam = true;
             for (auto paramIt = routerConfig.begin(); paramIt != routerConfig.end(); ++paramIt) {
-                if (!firstParam)
+                if (!firstParam) {
                     out << ",\n";
+                }
                 firstParam = false;
 
                 const QString& value = paramIt.value();
@@ -2573,5 +2577,21 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
     }
 
     out << "}\n";
-    file.close();
+}
+
+// 导出JSON配置
+void GraphScene::exportJSONConfig(const QString& filePath, const QString& networkFileOverride) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return;
+    }
+    QTextStream out(&file);
+    writeJSONConfigToStream(out, networkFileOverride);
+}
+
+QString GraphScene::exportJSONConfigText(const QString& networkFileOverride) const {
+    QString s;
+    QTextStream out(&s);
+    writeJSONConfigToStream(out, networkFileOverride);
+    return s;
 }

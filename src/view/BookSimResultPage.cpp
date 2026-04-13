@@ -1,12 +1,9 @@
 #include "BookSimResultPage.h"
 #include "utils/BookSimMetricLabels.h"
+#include "view/BookSimResultUi.h"
 #include <ElaDef.h>
-#include <ElaPushButton.h>
-#include <ElaScrollPageArea.h>
 #include <ElaText.h>
 #include <ElaTheme.h>
-#include <QApplication>
-#include <QClipboard>
 #include <QFont>
 #include <QFrame>
 #include <QGridLayout>
@@ -25,139 +22,7 @@
 #include <QWidget>
 #include <algorithm>
 #include <cmath>
-
-namespace BookSimResultUi {
-
-/// 全页字号底线：避免 10px/11px 等难以阅读的辅助文案
-namespace TypePx {
-constexpr int kBody = 13;      // 最小正文（注释、表格说明、KPI 脚注等）
-constexpr int kLead = 14;      // 副标题、状态行、数值行
-constexpr int kSection = 16;   // 分区标题（如流量类别）
-constexpr int kCardTitle = 18; // 卡片标题
-constexpr int kCardTitleEmph = 20;
-constexpr int kStatus = 14;
-constexpr int kMetricValue = 15;
-} // namespace TypePx
-
-/// 线性混合：返回 a·t + b·(1−t)。要做「在 b 上混入少许 a」时，应把「混入的浅色」放在 a、底色素放在 b，t 取小比例。
-[[nodiscard]] QColor mix(const QColor& a, const QColor& b, qreal t) {
-    const qreal u = 1.0 - t;
-    return QColor(qBound(0, qRound(a.red() * t + b.red() * u), 255),
-                  qBound(0, qRound(a.green() * t + b.green() * u), 255),
-                  qBound(0, qRound(a.blue() * t + b.blue() * u), 255),
-                  qBound(0, qRound(a.alpha() * t + b.alpha() * u), 255));
-}
-
-[[nodiscard]] QString rgba(const QColor& c) {
-    return QStringLiteral("rgba(%1,%2,%3,%4)")
-        .arg(c.red())
-        .arg(c.green())
-        .arg(c.blue())
-        .arg(c.alphaF(), 0, 'f', 3);
-}
-
-struct Theme {
-    QColor pageBg;
-    QColor cardBg;
-    QColor cardBgPrimary;
-    QColor border;
-    QColor tileBg;
-    QColor heroG0;
-    QColor heroG1;
-    QColor heroBorder;
-    QColor chartPacket;
-    QColor chartNetwork;
-    QColor chartFlit;
-    QColor thrInjPkt;
-    QColor thrAccPkt;
-    QColor thrInjFlit;
-    QColor thrAccFlit;
-    QColor kpiPacket;
-    QColor kpiNetwork;
-    QColor kpiHops;
-    QColor accentShape;
-    QColor accentHops;
-    QColor statusBalanced;
-    QColor statusWarn;
-    QColor statusBad;
-    QColor textMuted;
-    QColor textHint;
-    /// 主正文色：浅色主题为黑色，暗色为亮色
-    QColor fgMain;
-    /// 次文案：暗色略弱；浅色与 fgMain 同为黑
-    QColor fgDim;
-};
-
-[[nodiscard]] Theme themeFrom(ElaThemeType::ThemeMode mode) {
-    Theme th;
-    const QColor border = ElaThemeColor(mode, BasicBorder);
-    th.border = border;
-
-    if (mode == ElaThemeType::Light) {
-        const QColor paper(0xFA, 0xFB, 0xFC);
-        const QColor ink(0x1A, 0x1B, 0x1E);
-        th.pageBg = paper;
-        th.cardBg = QColor(0xFF, 0xFF, 0xFF);
-        th.cardBgPrimary = QColor(0xFF, 0xFF, 0xFF);
-        th.tileBg = QColor(0xF7, 0xF8, 0xFA);
-        th.heroG0 = QColor(0xF7, 0xF9, 0xFC);
-        th.heroG1 = QColor(0xFB, 0xFC, 0xFE);
-        th.heroBorder = border;
-        th.fgMain = ink;
-        th.fgDim = QColor(0x4A, 0x4F, 0x57);
-        th.textMuted = QColor(0x5B, 0x61, 0x6B);
-        th.textHint = QColor(0x6A, 0x72, 0x7D);
-        th.chartPacket = QColor(0x78, 0x99, 0xD6);
-        th.chartNetwork = QColor(0x93, 0x9B, 0xD8);
-        th.chartFlit = QColor(0x7F, 0xB2, 0xCF);
-        th.thrInjPkt = QColor(0x99, 0xA6, 0xE0);
-        th.thrAccPkt = QColor(0x86, 0xBC, 0xA4);
-        th.thrInjFlit = QColor(0xB0, 0xA1, 0xD8);
-        th.thrAccFlit = QColor(0x81, 0xC1, 0xC7);
-        th.kpiPacket = th.chartPacket;
-        th.kpiNetwork = th.chartNetwork;
-        th.kpiHops = QColor(0x9A, 0x95, 0x8D);
-        th.accentShape = QColor(0x9A, 0x95, 0x8D);
-        th.accentHops = QColor(0xCA, 0xA6, 0x6A);
-        th.statusBalanced = QColor(0x78, 0xB1, 0x92);
-        th.statusWarn = QColor(0xCB, 0xAD, 0x78);
-        th.statusBad = QColor(0xCC, 0x85, 0x85);
-    } else {
-        const QColor canvas(0x18, 0x1B, 0x20);
-        const QColor surface(0x22, 0x26, 0x2D);
-        th.pageBg = canvas;
-        th.cardBg = QColor(0x1E, 0x22, 0x29);
-        th.cardBgPrimary = QColor(0x21, 0x26, 0x2E);
-        // KPI 小卡：略浅于底色的墨灰面（勿反向 mix，否则会变成大比例纯白）
-        th.tileBg = mix(surface, canvas, 0.60);
-        th.heroG0 = QColor(0x22, 0x27, 0x30);
-        th.heroG1 = QColor(0x1C, 0x21, 0x29);
-        th.heroBorder = border;
-        th.fgMain = QColor(0xEB, 0xEE, 0xF3);
-        const QColor lightGray(0xD9, 0xDE, 0xE6);
-        th.textMuted = mix(ElaThemeColor(mode, BasicDetailsText), lightGray, 0.30);
-        th.textHint = mix(ElaThemeColor(mode, BasicTextNoFocus), lightGray, 0.25);
-        th.fgDim = th.textMuted;
-        th.chartPacket = QColor(0x8E, 0xB1, 0xE8);
-        th.chartNetwork = QColor(0xAA, 0xAF, 0xE4);
-        th.chartFlit = QColor(0x92, 0xC6, 0xD8);
-        th.thrInjPkt = QColor(0xB2, 0xBD, 0xE8);
-        th.thrAccPkt = QColor(0x92, 0xC7, 0xAF);
-        th.thrInjFlit = QColor(0xC1, 0xB6, 0xDE);
-        th.thrAccFlit = QColor(0x96, 0xCD, 0xCF);
-        th.kpiPacket = th.chartPacket;
-        th.kpiNetwork = th.chartNetwork;
-        th.kpiHops = QColor(0xB6, 0xB1, 0xAB);
-        th.accentShape = QColor(0xB6, 0xB1, 0xAB);
-        th.accentHops = QColor(0xD7, 0xB4, 0x82);
-        th.statusBalanced = QColor(0x89, 0xC8, 0xA9);
-        th.statusWarn = QColor(0xD7, 0xBC, 0x8B);
-        th.statusBad = QColor(0xD8, 0x9B, 0x9B);
-    }
-    return th;
-}
-
-} // namespace BookSimResultUi
+#include <utility>
 
 namespace {
 
@@ -194,333 +59,6 @@ void applySelectableLabel(ElaText* text) {
     return row;
 }
 
-struct RecordMetricPoint {
-    QString label;
-    QString fullName;
-    double metricA = 0.0;
-    double metricB = 0.0;
-};
-
-[[nodiscard]] bool tryParseDoubleLoose(const QString& text, double* outValue) {
-    bool ok = false;
-    const double value = text.trimmed().toDouble(&ok);
-    if (!ok) {
-        return false;
-    }
-    if (outValue) {
-        *outValue = value;
-    }
-    return true;
-}
-
-[[nodiscard]] bool extractRecordMetricValue(const SimulationRecordSnapshot& record,
-                                            const QString& metricKey,
-                                            double* outValue) {
-    if (metricKey == QStringLiteral("packetLatencyAvg")) {
-        if (record.packetLatencyAvg < 0.0) {
-            return false;
-        }
-        *outValue = record.packetLatencyAvg;
-        return true;
-    }
-    if (metricKey == QStringLiteral("networkLatencyAvg")) {
-        if (record.networkLatencyAvg < 0.0) {
-            return false;
-        }
-        *outValue = record.networkLatencyAvg;
-        return true;
-    }
-    if (metricKey == QStringLiteral("flitLatencyAvg")) {
-        if (record.flitLatencyAvg < 0.0) {
-            return false;
-        }
-        *outValue = record.flitLatencyAvg;
-        return true;
-    }
-    if (metricKey == QStringLiteral("throughputMatchPercent")) {
-        if (record.throughputMatchPercent < 0.0) {
-            return false;
-        }
-        *outValue = record.throughputMatchPercent;
-        return true;
-    }
-    if (metricKey == QStringLiteral("totalRunTimeSec")) {
-        if (record.totalRunTimeSec < 0.0) {
-            return false;
-        }
-        *outValue = record.totalRunTimeSec;
-        return true;
-    }
-    if (metricKey == QStringLiteral("trafficClassCount")) {
-        *outValue = static_cast<double>(record.trafficClassCount);
-        return true;
-    }
-    if (metricKey.startsWith(QStringLiteral("config:"))) {
-        const QString configKey = metricKey.mid(QStringLiteral("config:").size());
-        double value = 0.0;
-        if (!tryParseDoubleLoose(record.config.value(configKey), &value)) {
-            return false;
-        }
-        *outValue = value;
-        return true;
-    }
-    return false;
-}
-
-[[nodiscard]] QVector<RecordMetricPoint> buildRecordMetricPoints(
-    const QList<SimulationRecordSnapshot>& records,
-    const QString& metricAKey,
-    const QString& metricBKey) {
-    QVector<RecordMetricPoint> points;
-    points.reserve(records.size());
-    int ordinal = 1;
-    for (const auto& record : records) {
-        double a = 0.0;
-        double b = 0.0;
-        if (!extractRecordMetricValue(record, metricAKey, &a)
-            || !extractRecordMetricValue(record, metricBKey, &b)) {
-            continue;
-        }
-        RecordMetricPoint point;
-        point.fullName = record.name;
-        point.label = QStringLiteral("#%1").arg(ordinal);
-        point.metricA = a;
-        point.metricB = b;
-        points.push_back(point);
-        ++ordinal;
-    }
-    std::sort(points.begin(),
-              points.end(),
-              [](const RecordMetricPoint& lhs, const RecordMetricPoint& rhs) {
-                  return lhs.metricA < rhs.metricA;
-              });
-    return points;
-}
-
-[[nodiscard]] QString buildRecordChartPlainDump(const QVector<RecordMetricPoint>& points,
-                                                const QString& metricALabel,
-                                                const QString& metricBLabel) {
-    if (points.size() < 2) {
-        return {};
-    }
-    double minA = points.front().metricA;
-    double maxA = points.front().metricA;
-    double minB = points.front().metricB;
-    double maxB = points.front().metricB;
-    for (const auto& p : points) {
-        minA = std::min(minA, p.metricA);
-        maxA = std::max(maxA, p.metricA);
-        minB = std::min(minB, p.metricB);
-        maxB = std::max(maxB, p.metricB);
-    }
-    if (std::abs(maxA - minA) < 1e-12) {
-        maxA += 1.0;
-        minA -= 1.0;
-    }
-    if (std::abs(maxB - minB) < 1e-12) {
-        maxB += 1.0;
-        minB -= 1.0;
-    }
-    QString s;
-    s += QStringLiteral("X轴：%1  [%2, %3]\n")
-             .arg(metricALabel, QString::number(minA, 'f', 3), QString::number(maxA, 'f', 3));
-    s += QStringLiteral("Y轴：%1  [%2, %3]\n")
-             .arg(metricBLabel, QString::number(minB, 'f', 3), QString::number(maxB, 'f', 3));
-    s += QStringLiteral("X轴刻度（底边，与图一致）：");
-    for (int i = 0; i <= 6; ++i) {
-        const double t = static_cast<double>(i) / 6.0;
-        const double xTick = minA + t * (maxA - minA);
-        if (i > 0) {
-            s += QLatin1Char('\t');
-        }
-        s += QString::number(xTick, 'f', 2);
-    }
-    s += QStringLiteral(
-        "\n纵轴网格：左侧刻度对应 X 指标量纲、右侧对应 Y 指标量纲（与图左右刻度一致）。\n");
-    for (int i = 0; i <= 5; ++i) {
-        const double t = static_cast<double>(i) / 5.0;
-        const double valueA = minA + t * (maxA - minA);
-        const double valueB = minB + t * (maxB - minB);
-        s += QStringLiteral("左 %1\t右 %2\n")
-                 .arg(QString::number(valueA, 'f', 2), QString::number(valueB, 'f', 2));
-    }
-    s += QStringLiteral("\n数据（制表符分隔，可复制到表格软件）：\n");
-    s += QStringLiteral("记录\t%1\t%2\n").arg(metricALabel, metricBLabel);
-    for (const auto& p : points) {
-        s += QStringLiteral("%1 %2\t%3\t%4\n")
-                 .arg(p.label,
-                      p.fullName,
-                      QString::number(p.metricA, 'f', 6),
-                      QString::number(p.metricB, 'f', 6));
-    }
-    return s;
-}
-
-class DualMetricLineChartWidget : public QWidget {
-public:
-    DualMetricLineChartWidget(const QVector<RecordMetricPoint>& points,
-                              const QString& metricALabel,
-                              const QString& metricBLabel,
-                              const BookSimResultUi::Theme& theme,
-                              QWidget* parent = nullptr)
-        : QWidget(parent)
-        , m_points(points)
-        , m_metricALabel(metricALabel)
-        , m_metricBLabel(metricBLabel)
-        , m_theme(theme) {
-        setMinimumHeight(360);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    }
-
-protected:
-    void paintEvent(QPaintEvent* event) override {
-        QWidget::paintEvent(event);
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setRenderHint(QPainter::TextAntialiasing, true);
-
-        const QRectF panelRect = rect().adjusted(4, 4, -4, -4);
-        painter.setPen(QPen(m_theme.border, 1));
-        painter.setBrush(BookSimResultUi::mix(m_theme.cardBg, m_theme.pageBg, 0.72));
-        painter.drawRoundedRect(panelRect, 12, 12);
-
-        const QRectF chartRect = rect().adjusted(76, 46, -76, -72);
-        if (chartRect.width() <= 40 || chartRect.height() <= 40 || m_points.size() < 2) {
-            return;
-        }
-
-        double minA = m_points.front().metricA;
-        double maxA = m_points.front().metricA;
-        double minB = m_points.front().metricB;
-        double maxB = m_points.front().metricB;
-        for (const auto& p : m_points) {
-            minA = std::min(minA, p.metricA);
-            maxA = std::max(maxA, p.metricA);
-            minB = std::min(minB, p.metricB);
-            maxB = std::max(maxB, p.metricB);
-        }
-        if (std::abs(maxA - minA) < 1e-12) {
-            maxA += 1.0;
-            minA -= 1.0;
-        }
-        if (std::abs(maxB - minB) < 1e-12) {
-            maxB += 1.0;
-            minB -= 1.0;
-        }
-
-        auto xFromA = [&](double value) {
-            const double ratio = (value - minA) / (maxA - minA);
-            return chartRect.left() + ratio * chartRect.width();
-        };
-        auto yFromB = [&](double value) {
-            const double ratio = (value - minB) / (maxB - minB);
-            return chartRect.bottom() - ratio * chartRect.height();
-        };
-
-        QColor gridColor = m_theme.border;
-        gridColor.setAlpha(100);
-        QPen gridPen(gridColor, 1, Qt::DashLine);
-        painter.setPen(gridPen);
-        for (int i = 0; i <= 5; ++i) {
-            const double y = chartRect.top() + chartRect.height() * (static_cast<double>(i) / 5.0);
-            painter.drawLine(QPointF(chartRect.left(), y), QPointF(chartRect.right(), y));
-        }
-        const int pointCount = static_cast<int>(m_points.size());
-        for (int i = 0; i <= 6; ++i) {
-            const double x = chartRect.left() + chartRect.width() * (static_cast<double>(i) / 6.0);
-            painter.drawLine(QPointF(x, chartRect.top()), QPointF(x, chartRect.bottom()));
-        }
-
-        QColor axisColor = m_theme.fgMain;
-        axisColor.setAlpha(180);
-        painter.setPen(QPen(axisColor, 1.4));
-        painter.drawLine(chartRect.bottomLeft(), chartRect.topLeft());
-        painter.drawLine(chartRect.bottomRight(), chartRect.topRight());
-        painter.drawLine(chartRect.bottomLeft(), chartRect.bottomRight());
-
-        QPolygonF lineA;
-        for (int i = 0; i < pointCount; ++i) {
-            lineA << QPointF(xFromA(m_points[i].metricA), yFromB(m_points[i].metricB));
-        }
-
-        QPolygonF areaA = lineA;
-        areaA << QPointF(lineA.back().x(), chartRect.bottom())
-              << QPointF(lineA.front().x(), chartRect.bottom());
-        QColor areaAColor = m_theme.chartPacket;
-        areaAColor.setAlpha(56);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(areaAColor);
-        painter.drawPolygon(areaA);
-
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(m_theme.chartPacket, 2.6));
-        painter.drawPolyline(lineA);
-
-        painter.setPen(QPen(m_theme.pageBg, 1.2));
-        painter.setBrush(m_theme.chartPacket);
-        for (const auto& p : lineA) {
-            painter.drawEllipse(p, 4.0, 4.0);
-        }
-
-        painter.setPen(QPen(axisColor, 1));
-        const QFontMetrics fm(painter.font());
-        for (int i = 0; i <= 6; ++i) {
-            const double t = static_cast<double>(i) / 6.0;
-            const double x = chartRect.left() + t * chartRect.width();
-            const double valueA = minA + t * (maxA - minA);
-            painter.drawLine(QPointF(x, chartRect.bottom()), QPointF(x, chartRect.bottom() + 4));
-            const QString text = QString::number(valueA, 'f', 2);
-            painter.drawText(QPointF(x - fm.horizontalAdvance(text) / 2.0, chartRect.bottom() + 20),
-                             text);
-        }
-
-        painter.setPen(QPen(m_theme.chartPacket, 1.2));
-        painter.drawText(QRectF(chartRect.left(), chartRect.top() - 28, chartRect.width(), 20),
-                         Qt::AlignLeft | Qt::AlignVCenter,
-                         QStringLiteral("X轴：%1  [%2, %3]")
-                             .arg(m_metricALabel,
-                                  QString::number(minA, 'f', 3),
-                                  QString::number(maxA, 'f', 3)));
-        painter.setPen(QPen(m_theme.chartNetwork, 1.2));
-        painter.drawText(QRectF(chartRect.left(), chartRect.top() - 28, chartRect.width(), 20),
-                         Qt::AlignRight | Qt::AlignVCenter,
-                         QStringLiteral("Y轴：%1  [%2, %3]")
-                             .arg(m_metricBLabel,
-                                  QString::number(minB, 'f', 3),
-                                  QString::number(maxB, 'f', 3)));
-
-        painter.setPen(QPen(m_theme.fgDim, 1));
-        for (int i = 0; i <= 5; ++i) {
-            const double t = static_cast<double>(i) / 5.0;
-            const double y = chartRect.bottom() - t * chartRect.height();
-            const double valueA = minA + t * (maxA - minA);
-            const double valueB = minB + t * (maxB - minB);
-            const QString left = QString::number(valueA, 'f', 2);
-            const QString right = QString::number(valueB, 'f', 2);
-            painter.drawText(QRectF(chartRect.left() - 68, y - 9, 62, 18),
-                             Qt::AlignRight | Qt::AlignVCenter,
-                             left);
-            painter.drawText(QRectF(chartRect.right() + 6, y - 9, 62, 18),
-                             Qt::AlignLeft | Qt::AlignVCenter,
-                             right);
-        }
-
-        painter.setPen(QPen(m_theme.fgMain, 1));
-        const QPointF lastPoint = lineA.back();
-        painter.drawText(QRectF(lastPoint.x() + 8, lastPoint.y() - 14, 170, 16),
-                         Qt::AlignLeft | Qt::AlignVCenter,
-                         QStringLiteral("(%1, %2)")
-                             .arg(QString::number(m_points.back().metricA, 'f', 3),
-                                  QString::number(m_points.back().metricB, 'f', 3)));
-    }
-
-private:
-    QVector<RecordMetricPoint> m_points;
-    QString m_metricALabel;
-    QString m_metricBLabel;
-    BookSimResultUi::Theme m_theme;
-};
-
 } // namespace
 
 BookSimResultPage::BookSimResultPage(QWidget* parent)
@@ -533,15 +71,7 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
     central->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto* mainLay = new QVBoxLayout(central);
     mainLay->setContentsMargins(8, 0, 8, 0);
-    mainLay->setSpacing(16);
-
-    auto* toolbarArea = new ElaScrollPageArea(this);
-    auto* toolbarLay = new QHBoxLayout(toolbarArea);
-    toolbarLay->setContentsMargins(0, 0, 0, 0);
-
-    m_pasteButton = new ElaPushButton(tr("从剪贴板解析"), this);
-    toolbarLay->addWidget(m_pasteButton);
-    toolbarLay->addStretch();
+    mainLay->setSpacing(10);
 
     m_statusText = new ElaText(tr("等待仿真结果"), this);
     m_statusText->setTextPixelSize(BookSimResultUi::TypePx::kStatus);
@@ -562,11 +92,8 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
     m_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_scroll->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    mainLay->addWidget(toolbarArea);
     mainLay->addWidget(m_statusText);
     mainLay->addWidget(m_scroll, 1);
-
-    connect(m_pasteButton, &ElaPushButton::clicked, this, &BookSimResultPage::loadFromClipboard);
 
     setStatus(tr("等待仿真结果"), false);
 
@@ -574,10 +101,6 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
         // 主题切换时先刷新状态文案颜色，避免保留上一个主题的黑/白字。
         setStatus(m_statusText->text(), m_statusIsError);
         applyResultPageChrome();
-        if (m_showingRecordLineChart) {
-            rebuildRecordLineChart();
-            return;
-        }
         if (m_lastSimulationLog.isEmpty()) {
             return;
         }
@@ -589,32 +112,8 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
 }
 
 void BookSimResultPage::ingestSimulationLog(const QString& text) {
-    m_showingRecordLineChart = false;
     m_lastSimulationLog = text;
     rebuildContent(BookSimStatsParser::parseOverallFromLog(text));
-}
-
-void BookSimResultPage::ingestRecordLineChart(const QList<SimulationRecordSnapshot>& records,
-                                              const QString& metricAKey,
-                                              const QString& metricALabel,
-                                              const QString& metricBKey,
-                                              const QString& metricBLabel) {
-    m_showingRecordLineChart = true;
-    m_chartRecords = records;
-    m_chartMetricAKey = metricAKey;
-    m_chartMetricALabel = metricALabel;
-    m_chartMetricBKey = metricBKey;
-    m_chartMetricBLabel = metricBLabel;
-    rebuildRecordLineChart();
-}
-
-void BookSimResultPage::loadFromClipboard() {
-    const QClipboard* clip = QApplication::clipboard();
-    if (!clip) {
-        setStatus(tr("无法访问剪贴板。"), true);
-        return;
-    }
-    ingestSimulationLog(clip->text());
 }
 
 void BookSimResultPage::setStatus(const QString& message, bool isError) {
@@ -678,7 +177,6 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
                                .arg(th.fgMain.name(QColor::HexRgb)));
         applySelectableLabel(err);
         m_bodyLayout->addWidget(err);
-        m_bodyLayout->addStretch();
         return;
     }
 
@@ -716,7 +214,7 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
     } else {
         auto* tabs = new QTabWidget(m_scrollInner);
         tabs->setDocumentMode(true);
-        tabs->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        tabs->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
         tabs->setStyleSheet(
             QStringLiteral("QTabWidget::pane { border: none; background: transparent; } "
                            "QTabBar::tab { color: %1; padding: 8px 16px; } "
@@ -727,151 +225,10 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
             auto* v = new QVBoxLayout(page);
             v->setContentsMargins(4, 10, 4, 10);
             v->addWidget(buildClassPanel(page, c));
-            v->addStretch();
             tabs->addTab(page, tr("Class %1").arg(c.classId));
         }
         m_bodyLayout->addWidget(tabs);
     }
-
-    m_bodyLayout->addStretch();
-}
-
-void BookSimResultPage::rebuildRecordLineChart() {
-    while (QLayoutItem* item = m_bodyLayout->takeAt(0)) {
-        delete item->widget();
-        delete item;
-    }
-
-    const BookSimResultUi::Theme th = BookSimResultUi::themeFrom(eTheme->getThemeMode());
-    const QVector<RecordMetricPoint> points = buildRecordMetricPoints(m_chartRecords,
-                                                                      m_chartMetricAKey,
-                                                                      m_chartMetricBKey);
-    if (points.size() < 2) {
-        setStatus(tr("折线图创建失败：有效点不足 2 个"), true);
-        auto* err = new QLabel(tr("请检查记录和指标是否为数值。"), m_scrollInner);
-        err->setWordWrap(true);
-        err->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                               .arg(BookSimResultUi::TypePx::kLead)
-                               .arg(th.fgMain.name(QColor::HexRgb)));
-        applySelectableLabel(err);
-        m_bodyLayout->addWidget(err);
-        m_bodyLayout->addStretch();
-        return;
-    }
-
-    setStatus(tr("折线图：%1 条记录，X[%2]，Y[%3]")
-                  .arg(points.size())
-                  .arg(m_chartMetricALabel, m_chartMetricBLabel),
-              false);
-
-    auto* summary = new QFrame(m_scrollInner);
-    summary->setStyleSheet(
-        QStringLiteral(
-            "QFrame { background-color: %1; border-radius: 12px; border: 1px solid %2; }")
-            .arg(BookSimResultUi::rgba(BookSimResultUi::mix(th.cardBg, th.border, 0.75)),
-                 BookSimResultUi::rgba(th.border)));
-    auto* summaryLayout = new QVBoxLayout(summary);
-    summaryLayout->setContentsMargins(16, 12, 16, 12);
-    summaryLayout->setSpacing(6);
-
-    auto* title = new QLabel(tr("仿真记录对比折线图"), summary);
-    title->setStyleSheet(QStringLiteral("font-size: %1px; font-weight: 600; color: %2;")
-                             .arg(BookSimResultUi::TypePx::kSection)
-                             .arg(th.fgMain.name(QColor::HexRgb)));
-    applySelectableLabel(title);
-    auto* subtitle = new QLabel(tr("按 X 指标升序连线"), summary);
-    subtitle->setWordWrap(true);
-    subtitle->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                                .arg(BookSimResultUi::TypePx::kBody)
-                                .arg(BookSimResultUi::rgba(th.fgMain)));
-    applySelectableLabel(subtitle);
-    summaryLayout->addWidget(title);
-    summaryLayout->addWidget(subtitle);
-    m_bodyLayout->addWidget(summary);
-
-    auto* chartCard = new QFrame(m_scrollInner);
-    chartCard->setStyleSheet(
-        QStringLiteral(
-            "QFrame { background-color: %1; border-radius: 16px; border: 1px solid %2; }")
-            .arg(BookSimResultUi::rgba(BookSimResultUi::mix(th.cardBg, th.pageBg, 0.86)),
-                 BookSimResultUi::rgba(th.border)));
-    auto* chartCardLayout = new QVBoxLayout(chartCard);
-    chartCardLayout->setContentsMargins(14, 14, 14, 14);
-    chartCardLayout->setSpacing(10);
-
-    auto* legend = new QLabel(QStringLiteral(
-                                  "<span style=\"font-weight:600;color:%1;\">X: %2</span>"
-                                  "<span style=\"color:%3;\">  |  </span>"
-                                  "<span style=\"font-weight:600;color:%4;\">Y: %5</span>")
-                                  .arg(th.chartPacket.name(QColor::HexRgb),
-                                       m_chartMetricALabel,
-                                       th.fgDim.name(QColor::HexRgb),
-                                       th.chartNetwork.name(QColor::HexRgb),
-                                       m_chartMetricBLabel),
-                              chartCard);
-    legend->setTextFormat(Qt::RichText);
-    legend->setStyleSheet(QStringLiteral("font-size: %1px;").arg(BookSimResultUi::TypePx::kLead));
-    applySelectableLabel(legend);
-    chartCardLayout->addWidget(legend);
-    chartCardLayout->addWidget(new DualMetricLineChartWidget(points,
-                                                             m_chartMetricALabel,
-                                                             m_chartMetricBLabel,
-                                                             th,
-                                                             chartCard),
-                               1);
-    auto* chartCopy = new QPlainTextEdit(chartCard);
-    chartCopy->setReadOnly(true);
-    chartCopy->setPlainText(
-        buildRecordChartPlainDump(points, m_chartMetricALabel, m_chartMetricBLabel));
-    chartCopy->setMaximumBlockCount(0);
-    chartCopy->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    chartCopy->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    chartCopy->setMinimumHeight(140);
-    chartCopy->setMaximumHeight(260);
-    chartCopy->setStyleSheet(
-        QStringLiteral("QPlainTextEdit { font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; "
-                       "font-size: %1px; color: %2; background: %3; border: 1px solid %4; "
-                       "border-radius: 8px; padding: 8px; }")
-            .arg(BookSimResultUi::TypePx::kBody)
-            .arg(th.fgMain.name(QColor::HexRgb))
-            .arg(BookSimResultUi::rgba(BookSimResultUi::mix(th.cardBg, th.pageBg, 0.92)))
-            .arg(BookSimResultUi::rgba(th.border)));
-    chartCardLayout->addWidget(chartCopy);
-    m_bodyLayout->addWidget(chartCard);
-
-    auto* table = new QTableWidget(static_cast<int>(points.size()), 3, m_scrollInner);
-    table->setHorizontalHeaderLabels({tr("记录"), m_chartMetricALabel, m_chartMetricBLabel});
-    table->verticalHeader()->setVisible(false);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    table->setSelectionBehavior(QAbstractItemView::SelectItems);
-    table->setAlternatingRowColors(true);
-    table->setShowGrid(false);
-    table->setFocusPolicy(Qt::StrongFocus);
-    table->horizontalHeader()->setStretchLastSection(true);
-    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    for (int i = 0; i < points.size(); ++i) {
-        table->setItem(i,
-                       0,
-                       new QTableWidgetItem(
-                           QStringLiteral("%1  %2").arg(points[i].label, points[i].fullName)));
-        table->setItem(i, 1, new QTableWidgetItem(QString::number(points[i].metricA, 'f', 6)));
-        table->setItem(i, 2, new QTableWidgetItem(QString::number(points[i].metricB, 'f', 6)));
-    }
-    table->setStyleSheet(
-        QStringLiteral("QTableWidget { background: %1; border: 1px solid %2; border-radius: 10px; "
-                       "alternate-background-color: %3; color: %4; } "
-                       "QHeaderView::section { background: %5; color: %4; border: none; "
-                       "padding: 6px 8px; font-weight: 600; }")
-            .arg(BookSimResultUi::rgba(BookSimResultUi::mix(th.cardBg, th.pageBg, 0.9)),
-                 BookSimResultUi::rgba(th.border),
-                 BookSimResultUi::rgba(BookSimResultUi::mix(th.cardBg, th.pageBg, 0.78)),
-                 th.fgMain.name(QColor::HexRgb),
-                 BookSimResultUi::rgba(BookSimResultUi::mix(th.tileBg, th.pageBg, 0.72))));
-    m_bodyLayout->addWidget(table);
-    m_bodyLayout->addStretch();
 }
 
 QFrame* BookSimResultPage::createCategoryCard(QWidget* host,

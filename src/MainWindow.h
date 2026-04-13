@@ -4,6 +4,7 @@
 #include "view/BookSimResultPage.h"
 #include "view/CanvasPage.h"
 #include "view/GlobalConfigPage.h"
+#include "view/RecordVizPage.h"
 #include "view/SettingPage.h"
 #include "view/SimulationPage.h"
 #include "view/SimulationRecordPage.h"
@@ -34,6 +35,7 @@ private:
     SimulationPage* simulationPage{};
     SimulationRecordPage* simulationRecordPage{};
     BookSimResultPage* bookSimResultPage{};
+    RecordVizPage* recordVizPage{};
     UsageGuidePage* usageGuidePage{};
     SettingPage* settingPage{};
     AboutPage* aboutPage{};

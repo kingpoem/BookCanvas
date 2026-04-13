@@ -24,6 +24,13 @@ signals:
                                         const QString& metricALabel,
                                         const QString& metricBKey,
                                         const QString& metricBLabel);
+    void showScatter3DInResultRequested(const QList<SimulationRecordSnapshot>& records,
+                                        const QString& metricAKey,
+                                        const QString& metricALabel,
+                                        const QString& metricBKey,
+                                        const QString& metricBLabel,
+                                        const QString& metricCKey,
+                                        const QString& metricCLabel);
 
 public slots:
     void appendRecord(const QString& simulationLog, const QMap<QString, QString>& config);
@@ -49,6 +56,7 @@ private:
     [[nodiscard]] int findRecordIndexById(const QString& id) const;
     [[nodiscard]] QWidget* buildRecordCard(const SimulationRecordSnapshot& record);
     void openLineChartDialog();
+    void openScatter3DDialog();
     void persistRecords();
 
     QList<SimulationRecordSnapshot> m_records;

@@ -17,4 +17,7 @@ namespace BookCanvasUi {
 void alertInformation(QWidget* parent, const QString& title, const QString& text);
 void alertWarning(QWidget* parent, const QString& title, const QString& text);
 
+/// 只读多行预览（与 Ela主题一致），用于 JSON / 拓扑等文本查看
+void showReadOnlyTextPreview(QWidget* parent, const QString& windowTitle, const QString& bodyText);
+
 } // namespace BookCanvasUi

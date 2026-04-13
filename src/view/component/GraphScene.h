@@ -7,6 +7,7 @@
 #include <QMap>
 #include <QPointer>
 #include <QString>
+#include <QTextStream>
 #include <QUndoStack>
 
 class GraphTopologyBlock;
@@ -82,6 +83,8 @@ public:
 
     // 导出图信息
     void exportGraph(const QString& filePath);
+    /// 与 exportGraph 写入内容一致（任意网络文本格式）
+    [[nodiscard]] QString exportTopologyFileText() const;
     // 从 BookSim network 文件恢复图；失败时返回 false，并可写出错误信息
     [[nodiscard]] bool importGraph(const QString& filePath, QString* errorMessage = nullptr);
 
@@ -90,6 +93,8 @@ public:
         const QString& networkFileOverride = {}) const;
     // 导出JSON配置；networkFileOverride 非空时覆盖写入的 network_file，便于与拓扑导出路径一致
     void exportJSONConfig(const QString& filePath, const QString& networkFileOverride = {});
+    /// 与 exportJSONConfig 写入内容一致
+    [[nodiscard]] QString exportJSONConfigText(const QString& networkFileOverride = {}) const;
 
     // 获取和设置路由器独立配置
     [[nodiscard]] QMap<QString, QString> getRouterConfig(const QString& routerId) const;
@@ -131,6 +136,8 @@ private:
     friend class GraphChiplet;
 
     static int extractNumberId(const QString& id); // 辅助函数
+    void writeTopologyToStream(QTextStream& out) const;
+    void writeJSONConfigToStream(QTextStream& out, const QString& networkFileOverride) const;
     [[nodiscard]] QString allocateNextNodeId(GraphNode::NodeType type) const;
     /// 将用户输入规范为 Router_%d / Node_%d；无效则返回空字符串
     [[nodiscard]] static QString canonicalIdFromUserInput(GraphNode::NodeType type,

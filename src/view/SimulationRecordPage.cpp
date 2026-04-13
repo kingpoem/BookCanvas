@@ -1,15 +1,18 @@
 #include "SimulationRecordPage.h"
 #include "utils/SelectableLabel.h"
+#include <ElaCheckBox.h>
 #include <ElaComboBox.h>
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
 #include <ElaScrollPageArea.h>
 #include <ElaText.h>
 #include <ElaTheme.h>
+#include <QAbstractItemView>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -138,14 +141,14 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
                          static_cast<int>(RecordSortMode::LabelValueDesc));
     toolbarLay->addWidget(m_sortCombo);
 
-    auto* resetFilterBtn = new ElaPushButton(tr("重置筛选"), this);
-    toolbarLay->addWidget(resetFilterBtn);
-
     auto* clearAllBtn = new ElaPushButton(tr("清空记录"), this);
     toolbarLay->addWidget(clearAllBtn);
 
     auto* createLineChartBtn = new ElaPushButton(tr("创建折线图"), this);
     toolbarLay->addWidget(createLineChartBtn);
+
+    auto* createScatter3DBtn = new ElaPushButton(tr("创建三维图"), this);
+    toolbarLay->addWidget(createScatter3DBtn);
 
     m_statusText = new ElaText(tr("正在加载仿真记录..."), this);
     m_statusText->setWordWrap(true);
@@ -184,22 +187,6 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
             [this](int) { rebuildCards(); });
     connect(m_rangeMinEdit, &ElaLineEdit::textChanged, this, [this]() { rebuildCards(); });
     connect(m_rangeMaxEdit, &ElaLineEdit::textChanged, this, [this]() { rebuildCards(); });
-    connect(resetFilterBtn, &ElaPushButton::clicked, this, [this]() {
-        if (m_searchEdit) {
-            m_searchEdit->clear();
-        }
-        if (m_numericFilterMode) {
-            m_numericFilterMode->setCurrentIndex(0);
-        }
-        if (m_rangeMinEdit) {
-            m_rangeMinEdit->clear();
-        }
-        if (m_rangeMaxEdit) {
-            m_rangeMaxEdit->clear();
-        }
-        updateNumericFilterEditors();
-        rebuildCards();
-    });
     connect(clearAllBtn, &ElaPushButton::clicked, this, [this]() {
         if (m_records.isEmpty()) {
             return;
@@ -217,6 +204,7 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
         rebuildCards();
     });
     connect(createLineChartBtn, &ElaPushButton::clicked, this, [this]() { openLineChartDialog(); });
+    connect(createScatter3DBtn, &ElaPushButton::clicked, this, [this]() { openScatter3DDialog(); });
     connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
         applyTheme();
         rebuildCards();
@@ -322,9 +310,6 @@ bool SimulationRecordPage::matchesKeyword(const SimulationRecordSnapshot& record
         if (rtLabel.contains(k) || QString::number(record.totalRunTimeSec, 'f', 3).contains(kw)) {
             return true;
         }
-    }
-    if (tr("Traffic Class: %1").arg(record.trafficClassCount).toLower().contains(k)) {
-        return true;
     }
     return false;
 }
@@ -492,13 +477,12 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
            record.totalRunTimeSec >= 0.0
                ? tr("运行时长: %1s").arg(QString::number(record.totalRunTimeSec, 'f', 3))
                : tr("运行时长: --"));
-    addTag(resRow, tr("Traffic Class: %1").arg(record.trafficClassCount));
     resRow->addStretch();
     layout->addWidget(resRowWrap);
 
     connect(showBtn, &ElaPushButton::clicked, this, [this, record]() {
         emit showRecordInResultRequested(record.simulationLog);
-        m_statusText->setText(tr("已将记录载入结果可视化页，请切换到“BookSim 结果”查看。"));
+        m_statusText->setText(tr("已将记录载入「结果可视化」页，可在该页查看。"));
     });
     connect(deleteBtn, &ElaPushButton::clicked, this, [this, record]() {
         const int index = findRecordIndexById(record.id);
@@ -662,7 +646,7 @@ void SimulationRecordPage::openLineChartDialog() {
     layout->setContentsMargins(16, 16, 16, 16);
     layout->setSpacing(10);
 
-    auto* tip = new QLabel(tr("选择两个指标与若干记录后，将在“BookSim 结果”页面展示双折线图。"),
+    auto* tip = new QLabel(tr("选择两个指标与若干记录后，将在「结果可视化」页面展示双折线图。"),
                            &dialog);
     tip->setWordWrap(true);
     applySelectableLabelText(tip);
@@ -677,6 +661,9 @@ void SimulationRecordPage::openLineChartDialog() {
         metricACombo->addItem(metric.label, metric.key);
         metricBCombo->addItem(metric.label, metric.key);
     }
+    constexpr int kMetricComboMaxVisibleItems = 12;
+    metricACombo->setMaxVisibleItems(kMetricComboMaxVisibleItems);
+    metricBCombo->setMaxVisibleItems(kMetricComboMaxVisibleItems);
     metricBCombo->setCurrentIndex(std::min(1, metricBCombo->count() - 1));
     applySelectableLabelText(metricALabel);
     applySelectableLabelText(metricBLabel);
@@ -687,9 +674,15 @@ void SimulationRecordPage::openLineChartDialog() {
     metricRow->addWidget(metricBCombo, 1);
     layout->addLayout(metricRow);
 
+    auto* recordHeader = new QHBoxLayout();
     auto* recordLabel = new QLabel(tr("勾选记录（至少 2 条）"), &dialog);
     applySelectableLabelText(recordLabel);
-    layout->addWidget(recordLabel);
+    recordHeader->addWidget(recordLabel);
+    recordHeader->addStretch();
+    auto* selectAllBox = new ElaCheckBox(tr("全选"), &dialog);
+    selectAllBox->setTristate(true);
+    recordHeader->addWidget(selectAllBox);
+    layout->addLayout(recordHeader);
 
     auto* recordList = new QListWidget(&dialog);
     recordList->setSelectionMode(QAbstractItemView::NoSelection);
@@ -704,6 +697,46 @@ void SimulationRecordPage::openLineChartDialog() {
         item->setCheckState(i < 6 ? Qt::Checked : Qt::Unchecked);
     }
     layout->addWidget(recordList, 1);
+
+    bool syncingSelectAll = false;
+    const auto updateSelectAllBox = [selectAllBox, recordList, &syncingSelectAll]() {
+        if (syncingSelectAll) {
+            return;
+        }
+        int checkedCount = 0;
+        const int n = recordList->count();
+        for (int i = 0; i < n; ++i) {
+            if (recordList->item(i)->checkState() == Qt::Checked) {
+                ++checkedCount;
+            }
+        }
+        QSignalBlocker blocker(selectAllBox);
+        if (checkedCount == 0) {
+            selectAllBox->setCheckState(Qt::Unchecked);
+        } else if (checkedCount == n) {
+            selectAllBox->setCheckState(Qt::Checked);
+        } else {
+            selectAllBox->setCheckState(Qt::PartiallyChecked);
+        }
+    };
+    QObject::connect(selectAllBox, &QCheckBox::checkStateChanged, &dialog, [&](Qt::CheckState state) {
+        if (syncingSelectAll || state == Qt::PartiallyChecked) {
+            return;
+        }
+        syncingSelectAll = true;
+        const Qt::CheckState cs = (state == Qt::Checked) ? Qt::Checked : Qt::Unchecked;
+        for (int i = 0; i < recordList->count(); ++i) {
+            recordList->item(i)->setCheckState(cs);
+        }
+        syncingSelectAll = false;
+    });
+    QObject::connect(recordList, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem*) {
+        if (syncingSelectAll) {
+            return;
+        }
+        updateSelectAllBox();
+    });
+    updateSelectAllBox();
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
@@ -746,7 +779,186 @@ void SimulationRecordPage::openLineChartDialog() {
                                         metricALabelText,
                                         metricBKey,
                                         metricBLabelText);
-    m_statusText->setText(tr("已创建折线图，请切换到“BookSim 结果”查看。"));
+    m_statusText->setText(tr("已创建折线图，请切换到「结果可视化」查看。"));
+}
+
+void SimulationRecordPage::openScatter3DDialog() {
+    const QVector<int> visibleIndices = buildVisibleRecordIndices(true);
+    if (visibleIndices.size() < 2) {
+        QMessageBox::information(this,
+                                 tr("无法创建三维图"),
+                                 tr("当前可见记录不足 2 条。请先调整筛选条件或新增记录。"));
+        return;
+    }
+
+    const QVector<MetricOption> metricOptions = buildMetricOptions();
+    if (metricOptions.size() < 3) {
+        QMessageBox::information(this, tr("无法创建三维图"), tr("可用指标不足 3 项。"));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("创建三维图"));
+    dialog.resize(680, 560);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(10);
+
+    auto* tip = new QLabel(
+        tr("选择三个指标与若干记录后，将在「结果可视化」页面展示三维散点图（可拖动旋转视角）。"),
+        &dialog);
+    tip->setWordWrap(true);
+    applySelectableLabelText(tip);
+    layout->addWidget(tip);
+
+    constexpr int kMetricComboMaxVisibleItems = 12;
+    auto* metricGrid = new QGridLayout();
+    metricGrid->setHorizontalSpacing(10);
+    metricGrid->setVerticalSpacing(8);
+
+    auto* metricALabel = new QLabel(tr("轴 X（指标 A）"), &dialog);
+    auto* metricACombo = new ElaComboBox(&dialog);
+    auto* metricBLabel = new QLabel(tr("轴 Y（指标 B）"), &dialog);
+    auto* metricBCombo = new ElaComboBox(&dialog);
+    auto* metricCLabel = new QLabel(tr("轴 Z（指标 C）"), &dialog);
+    auto* metricCCombo = new ElaComboBox(&dialog);
+    for (const auto& metric : metricOptions) {
+        metricACombo->addItem(metric.label, metric.key);
+        metricBCombo->addItem(metric.label, metric.key);
+        metricCCombo->addItem(metric.label, metric.key);
+    }
+    metricACombo->setMaxVisibleItems(kMetricComboMaxVisibleItems);
+    metricBCombo->setMaxVisibleItems(kMetricComboMaxVisibleItems);
+    metricCCombo->setMaxVisibleItems(kMetricComboMaxVisibleItems);
+    metricBCombo->setCurrentIndex(std::min(1, metricBCombo->count() - 1));
+    metricCCombo->setCurrentIndex(std::min(2, metricCCombo->count() - 1));
+    applySelectableLabelText(metricALabel);
+    applySelectableLabelText(metricBLabel);
+    applySelectableLabelText(metricCLabel);
+    metricGrid->addWidget(metricALabel, 0, 0);
+    metricGrid->addWidget(metricACombo, 0, 1);
+    metricGrid->addWidget(metricBLabel, 1, 0);
+    metricGrid->addWidget(metricBCombo, 1, 1);
+    metricGrid->addWidget(metricCLabel, 2, 0);
+    metricGrid->addWidget(metricCCombo, 2, 1);
+    layout->addLayout(metricGrid);
+
+    auto* recordHeader = new QHBoxLayout();
+    auto* recordLabel = new QLabel(tr("勾选记录（至少 2 条）"), &dialog);
+    applySelectableLabelText(recordLabel);
+    recordHeader->addWidget(recordLabel);
+    recordHeader->addStretch();
+    auto* selectAllBox = new ElaCheckBox(tr("全选"), &dialog);
+    selectAllBox->setTristate(true);
+    recordHeader->addWidget(selectAllBox);
+    layout->addLayout(recordHeader);
+
+    auto* recordList = new QListWidget(&dialog);
+    recordList->setSelectionMode(QAbstractItemView::NoSelection);
+    for (int i = 0; i < visibleIndices.size(); ++i) {
+        const int recordIndex = visibleIndices[i];
+        const auto& record = m_records.at(recordIndex);
+        auto* item = new QListWidgetItem(tr("%1 | 更新: %2")
+                                             .arg(record.name, formatIsoLocal(record.updatedAtIso)),
+                                         recordList);
+        item->setData(Qt::UserRole, recordIndex);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(i < 6 ? Qt::Checked : Qt::Unchecked);
+    }
+    layout->addWidget(recordList, 1);
+
+    bool syncingSelectAll = false;
+    const auto updateSelectAllBox = [selectAllBox, recordList, &syncingSelectAll]() {
+        if (syncingSelectAll) {
+            return;
+        }
+        int checkedCount = 0;
+        const int n = recordList->count();
+        for (int i = 0; i < n; ++i) {
+            if (recordList->item(i)->checkState() == Qt::Checked) {
+                ++checkedCount;
+            }
+        }
+        QSignalBlocker blocker(selectAllBox);
+        if (checkedCount == 0) {
+            selectAllBox->setCheckState(Qt::Unchecked);
+        } else if (checkedCount == n) {
+            selectAllBox->setCheckState(Qt::Checked);
+        } else {
+            selectAllBox->setCheckState(Qt::PartiallyChecked);
+        }
+    };
+    QObject::connect(selectAllBox, &QCheckBox::checkStateChanged, &dialog, [&](Qt::CheckState state) {
+        if (syncingSelectAll || state == Qt::PartiallyChecked) {
+            return;
+        }
+        syncingSelectAll = true;
+        const Qt::CheckState cs = (state == Qt::Checked) ? Qt::Checked : Qt::Unchecked;
+        for (int i = 0; i < recordList->count(); ++i) {
+            recordList->item(i)->setCheckState(cs);
+        }
+        syncingSelectAll = false;
+    });
+    QObject::connect(recordList, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem*) {
+        if (syncingSelectAll) {
+            return;
+        }
+        updateSelectAllBox();
+    });
+    updateSelectAllBox();
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    const QString metricAKey = metricACombo->currentData().toString();
+    const QString metricBKey = metricBCombo->currentData().toString();
+    const QString metricCKey = metricCCombo->currentData().toString();
+    const QString metricALabelText = metricACombo->currentText();
+    const QString metricBLabelText = metricBCombo->currentText();
+    const QString metricCLabelText = metricCCombo->currentText();
+
+    QSet<QString> keySet;
+    keySet.insert(metricAKey);
+    keySet.insert(metricBKey);
+    keySet.insert(metricCKey);
+    if (keySet.size() != 3) {
+        QMessageBox::warning(this, tr("指标重复"), tr("请为三维图选择三个互不相同的指标。"));
+        return;
+    }
+
+    QList<SimulationRecordSnapshot> selectedRecords;
+    for (int i = 0; i < recordList->count(); ++i) {
+        QListWidgetItem* item = recordList->item(i);
+        if (!item || item->checkState() != Qt::Checked) {
+            continue;
+        }
+        const int recordIndex = item->data(Qt::UserRole).toInt();
+        if (recordIndex < 0 || recordIndex >= m_records.size()) {
+            continue;
+        }
+        selectedRecords.push_back(m_records.at(recordIndex));
+    }
+
+    if (selectedRecords.size() < 2) {
+        QMessageBox::warning(this, tr("记录不足"), tr("请至少勾选 2 条记录。"));
+        return;
+    }
+
+    emit showScatter3DInResultRequested(selectedRecords,
+                                        metricAKey,
+                                        metricALabelText,
+                                        metricBKey,
+                                        metricBLabelText,
+                                        metricCKey,
+                                        metricCLabelText);
+    m_statusText->setText(tr("已创建三维图，请切换到「结果可视化」查看。"));
 }
 
 double SimulationRecordPage::numericLabelValue(const SimulationRecordSnapshot& record,

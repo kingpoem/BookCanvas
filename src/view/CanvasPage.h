@@ -55,6 +55,9 @@ private:
     void installNetworkTabKeyboardShortcuts();
     void updateCanvasTabNavigateButtons();
     void clickCanvasTabNavigateButton(bool backward);
+    void exportNetworkTableData();
+    void previewCurrentNetworkConfigJson();
+    void previewCurrentNetworkTopologyFile();
 
     QTabWidget* m_canvasTabs = nullptr;
     GraphScene* m_scene = nullptr;

@@ -235,6 +235,10 @@ void MainWindow::initContent() {
 
     simulationRecordPage = new SimulationRecordPage(this);
     addPageNode(tr("仿真记录"), simulationRecordPage, ElaIconType::ClockRotateLeft);
+
+    const QString recordVizPageTitle = tr("结果可视化");
+    recordVizPage = new RecordVizPage(this);
+    addPageNode(recordVizPageTitle, recordVizPage, ElaIconType::ChartLine);
     connect(simulationPage,
             &SimulationPage::simulationFinished,
             bookSimResultPage,
@@ -253,17 +257,36 @@ void MainWindow::initContent() {
     connect(simulationRecordPage,
             &SimulationRecordPage::showLineChartInResultRequested,
             this,
-            [this, resultPageTitle](const QList<SimulationRecordSnapshot>& records,
-                                    const QString& metricAKey,
-                                    const QString& metricALabel,
-                                    const QString& metricBKey,
-                                    const QString& metricBLabel) {
-                bookSimResultPage->ingestRecordLineChart(records,
-                                                         metricAKey,
-                                                         metricALabel,
-                                                         metricBKey,
-                                                         metricBLabel);
-                navigation(resultPageTitle);
+            [this, recordVizPageTitle](const QList<SimulationRecordSnapshot>& records,
+                                       const QString& metricAKey,
+                                       const QString& metricALabel,
+                                       const QString& metricBKey,
+                                       const QString& metricBLabel) {
+                recordVizPage->ingestRecordLineChart(records,
+                                                     metricAKey,
+                                                     metricALabel,
+                                                     metricBKey,
+                                                     metricBLabel);
+                navigation(recordVizPageTitle);
+            });
+    connect(simulationRecordPage,
+            &SimulationRecordPage::showScatter3DInResultRequested,
+            this,
+            [this, recordVizPageTitle](const QList<SimulationRecordSnapshot>& records,
+                                       const QString& metricAKey,
+                                       const QString& metricALabel,
+                                       const QString& metricBKey,
+                                       const QString& metricBLabel,
+                                       const QString& metricCKey,
+                                       const QString& metricCLabel) {
+                recordVizPage->ingestRecordScatter3D(records,
+                                                     metricAKey,
+                                                     metricALabel,
+                                                     metricBKey,
+                                                     metricBLabel,
+                                                     metricCKey,
+                                                     metricCLabel);
+                navigation(recordVizPageTitle);
             });
 
     globalConfigPage = new GlobalConfigPage(this);
