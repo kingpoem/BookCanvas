@@ -1,0 +1,20 @@
+#pragma once
+
+#include <QString>
+
+class QWidget;
+
+namespace BookCanvasUi {
+
+/// 与 Ela 主题一致的行文本输入框（用于替代 QInputDialog::getText，避免原生对话框在浅色主题下仍为深色）。
+[[nodiscard]] QString promptLineText(QWidget* parent,
+                                     const QString& windowTitle,
+                                     const QString& labelText,
+                                     const QString& defaultText,
+                                     bool* ok);
+
+/// 与 Ela 主题一致的提示框（替代 QMessageBox，避免浅色/深色下原生样式不一致）
+void alertInformation(QWidget* parent, const QString& title, const QString& text);
+void alertWarning(QWidget* parent, const QString& title, const QString& text);
+
+} // namespace BookCanvasUi

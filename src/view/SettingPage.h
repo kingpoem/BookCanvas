@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BasePage.h"
+#include "utils/SelectableLabel.h"
 #include <ElaScrollPageArea.h>
 #include <ElaText.h>
 #include <QHBoxLayout>
@@ -20,6 +21,7 @@ private:
         auto* labelText = new ElaText(label, this);
         labelText->setWordWrap(false);
         labelText->setTextPixelSize(15);
+        applySelectableLabelText(labelText);
         layout->addWidget(labelText);
         layout->addStretch();
         (layout->addWidget(widgets), ...);

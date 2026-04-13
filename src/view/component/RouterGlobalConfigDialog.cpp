@@ -277,6 +277,9 @@ QMap<QString, QString> RouterGlobalConfigDialog::getDefaultConfig() {
     defaultConfig["subnets"] = "1";
     defaultConfig["topology"] = "anynet";
     defaultConfig["network_file"] = "anynet_file";
+    defaultConfig["k"] = "8";
+    defaultConfig["n"] = "2";
+    defaultConfig["c"] = "1";
     defaultConfig["routing_function"] = "min";
     defaultConfig["use_noc_latency"] = "1";
     defaultConfig["x"] = "8";

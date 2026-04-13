@@ -39,6 +39,8 @@ private:
     void addConfigItem(const QString& key, const QString& label, const QString& defaultValue);
     void wireTopologyRoutingForGlobalConfig();
     void refreshGlobalRoutingComboFromUiConfig(const QString& preferredRouting = {});
+    void refreshTopologyFieldVisibility();
+    [[nodiscard]] QString currentTopologyId() const;
     [[nodiscard]] QMap<QString, QString> collectConfigFromUi() const;
     void onViewRawConfigFileClicked();
     void onImportConfigClicked();
@@ -46,6 +48,7 @@ private:
     [[nodiscard]] static QMap<QString, QString> parseRawConfigText(const QString& text);
 
     QMap<QString, QString> m_config;
+    QMap<QString, QWidget*> m_inputRows;
     QVBoxLayout* m_formLayout = nullptr;
     QVBoxLayout* m_activeSectionLayout = nullptr;
     QScrollArea* m_scrollArea = nullptr;

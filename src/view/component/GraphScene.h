@@ -10,8 +10,10 @@
 #include <QUndoStack>
 
 class GraphTopologyBlock;
+class GraphChiplet;
 class QAction;
 class QUndoCommand;
+class QWidget;
 
 // 提供了节点/边的创建、删除，以及与拖拽交互、鼠标事件相关的逻辑
 class GraphScene : public ElaGraphicsScene {
@@ -60,6 +62,10 @@ public:
     bool renumberAllNodesFromZero();
     // 删除没有任何连线的节点（路由器/终端），返回删除数量
     int removeUnconnectedNodes();
+    /// 将当前选中的终端/路由器归为一个 Chiplet（画布上显示为虚线包围框）
+    void createChipletFromSelection(QWidget* dialogParent = nullptr);
+    void removeChiplet(GraphChiplet* chiplet);
+
     // 清空画布上的全部内容（节点、边、拓扑块）
     void clearAllContent();
     void undo();
@@ -112,12 +118,17 @@ private:
     class RemoveEdgeCommand;
     class MoveNodeCommand;
     class UpdateTopologyParamsCommand;
+    class AddChipletCommand;
+    class RemoveChipletCommand;
     friend class AddNodeCommand;
     friend class AddEdgeCommand;
     friend class RemoveNodeCommand;
     friend class RemoveEdgeCommand;
     friend class MoveNodeCommand;
     friend class UpdateTopologyParamsCommand;
+    friend class AddChipletCommand;
+    friend class RemoveChipletCommand;
+    friend class GraphChiplet;
 
     static int extractNumberId(const QString& id); // 辅助函数
     [[nodiscard]] QString allocateNextNodeId(GraphNode::NodeType type) const;
@@ -131,6 +142,18 @@ private:
     void removeTopologyBlock(GraphTopologyBlock* block);
     void rebuildManagedTopology(GraphTopologyBlock* block);
     void clearManagedTopology(GraphTopologyBlock* block);
+    [[nodiscard]] QString allocateNextChipletId() const;
+    GraphChiplet* createChipletInternal(const QString& id,
+                                        const QString& label,
+                                        const QStringList& members);
+    void removeChipletInternal(GraphChiplet* chiplet);
+    void layoutChipletAroundMembers(GraphChiplet* chiplet);
+    void refitChipletsContainingMember(const QString& nodeId);
+    void stripNodeFromChiplets(const QString& nodeId);
+    [[nodiscard]] GraphChiplet* findChipletById(const QString& id) const;
+    [[nodiscard]] GraphChiplet* findChipletContainingMember(const QString& nodeId) const;
+    void wireChiplet(GraphChiplet* chiplet);
+    void promptRenameChiplet(GraphChiplet* chiplet);
     GraphNode* createNodeInternal(const QString& id, const QPointF& pos, GraphNode::NodeType type);
     void removeNodeInternal(GraphNode* node);
     GraphEdge* createEdgeInternal(GraphNode* start, GraphNode* end, double weight);
@@ -157,6 +180,9 @@ private:
     GraphNode* m_highlightNode = nullptr;
 
     QList<GraphTopologyBlock*> m_topologyBlocks;
+    QPointer<GraphChiplet> m_chipletHandleDragSource;
+    QMap<QString, QPointF> m_chipletHandleDragStartPos;
+    QList<GraphChiplet*> m_chiplets;
     struct ManagedTopologyState {
         BooksimTopologyParams params;
         QList<QPointer<GraphNode>> routers;

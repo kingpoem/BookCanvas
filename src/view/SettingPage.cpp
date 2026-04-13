@@ -1,5 +1,6 @@
 #include "SettingPage.h"
 #include "utils/BooksimPaths.h"
+#include "utils/SelectableLabel.h"
 #include "utils/Settings.hpp"
 #include <ElaApplication.h>
 #include <ElaComboBox.h>
@@ -22,6 +23,7 @@ SettingPage::SettingPage(QWidget* parent)
     auto appearanceText = new ElaText("Appearance", this);
     appearanceText->setWordWrap(false);
     appearanceText->setTextPixelSize(18);
+    applySelectableLabelText(appearanceText);
 
     auto themeComboBox = new ElaComboBox(this);
     themeComboBox->addItem("Light");
@@ -100,6 +102,7 @@ SettingPage::SettingPage(QWidget* parent)
     auto* bookSimHeading = new ElaText(tr("BookSim"), this);
     bookSimHeading->setWordWrap(false);
     bookSimHeading->setTextPixelSize(18);
+    applySelectableLabelText(bookSimHeading);
 
     auto* engineEdit = new ElaLineEdit(this);
     engineEdit->setText(settings.value(QStringLiteral("booksimEnginePath")).toString());
@@ -111,6 +114,7 @@ SettingPage::SettingPage(QWidget* parent)
     engineV->setSpacing(6);
     auto* engineLabel = new ElaText(tr("booksim 可执行文件"), this);
     engineLabel->setTextPixelSize(14);
+    applySelectableLabelText(engineLabel);
     engineV->addWidget(engineLabel);
     auto* engineH = new QHBoxLayout();
     engineH->addWidget(engineEdit, 1);
@@ -155,6 +159,7 @@ SettingPage::SettingPage(QWidget* parent)
     topoV->setSpacing(6);
     auto* topoLabel = new ElaText(tr("拓扑文件模板（Canvas 多 Tab 导出会自动追加后缀）"), this);
     topoLabel->setTextPixelSize(14);
+    applySelectableLabelText(topoLabel);
     topoV->addWidget(topoLabel);
     auto* topoH = new QHBoxLayout();
     topoH->addWidget(topoEdit, 1);
@@ -172,6 +177,7 @@ SettingPage::SettingPage(QWidget* parent)
     auto* cfgLabel = new ElaText(tr("JSON 配置模板（Canvas 多 Tab 导出与仿真会自动追加后缀）"),
                                  this);
     cfgLabel->setTextPixelSize(14);
+    applySelectableLabelText(cfgLabel);
     cfgV->addWidget(cfgLabel);
     auto* cfgH = new QHBoxLayout();
     cfgH->addWidget(cfgEdit, 1);

@@ -1,6 +1,7 @@
 #include "GlobalConfigPage.h"
 #include "component/RouterGlobalConfigDialog.h"
 #include "utils/BooksimRoutingCatalog.h"
+#include "utils/SelectableLabel.h"
 #include <ElaComboBox.h>
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
@@ -25,6 +26,7 @@
 #include <QTextStream>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWidget>
 
 namespace {
 enum class InputKind {
@@ -104,7 +106,6 @@ struct InputSpec {
 
     static const QSet<QString> kTextPathLikeKeys = {
         QStringLiteral("channel_file"),
-        QStringLiteral("network_file"),
         QStringLiteral("watch_file"),
         QStringLiteral("watch_out"),
         QStringLiteral("stats_out"),
@@ -112,10 +113,10 @@ struct InputSpec {
         QStringLiteral("tech_file"),
     };
 
+    // 与画布「BookSim 拓扑」按钮顺序一致，末尾保留 anynet（自定义拓扑文件）
     static const QMap<QString, QStringList> kEnumOptions = {
         {QStringLiteral("topology"),
-         {QStringLiteral("anynet"),
-          QStringLiteral("mesh"),
+         {QStringLiteral("mesh"),
           QStringLiteral("torus"),
           QStringLiteral("cmesh"),
           QStringLiteral("fly"),
@@ -123,8 +124,10 @@ struct InputSpec {
           QStringLiteral("tree4"),
           QStringLiteral("fattree"),
           QStringLiteral("flatfly"),
-          QStringLiteral("dragonflynew")}},
-        {QStringLiteral("router"), {QStringLiteral("iq"), QStringLiteral("event")}},
+          QStringLiteral("dragonflynew"),
+          QStringLiteral("anynet")}},
+        {QStringLiteral("router"),
+         {QStringLiteral("iq"), QStringLiteral("event"), QStringLiteral("chaos")}},
         {QStringLiteral("buffer_policy"), {QStringLiteral("private"), QStringLiteral("shared")}},
         {QStringLiteral("spec_sw_allocator"), {QStringLiteral("prio"), QStringLiteral("islip")}},
         {QStringLiteral("vc_allocator"), {QStringLiteral("islip"), QStringLiteral("prio")}},
@@ -169,6 +172,63 @@ struct InputSpec {
     }
     spec.kind = InputKind::Integer;
     return spec;
+}
+
+[[nodiscard]] const QSet<QString>& networkTopologySectionKeys() {
+    static const QSet<QString> k{QStringLiteral("channel_file"),
+                                 QStringLiteral("topology"),
+                                 QStringLiteral("k"),
+                                 QStringLiteral("n"),
+                                 QStringLiteral("c"),
+                                 QStringLiteral("x"),
+                                 QStringLiteral("y"),
+                                 QStringLiteral("xr"),
+                                 QStringLiteral("yr"),
+                                 QStringLiteral("link_failures"),
+                                 QStringLiteral("fail_seed"),
+                                 QStringLiteral("in_ports"),
+                                 QStringLiteral("out_ports")};
+    return k;
+}
+
+[[nodiscard]] QSet<QString> topologyStructureVisibleKeys(const QString& topologyId) {
+    const QString t = topologyId.trimmed().toLower();
+    QSet<QString> vis{QStringLiteral("channel_file"),
+                      QStringLiteral("topology"),
+                      QStringLiteral("link_failures"),
+                      QStringLiteral("fail_seed"),
+                      QStringLiteral("in_ports"),
+                      QStringLiteral("out_ports")};
+    if (t == QLatin1String("anynet")) {
+        return vis;
+    }
+    vis.insert(QStringLiteral("k"));
+    vis.insert(QStringLiteral("n"));
+    vis.insert(QStringLiteral("c"));
+    if (t == QLatin1String("cmesh") || t == QLatin1String("flatfly")) {
+        vis.insert(QStringLiteral("x"));
+        vis.insert(QStringLiteral("y"));
+        vis.insert(QStringLiteral("xr"));
+        vis.insert(QStringLiteral("yr"));
+    }
+    return vis;
+}
+
+[[nodiscard]] bool useNoCLatencyApplicableTopology(const QString& topologyId) {
+    const QString t = topologyId.trimmed().toLower();
+    return t == QLatin1String("mesh") || t == QLatin1String("torus") || t == QLatin1String("cmesh")
+           || t == QLatin1String("flatfly");
+}
+
+[[nodiscard]] bool configKeyUsesMergedValueWhenHidden(const QString& key,
+                                                      const QString& topologyId) {
+    if (key == QLatin1String("use_noc_latency")) {
+        return !useNoCLatencyApplicableTopology(topologyId);
+    }
+    if (!networkTopologySectionKeys().contains(key)) {
+        return false;
+    }
+    return !topologyStructureVisibleKeys(topologyId).contains(key);
 }
 
 [[nodiscard]] QString readInputValue(QWidget* input, const QString& key) {
@@ -257,9 +317,10 @@ void GlobalConfigPage::setupUi() {
 
     addSectionTitle("网络拓扑参数");
     addConfigItem("channel_file", "通道文件 (channel_file)", "");
-    addConfigItem("subnets", "子网数 (subnets)", "1");
     addConfigItem("topology", "拓扑结构 (topology)", "anynet");
-    addConfigItem("network_file", "网络文件 (network_file)", "anynet_file");
+    addConfigItem("k", "每维基数 (k)", "8");
+    addConfigItem("n", "维数 (n)", "2");
+    addConfigItem("c", "集中度 (c)", "1");
     addConfigItem("x", "X维度 (x)", "8");
     addConfigItem("y", "Y维度 (y)", "8");
     addConfigItem("xr", "X路由器 (xr)", "1");
@@ -433,6 +494,7 @@ void GlobalConfigPage::setupUi() {
         applyTheme();
     });
     wireTopologyRoutingForGlobalConfig();
+    refreshTopologyFieldVisibility();
     addCentralWidget(centralWidget, true, true, 0);
     applyTheme();
 }
@@ -454,10 +516,93 @@ void GlobalConfigPage::wireTopologyRoutingForGlobalConfig() {
     m_topologyRoutingWired = true;
     connect(topo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
         refreshGlobalRoutingComboFromUiConfig();
+        refreshTopologyFieldVisibility();
     });
     connect(topo, &QComboBox::currentTextChanged, this, [this](const QString&) {
         refreshGlobalRoutingComboFromUiConfig();
+        refreshTopologyFieldVisibility();
     });
+}
+
+QString GlobalConfigPage::currentTopologyId() const {
+    auto* tcombo = qobject_cast<ElaComboBox*>(m_inputs.value(QStringLiteral("topology")));
+    if (!tcombo) {
+        return QStringLiteral("anynet");
+    }
+    const QString td = tcombo->currentData(Qt::UserRole).toString().trimmed().toLower();
+    QString topo = td.isEmpty() ? tcombo->currentText().trimmed().toLower() : td;
+    return topo.isEmpty() ? QStringLiteral("anynet") : topo;
+}
+
+void GlobalConfigPage::refreshTopologyFieldVisibility() {
+    auto mergeUi = [this](const QString& key) {
+        QWidget* w = m_inputs.value(key);
+        if (!w) {
+            return;
+        }
+        QString value = readInputValue(w, key);
+        if (inputSpecForKey(key).kind == InputKind::Boolean) {
+            value = normalizeBoolLike(value);
+            if (value != QLatin1String("0") && value != QLatin1String("1")) {
+                value = QStringLiteral("0");
+            }
+        }
+        m_config[key] = value;
+    };
+    for (const QString& key : networkTopologySectionKeys()) {
+        mergeUi(key);
+    }
+    mergeUi(QStringLiteral("use_noc_latency"));
+
+    const QString topo = currentTopologyId();
+    const QSet<QString> structVis = topologyStructureVisibleKeys(topo);
+    for (const QString& key : networkTopologySectionKeys()) {
+        if (QWidget* row = m_inputRows.value(key)) {
+            row->setVisible(structVis.contains(key));
+        }
+    }
+    if (QWidget* row = m_inputRows.value(QStringLiteral("use_noc_latency"))) {
+        row->setVisible(useNoCLatencyApplicableTopology(topo));
+    }
+
+    const QStringList lockableKeys{QStringLiteral("k"),
+                                   QStringLiteral("n"),
+                                   QStringLiteral("c"),
+                                   QStringLiteral("x"),
+                                   QStringLiteral("y"),
+                                   QStringLiteral("xr"),
+                                   QStringLiteral("yr")};
+    for (const QString& key : lockableKeys) {
+        if (QWidget* w = m_inputs.value(key)) {
+            w->setEnabled(true);
+        }
+    }
+    auto forceTopologyField = [this](const QString& key, const QString& v) {
+        if (auto* edit = qobject_cast<ElaLineEdit*>(m_inputs.value(key))) {
+            const QSignalBlocker b(edit);
+            edit->setText(v);
+            m_config[key] = v;
+        }
+    };
+    auto setFieldEnabled = [this](const QString& key, bool en) {
+        if (QWidget* w = m_inputs.value(key)) {
+            w->setEnabled(en);
+        }
+    };
+    if (topo == QLatin1String("cmesh")) {
+        forceTopologyField(QStringLiteral("n"), QStringLiteral("2"));
+        forceTopologyField(QStringLiteral("c"), QStringLiteral("4"));
+        setFieldEnabled(QStringLiteral("n"), false);
+        setFieldEnabled(QStringLiteral("c"), false);
+    } else if (topo == QLatin1String("qtree") || topo == QLatin1String("tree4")) {
+        forceTopologyField(QStringLiteral("k"), QStringLiteral("4"));
+        forceTopologyField(QStringLiteral("n"), QStringLiteral("3"));
+        setFieldEnabled(QStringLiteral("k"), false);
+        setFieldEnabled(QStringLiteral("n"), false);
+    } else if (topo == QLatin1String("dragonflynew")) {
+        forceTopologyField(QStringLiteral("n"), QStringLiteral("1"));
+        setFieldEnabled(QStringLiteral("n"), false);
+    }
 }
 
 void GlobalConfigPage::refreshGlobalRoutingComboFromUiConfig(const QString& preferredRouting) {
@@ -499,12 +644,18 @@ void GlobalConfigPage::refreshGlobalRoutingComboFromUiConfig(const QString& pref
 
 void GlobalConfigPage::setConfig(const QMap<QString, QString>& config) {
     m_config = config;
+    const QMap<QString, QString> fallbacks = RouterGlobalConfigDialog::getDefaultConfig();
     for (auto it = m_inputs.begin(); it != m_inputs.end(); ++it) {
         const QString& key = it.key();
         if (key == QLatin1String("routing_function")) {
             continue;
         }
-        const QString raw = m_config.value(key);
+        QString raw = m_config.value(key);
+        if (raw.trimmed().isEmpty()
+            && (key == QLatin1String("k") || key == QLatin1String("n")
+                || key == QLatin1String("c"))) {
+            raw = fallbacks.value(key);
+        }
         if (auto* edit = qobject_cast<ElaLineEdit*>(it.value())) {
             edit->setText(raw);
             continue;
@@ -535,6 +686,7 @@ void GlobalConfigPage::setConfig(const QMap<QString, QString>& config) {
         }
     }
     refreshGlobalRoutingComboFromUiConfig(m_config.value(QStringLiteral("routing_function")));
+    refreshTopologyFieldVisibility();
 }
 
 void GlobalConfigPage::addSectionTitle(const QString& title) {
@@ -582,6 +734,7 @@ void GlobalConfigPage::addConfigItem(const QString& key,
                                      const QString& defaultValue) {
     auto* labelWidget = new QLabel(label, this);
     labelWidget->setMinimumWidth(250);
+    applySelectableLabelText(labelWidget);
 
     const InputSpec spec = inputSpecForKey(key);
     QWidget* input = nullptr;
@@ -634,20 +787,34 @@ void GlobalConfigPage::addConfigItem(const QString& key,
     }
     m_inputs[key] = input;
 
-    auto* itemLayout = new QHBoxLayout();
+    QWidget* rowParent = m_formLayout ? m_formLayout->parentWidget() : nullptr;
+    if (!rowParent) {
+        rowParent = this;
+    }
+    auto* row = new QWidget(rowParent);
+    auto* itemLayout = new QHBoxLayout(row);
+    itemLayout->setContentsMargins(0, 0, 0, 0);
     itemLayout->addWidget(labelWidget);
     itemLayout->addWidget(input);
+    m_inputRows.insert(key, row);
     if (m_activeSectionLayout) {
-        m_activeSectionLayout->addLayout(itemLayout);
+        m_activeSectionLayout->addWidget(row);
     } else {
-        m_formLayout->addLayout(itemLayout);
+        m_formLayout->addWidget(row);
     }
 }
 
 QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
+    const QString topo = currentTopologyId();
+    const QMap<QString, QString> fallbacks = RouterGlobalConfigDialog::getDefaultConfig();
     QMap<QString, QString> config;
     for (auto it = m_inputs.begin(); it != m_inputs.end(); ++it) {
         const QString& key = it.key();
+        if (configKeyUsesMergedValueWhenHidden(key, topo)) {
+            const QString merged = m_config.value(key, fallbacks.value(key));
+            config[key] = merged;
+            continue;
+        }
         QString value = readInputValue(it.value(), key);
         if (inputSpecForKey(key).kind == InputKind::Boolean) {
             value = normalizeBoolLike(value);
@@ -663,6 +830,11 @@ QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
                       normalizeRoutingForTopology(config.value(QStringLiteral("routing_function")),
                                                   config.value(QStringLiteral("topology"))));
     }
+    const QString nfKey = QStringLiteral("network_file");
+    if (!config.contains(nfKey)) {
+        config.insert(nfKey, m_config.value(nfKey, fallbacks.value(nfKey)));
+    }
+    config.insert(QStringLiteral("subnets"), QStringLiteral("1"));
     return config;
 }
 

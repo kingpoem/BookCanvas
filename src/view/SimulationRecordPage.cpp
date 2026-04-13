@@ -1,4 +1,5 @@
 #include "SimulationRecordPage.h"
+#include "utils/SelectableLabel.h"
 #include <ElaComboBox.h>
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
@@ -149,6 +150,7 @@ SimulationRecordPage::SimulationRecordPage(QWidget* parent)
     m_statusText = new ElaText(tr("正在加载仿真记录..."), this);
     m_statusText->setWordWrap(true);
     m_statusText->setTextPixelSize(14);
+    applySelectableLabelText(m_statusText);
 
     m_scrollInner = new QWidget(this);
     m_cardsLayout = new QVBoxLayout(m_scrollInner);
@@ -403,6 +405,7 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
     titleFont.setBold(true);
     titleFont.setPointSize(titleFont.pointSize() + 1);
     title->setFont(titleFont);
+    applySelectableLabelText(title);
     titleRow->addWidget(title, 1);
 
     auto* deleteBtn = new ElaPushButton(tr("删除"), card);
@@ -418,11 +421,13 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
                                      formatIsoLocal(record.updatedAtIso)),
                             card);
     time->setWordWrap(true);
+    applySelectableLabelText(time);
     layout->addWidget(time);
 
     const auto addTag = [card](QHBoxLayout* row, const QString& text) {
         auto* tag = new QLabel(text, card);
         tag->setProperty("isRecordTag", true);
+        applySelectableLabelText(tag);
         row->addWidget(tag);
     };
 
@@ -431,6 +436,7 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
     headingFont.setBold(true);
     headingFont.setPointSize(qMax(8, headingFont.pointSize() - 1));
     netHeading->setFont(headingFont);
+    applySelectableLabelText(netHeading);
     layout->addWidget(netHeading);
 
     auto* netRowWrap = new QWidget(card);
@@ -458,6 +464,7 @@ QWidget* SimulationRecordPage::buildRecordCard(const SimulationRecordSnapshot& r
 
     auto* resHeading = new QLabel(tr("仿真结果"), card);
     resHeading->setFont(headingFont);
+    applySelectableLabelText(resHeading);
     layout->addWidget(resHeading);
 
     auto* resRowWrap = new QWidget(card);
@@ -658,6 +665,7 @@ void SimulationRecordPage::openLineChartDialog() {
     auto* tip = new QLabel(tr("选择两个指标与若干记录后，将在“BookSim 结果”页面展示双折线图。"),
                            &dialog);
     tip->setWordWrap(true);
+    applySelectableLabelText(tip);
     layout->addWidget(tip);
 
     auto* metricRow = new QHBoxLayout();
@@ -670,6 +678,8 @@ void SimulationRecordPage::openLineChartDialog() {
         metricBCombo->addItem(metric.label, metric.key);
     }
     metricBCombo->setCurrentIndex(std::min(1, metricBCombo->count() - 1));
+    applySelectableLabelText(metricALabel);
+    applySelectableLabelText(metricBLabel);
     metricRow->addWidget(metricALabel);
     metricRow->addWidget(metricACombo, 1);
     metricRow->addSpacing(10);
@@ -678,6 +688,7 @@ void SimulationRecordPage::openLineChartDialog() {
     layout->addLayout(metricRow);
 
     auto* recordLabel = new QLabel(tr("勾选记录（至少 2 条）"), &dialog);
+    applySelectableLabelText(recordLabel);
     layout->addWidget(recordLabel);
 
     auto* recordList = new QListWidget(&dialog);

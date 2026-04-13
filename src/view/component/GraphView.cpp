@@ -197,18 +197,15 @@ void GraphView::changeEvent(QEvent* event) {
     ElaGraphicsView::changeEvent(event);
 }
 
-// 网格绘制（与调色板协调的低对比度网格）
+// 网格：按 Base 亮度选黑/白细线，不依赖 WindowText（部分主题下 WindowText 与 Base 过近导致看不见）
 void GraphView::drawBackground(QPainter* painter, const QRectF& rect) {
     painter->fillRect(rect, palette().color(QPalette::Base));
 
     const int gridSize = 20;
     const QColor base = palette().color(QPalette::Base);
-    QColor grid = palette().color(QPalette::Mid);
-    grid.setAlpha(90);
-    if (base.lightness() > 160) {
-        grid = palette().color(QPalette::Midlight);
-        grid.setAlpha(140);
-    }
+    const bool lightBg = base.lightness() > 128;
+    QColor grid = lightBg ? QColor(0, 0, 0) : QColor(255, 255, 255);
+    grid.setAlpha(lightBg ? 48 : 56);
     painter->setPen(QPen(grid, 1, Qt::SolidLine));
 
     int left = static_cast<int>(rect.left()) - (static_cast<int>(rect.left()) % gridSize);

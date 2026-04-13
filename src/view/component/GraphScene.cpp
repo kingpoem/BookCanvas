@@ -1,13 +1,15 @@
 #include "GraphScene.h"
+#include "GraphChiplet.h"
 #include "GraphTopologyBlock.h"
 #include "RouterConfigDialog.h"
 #include "RouterGlobalConfigDialog.h"
 #include "utils/CanvasDebugLog.h"
+#include "utils/ThemedInputDialog.h"
 #include <QBrush>
 #include <QFile>
 #include <QGraphicsLineItem>
 #include <QGraphicsSceneMouseEvent>
-#include <QInputDialog>
+#include <QGraphicsView>
 #include <QMap>
 #include <QMessageBox>
 #include <QMimeData>
@@ -23,6 +25,17 @@
 #include <limits>
 
 namespace {
+
+[[nodiscard]] QWidget* graphSceneWindowParent(GraphScene* scene) {
+    if (!scene || scene->views().isEmpty()) {
+        return nullptr;
+    }
+    return scene->views().first()->window();
+}
+
+[[nodiscard]] bool nodeIsTerminalOrRouter(const GraphNode* n) {
+    return n && (n->getType() == GraphNode::Node || n->getType() == GraphNode::Router);
+}
 
 constexpr int kPowIntMax = std::numeric_limits<int>::max();
 
@@ -226,6 +239,12 @@ public:
         double weight = 1.0;
     };
 
+    struct ChipletMembershipSnap {
+        QString chipletId;
+        QString label;
+        QStringList members;
+    };
+
     RemoveNodeCommand(GraphScene* scene, GraphNode* node)
         : m_scene(scene) {
         if (!node) {
@@ -244,6 +263,15 @@ public:
             if (edge->startNode() == node || edge->endNode() == node) {
                 m_incidentEdges.push_back(
                     {edge->startNode()->getId(), edge->endNode()->getId(), edge->weight()});
+            }
+        }
+        for (GraphChiplet* c : scene->m_chiplets) {
+            if (c && c->hasMember(m_nodeId)) {
+                ChipletMembershipSnap s;
+                s.chipletId = c->chipletId();
+                s.label = c->label();
+                s.members = c->memberIdsSorted();
+                m_chipletSnaps.push_back(std::move(s));
             }
         }
         setText(QObject::tr("删除节点"));
@@ -277,6 +305,15 @@ public:
             }
             m_scene->createEdgeInternal(start, end, edge.weight);
         }
+        for (const ChipletMembershipSnap& s : m_chipletSnaps) {
+            GraphChiplet* c = m_scene->findChipletById(s.chipletId);
+            if (c) {
+                c->setMembers(s.members);
+                m_scene->layoutChipletAroundMembers(c);
+            } else {
+                m_scene->createChipletInternal(s.chipletId, s.label, s.members);
+            }
+        }
     }
 
 private:
@@ -286,6 +323,7 @@ private:
     QPointF m_nodePos;
     QMap<QString, QString> m_routerConfig;
     QVector<EdgeSnapshot> m_incidentEdges;
+    QVector<ChipletMembershipSnap> m_chipletSnaps;
 };
 
 class GraphScene::MoveNodeCommand final : public QUndoCommand {
@@ -364,6 +402,74 @@ private:
     QPointer<GraphTopologyBlock> m_block;
     BooksimTopologyParams m_oldParams;
     BooksimTopologyParams m_newParams;
+};
+
+class GraphScene::AddChipletCommand final : public QUndoCommand {
+public:
+    AddChipletCommand(GraphScene* scene, QString id, QString label, QStringList members)
+        : m_scene(scene)
+        , m_id(std::move(id))
+        , m_label(std::move(label))
+        , m_members(std::move(members)) {
+        setText(QObject::tr("创建 Chiplet"));
+    }
+
+    void redo() override {
+        if (!m_scene || m_scene->findChipletById(m_id)) {
+            return;
+        }
+        m_scene->createChipletInternal(m_id, m_label, m_members);
+    }
+
+    void undo() override {
+        if (!m_scene) {
+            return;
+        }
+        if (GraphChiplet* c = m_scene->findChipletById(m_id)) {
+            m_scene->removeChipletInternal(c);
+        }
+    }
+
+private:
+    QPointer<GraphScene> m_scene;
+    QString m_id;
+    QString m_label;
+    QStringList m_members;
+};
+
+class GraphScene::RemoveChipletCommand final : public QUndoCommand {
+public:
+    RemoveChipletCommand(GraphScene* scene, GraphChiplet* chiplet)
+        : m_scene(scene) {
+        if (chiplet) {
+            m_id = chiplet->chipletId();
+            m_label = chiplet->label();
+            m_members = chiplet->memberIdsSorted();
+        }
+        setText(QObject::tr("删除 Chiplet"));
+    }
+
+    void redo() override {
+        if (!m_scene) {
+            return;
+        }
+        if (GraphChiplet* c = m_scene->findChipletById(m_id)) {
+            m_scene->removeChipletInternal(c);
+        }
+    }
+
+    void undo() override {
+        if (!m_scene || m_scene->findChipletById(m_id)) {
+            return;
+        }
+        m_scene->createChipletInternal(m_id, m_label, m_members);
+    }
+
+private:
+    QPointer<GraphScene> m_scene;
+    QString m_id;
+    QString m_label;
+    QStringList m_members;
 };
 
 GraphScene::GraphScene(QObject* parent)
@@ -1130,6 +1236,11 @@ bool GraphScene::renameNodeToId(GraphNode* node, const QString& newId) {
         const auto cfg = m_routerConfigs.take(oldId);
         m_routerConfigs.insert(newId, cfg);
     }
+    for (GraphChiplet* c : m_chiplets) {
+        if (c) {
+            c->renameMemberId(oldId, newId);
+        }
+    }
     node->setGraphId(newId);
     return true;
 }
@@ -1149,27 +1260,27 @@ void GraphScene::promptRenameNode(GraphNode* node) {
         suggest = id;
     }
 
+    QWidget* const dlgParent = graphSceneWindowParent(this);
     bool ok = false;
     const QString text
-        = QInputDialog::getText(nullptr,
-                                tr("重命名节点"),
-                                isRouter ? tr("路由器编号（非负整数，或 R0 / Router_0）：")
-                                         : tr("终端编号（非负整数，或 T0 / Node_0）："),
-                                QLineEdit::Normal,
-                                suggest,
-                                &ok);
+        = BookCanvasUi::promptLineText(dlgParent,
+                                       tr("重命名节点"),
+                                       isRouter ? tr("路由器编号（非负整数，或 R0 / Router_0）：")
+                                                : tr("终端编号（非负整数，或 T0 / Node_0）："),
+                                       suggest,
+                                       &ok);
     if (!ok) {
         return;
     }
     const QString newId = canonicalIdFromUserInput(node->getType(), text);
     if (newId.isEmpty()) {
-        QMessageBox::warning(nullptr,
+        QMessageBox::warning(dlgParent,
                              tr("无效编号"),
                              tr("请输入非负整数，或使用 T0、Node_1、R0、Router_1 等形式。"));
         return;
     }
     if (!renameNodeToId(node, newId)) {
-        QMessageBox::warning(nullptr, tr("重命名失败"), tr("该编号已被其他节点使用。"));
+        QMessageBox::warning(dlgParent, tr("重命名失败"), tr("该编号已被其他节点使用。"));
     }
 }
 
@@ -1202,6 +1313,14 @@ GraphNode* GraphScene::createNodeInternal(const QString& id,
             }
         });
     });
+
+    QPointer<GraphNode> posGuard(node);
+    connect(node, &GraphNode::posChanged, this, [this, posGuard](const QPointF&, const QPointF&) {
+        if (!posGuard) {
+            return;
+        }
+        refitChipletsContainingMember(posGuard->getId());
+    });
     return node;
 }
 
@@ -1220,6 +1339,8 @@ void GraphScene::removeNodeInternal(GraphNode* node) {
     if (!node) {
         return;
     }
+
+    stripNodeFromChiplets(node->getId());
 
     if (m_highlightNode == node) {
         m_highlightNode = nullptr;
@@ -1470,6 +1591,13 @@ void GraphScene::clearAllContent() {
     m_pendingBooksimTopologyActive = false;
     m_placeTool = PlaceTool::None;
 
+    const QList<GraphChiplet*> chiplets = m_chiplets;
+    for (GraphChiplet* c : chiplets) {
+        if (c) {
+            removeChipletInternal(c);
+        }
+    }
+
     const QList<GraphTopologyBlock*> blocks = m_topologyBlocks;
     for (GraphTopologyBlock* block : blocks) {
         if (block) {
@@ -1542,6 +1670,288 @@ GraphNode* GraphScene::findNodeById(const QString& id) const {
         }
     }
     return nullptr;
+}
+
+QString GraphScene::allocateNextChipletId() const {
+    QSet<QString> used;
+    for (GraphChiplet* c : m_chiplets) {
+        if (c) {
+            used.insert(c->chipletId());
+        }
+    }
+    for (int i = 0;; ++i) {
+        const QString cand = QStringLiteral("Chiplet_%1").arg(i);
+        if (!used.contains(cand)) {
+            return cand;
+        }
+    }
+}
+
+GraphChiplet* GraphScene::findChipletById(const QString& id) const {
+    for (GraphChiplet* c : m_chiplets) {
+        if (c && c->chipletId() == id) {
+            return c;
+        }
+    }
+    return nullptr;
+}
+
+GraphChiplet* GraphScene::findChipletContainingMember(const QString& nodeId) const {
+    if (nodeId.isEmpty()) {
+        return nullptr;
+    }
+    for (GraphChiplet* c : m_chiplets) {
+        if (c && c->hasMember(nodeId)) {
+            return c;
+        }
+    }
+    return nullptr;
+}
+
+void GraphScene::layoutChipletAroundMembers(GraphChiplet* chiplet) {
+    if (!chiplet) {
+        return;
+    }
+    QList<GraphNode*> nodes;
+    for (const QString& mid : chiplet->memberIdsSorted()) {
+        if (GraphNode* n = findNodeById(mid)) {
+            nodes.append(n);
+        }
+    }
+    chiplet->fitAroundNodes(nodes);
+}
+
+void GraphScene::refitChipletsContainingMember(const QString& nodeId) {
+    for (GraphChiplet* c : m_chiplets) {
+        if (c && c->hasMember(nodeId)) {
+            layoutChipletAroundMembers(c);
+        }
+    }
+}
+
+void GraphScene::stripNodeFromChiplets(const QString& nodeId) {
+    QList<GraphChiplet*> dead;
+    for (GraphChiplet* c : m_chiplets) {
+        if (!c || !c->hasMember(nodeId)) {
+            continue;
+        }
+        c->removeMember(nodeId);
+        if (c->liveTerminalRouterMemberCount() == 0) {
+            dead.append(c);
+        } else {
+            layoutChipletAroundMembers(c);
+        }
+    }
+    for (GraphChiplet* c : dead) {
+        removeChipletInternal(c);
+    }
+}
+
+GraphChiplet* GraphScene::createChipletInternal(const QString& id,
+                                                const QString& label,
+                                                const QStringList& members) {
+    auto* c = new GraphChiplet(id, label);
+    addItem(c);
+    c->setZValue(-120);
+    for (const QString& mid : members) {
+        if (mid.isEmpty()) {
+            continue;
+        }
+        GraphNode* n = findNodeById(mid);
+        if (!nodeIsTerminalOrRouter(n)) {
+            continue;
+        }
+        c->addMember(mid);
+    }
+    m_chiplets.append(c);
+    layoutChipletAroundMembers(c);
+    wireChiplet(c);
+    return c;
+}
+
+void GraphScene::removeChipletInternal(GraphChiplet* chiplet) {
+    if (!chiplet) {
+        return;
+    }
+    m_chiplets.removeAll(chiplet);
+    removeItem(chiplet);
+}
+
+void GraphScene::wireChiplet(GraphChiplet* chiplet) {
+    if (!chiplet) {
+        return;
+    }
+    connect(chiplet, &GraphChiplet::deleteRequested, this, [this](GraphChiplet* ch) {
+        if (!ch) {
+            return;
+        }
+        const QPointer<GraphChiplet> guard(ch);
+        QTimer::singleShot(0, this, [this, guard]() {
+            if (guard) {
+                removeChiplet(guard.data());
+            }
+        });
+    });
+    connect(chiplet, &GraphChiplet::renameRequested, this, [this](GraphChiplet* ch) {
+        promptRenameChiplet(ch);
+    });
+    connect(chiplet, &GraphChiplet::handleDragStarted, this, [this](GraphChiplet* c) {
+        m_chipletHandleDragSource = c;
+        m_chipletHandleDragStartPos.clear();
+        if (!c) {
+            return;
+        }
+        for (const QString& id : c->memberIdsSorted()) {
+            if (GraphNode* n = findNodeById(id)) {
+                m_chipletHandleDragStartPos.insert(id, n->pos());
+            }
+        }
+    });
+    connect(chiplet, &GraphChiplet::handleDragDelta, this, [this](GraphChiplet* c, QPointF d) {
+        if (!c || d.isNull()) {
+            return;
+        }
+        for (const QString& id : c->memberIdsSorted()) {
+            if (GraphNode* n = findNodeById(id)) {
+                n->setPos(n->pos() + d);
+            }
+        }
+        layoutChipletAroundMembers(c);
+    });
+    connect(chiplet, &GraphChiplet::handleDragReleased, this, [this](GraphChiplet* ch) {
+        if (!ch) {
+            m_chipletHandleDragSource = nullptr;
+            m_chipletHandleDragStartPos.clear();
+            return;
+        }
+        const QMap<QString, QPointF> startPos = m_chipletHandleDragStartPos;
+        m_chipletHandleDragSource = nullptr;
+        m_chipletHandleDragStartPos.clear();
+
+        if (!isRecordingHistory()) {
+            return;
+        }
+        QVector<QString> ids;
+        QVector<QPointF> froms;
+        QVector<QPointF> tos;
+        for (auto it = startPos.begin(); it != startPos.end(); ++it) {
+            GraphNode* n = findNodeById(it.key());
+            if (!n) {
+                continue;
+            }
+            const QPointF from = it.value();
+            const QPointF to = n->pos();
+            if (!qFuzzyCompare(from.x() + 1.0, to.x() + 1.0)
+                || !qFuzzyCompare(from.y() + 1.0, to.y() + 1.0)) {
+                ids.append(it.key());
+                froms.append(from);
+                tos.append(to);
+            }
+        }
+        if (ids.isEmpty()) {
+            return;
+        }
+        m_undoStack.beginMacro(tr("移动 Chiplet"));
+        for (int i = 0; i < ids.size(); ++i) {
+            m_undoStack.push(new MoveNodeCommand(this, ids[i], froms[i], tos[i]));
+        }
+        m_undoStack.endMacro();
+    });
+}
+
+void GraphScene::promptRenameChiplet(GraphChiplet* chiplet) {
+    if (!chiplet) {
+        return;
+    }
+    QWidget* const p = graphSceneWindowParent(this);
+    bool ok = false;
+    const QString t = BookCanvasUi::promptLineText(p,
+                                                   tr("重命名 Chiplet"),
+                                                   tr("名称："),
+                                                   chiplet->label(),
+                                                   &ok);
+    if (!ok) {
+        return;
+    }
+    const QString trimmed = t.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    chiplet->setLabel(trimmed);
+}
+
+void GraphScene::createChipletFromSelection(QWidget* dialogParent) {
+    QList<GraphNode*> sel;
+    for (QGraphicsItem* it : selectedItems()) {
+        if (auto* n = dynamic_cast<GraphNode*>(it)) {
+            sel.append(n);
+        }
+    }
+    QWidget* const p = dialogParent ? dialogParent : graphSceneWindowParent(this);
+    if (sel.isEmpty()) {
+        BookCanvasUi::alertInformation(p,
+                                       tr("创建 Chiplet"),
+                                       tr("请先在画布上选中至少一个终端或路由器。"));
+        return;
+    }
+    QStringList memberIds;
+    memberIds.reserve(sel.size());
+    for (GraphNode* n : sel) {
+        if (!nodeIsTerminalOrRouter(n)) {
+            continue;
+        }
+        memberIds.append(n->getId());
+    }
+    if (memberIds.isEmpty()) {
+        BookCanvasUi::alertInformation(p,
+                                       tr("创建 Chiplet"),
+                                       tr("请先在画布上选中至少一个终端或路由器。"));
+        return;
+    }
+    QString conflictLines;
+    for (const QString& nid : memberIds) {
+        if (GraphChiplet* existing = findChipletContainingMember(nid)) {
+            conflictLines += tr("• %1 已在「%2」中\n").arg(nid, existing->label());
+        }
+    }
+    if (!conflictLines.isEmpty()) {
+        BookCanvasUi::alertWarning(p,
+                                   tr("无法创建 Chiplet"),
+                                   tr("每个终端或路由器只能属于一个 Chiplet：\n\n%1")
+                                       .arg(conflictLines.trimmed()));
+        return;
+    }
+    bool ok = false;
+    const QString defaultLabel = tr("Chiplet %1").arg(m_chiplets.size());
+    const QString label = BookCanvasUi::promptLineText(p,
+                                                       tr("创建 Chiplet"),
+                                                       tr("名称："),
+                                                       defaultLabel,
+                                                       &ok);
+    if (!ok) {
+        return;
+    }
+    const QString trimmed = label.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    const QString cid = allocateNextChipletId();
+    if (!isRecordingHistory()) {
+        createChipletInternal(cid, trimmed, memberIds);
+        return;
+    }
+    m_undoStack.push(new AddChipletCommand(this, cid, trimmed, memberIds));
+}
+
+void GraphScene::removeChiplet(GraphChiplet* chiplet) {
+    if (!chiplet) {
+        return;
+    }
+    if (!isRecordingHistory()) {
+        removeChipletInternal(chiplet);
+        return;
+    }
+    m_undoStack.push(new RemoveChipletCommand(this, chiplet));
 }
 
 void GraphScene::emitUndoStateNow() {
@@ -2131,6 +2541,35 @@ void GraphScene::exportJSONConfig(const QString& filePath, const QString& networ
         out << "\n  }\n";
     } else {
         out << "\n";
+    }
+
+    if (!m_chiplets.isEmpty()) {
+        out << ",\n\n  \"bookcanvas_chiplets\": [\n";
+        bool firstChip = true;
+        for (GraphChiplet* ch : m_chiplets) {
+            if (!ch) {
+                continue;
+            }
+            if (!firstChip) {
+                out << ",\n";
+            }
+            firstChip = false;
+            out << "    {\n";
+            out << "      \"id\": \"" << escapeJsonString(ch->chipletId()) << "\",\n";
+            out << "      \"label\": \"" << escapeJsonString(ch->label()) << "\",\n";
+            out << "      \"members\": [";
+            bool firstM = true;
+            for (const QString& mid : ch->memberIdsSorted()) {
+                if (!firstM) {
+                    out << ", ";
+                }
+                firstM = false;
+                out << "\"" << escapeJsonString(mid) << "\"";
+            }
+            out << "]\n";
+            out << "    }";
+        }
+        out << "\n  ]";
     }
 
     out << "}\n";

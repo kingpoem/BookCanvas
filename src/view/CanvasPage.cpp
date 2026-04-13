@@ -1,6 +1,5 @@
 #include "CanvasPage.h"
 #include "component/BooksimTopologyPlaceDialog.h"
-#include "component/DragButton.h"
 #include "component/GraphNode.h"
 #include "component/GraphScene.h"
 #include "component/GraphTopologyBlock.h"
@@ -11,6 +10,7 @@
 #include "utils/BooksimPaths.h"
 #include "utils/CanvasDebugLog.h"
 #include "utils/Settings.hpp"
+#include "utils/ThemedInputDialog.h"
 #include <ElaDef.h>
 #include <ElaGraphicsScene.h>
 #include <ElaGraphicsView.h>
@@ -24,7 +24,6 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHideEvent>
-#include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
@@ -135,8 +134,8 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* leftBuildPanel = new QWidget(this);
     constexpr int kBuildSidebarMinW = 96;
     constexpr int kBuildSidebarMaxW = 520;
-    /// 启动时左侧构建栏在分割条中的初始宽度（紧凑，仍可拖宽）
-    constexpr int kBuildSidebarDefaultW = 116;
+    /// 启动时左侧构建栏在分割条中的初始宽度（略宽于最窄值，便于 mesh 等按钮完整显示）
+    constexpr int kBuildSidebarDefaultW = 130;
     leftBuildPanel->setMinimumWidth(kBuildSidebarMinW);
     leftBuildPanel->setMaximumWidth(kBuildSidebarMaxW);
     leftBuildPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -193,26 +192,6 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addWidget(createButtonWithLabel(pruneUnconnectedBtn, tr("清理孤立节点"), stripInner));
     stripLay->addWidget(createButtonWithLabel(importNetworkBtn, tr("恢复网络"), stripInner));
 
-    auto* buildTitle = new QLabel(tr("拖拽放置"), stripInner);
-    buildTitle->setForegroundRole(QPalette::WindowText);
-    bindLabelToElaBasicText(buildTitle);
-    QFont tf = buildTitle->font();
-    tf.setBold(true);
-    tf.setPointSize(10);
-    buildTitle->setFont(tf);
-    stripLay->addWidget(buildTitle);
-    stripLay->addSpacing(4);
-
-    auto* terminalBtn = new DragButton(ElaIconType::Microchip, QStringLiteral("Circle"), stripInner);
-    auto* routerBtn = new DragButton(ElaIconType::NetworkWired, QStringLiteral("Router"), stripInner);
-
-    terminalBtn->setToolTip(
-        tr("拖拽到画布：添加终端（Node）\n或开启右侧「点击放置」后在空白处单击\n快捷键 N 进入点击放置 · Esc 取消"));
-    routerBtn->setToolTip(tr("拖拽到画布：添加路由器\n或开启右侧「点击放置」\n快捷键 R 进入点击放置 · Esc 取消"));
-
-    stripLay->addWidget(createButtonWithLabel(terminalBtn, tr("终端"), stripInner));
-    stripLay->addWidget(createButtonWithLabel(routerBtn, tr("路由器"), stripInner));
-
     auto* placeHint = new QLabel(tr("点击放置"), stripInner);
     placeHint->setForegroundRole(QPalette::WindowText);
     bindLabelToElaBasicText(placeHint);
@@ -223,17 +202,42 @@ CanvasPage::CanvasPage(QWidget* parent)
     placeHint->setWordWrap(true);
     stripLay->addWidget(placeHint);
 
-    m_placeTermPick = new ElaIconButton(ElaIconType::CrosshairsSimple, 18, stripInner);
-    m_placeRouterPick = new ElaIconButton(ElaIconType::LocationCrosshairs, 18, stripInner);
+    m_placeTermPick = new ElaIconButton(ElaIconType::Microchip, 18, stripInner);
+    m_placeRouterPick = new ElaIconButton(ElaIconType::NetworkWired, 18, stripInner);
     m_placeTermPick->setCheckable(true);
     m_placeRouterPick->setCheckable(true);
     m_placeTermPick->setBorderRadius(8);
     m_placeRouterPick->setBorderRadius(8);
-    m_placeTermPick->setToolTip(tr("在画布空白处单击放置终端"));
-    m_placeRouterPick->setToolTip(tr("在画布空白处单击放置路由器"));
+    m_placeTermPick->setToolTip(tr("在画布空白处单击放置终端（Node）\n快捷键 N · Esc 取消"));
+    m_placeRouterPick->setToolTip(tr("在画布空白处单击放置路由器\n快捷键 R · Esc 取消"));
 
     stripLay->addWidget(createButtonWithLabel(m_placeTermPick, tr("终端"), stripInner));
     stripLay->addWidget(createButtonWithLabel(m_placeRouterPick, tr("路由器"), stripInner));
+
+    auto* chipletTitle = new QLabel(tr("Chiplet"), stripInner);
+    chipletTitle->setForegroundRole(QPalette::WindowText);
+    bindLabelToElaBasicText(chipletTitle);
+    QFont chf = chipletTitle->font();
+    chf.setBold(true);
+    chf.setPointSize(10);
+    chipletTitle->setFont(chf);
+    chipletTitle->setWordWrap(true);
+    stripLay->addWidget(chipletTitle);
+    stripLay->addSpacing(4);
+
+    auto* chipletGroupBtn = new ElaIconButton(ElaIconType::ObjectGroup, 18, stripInner);
+    chipletGroupBtn->setBorderRadius(8);
+    chipletGroupBtn->setToolTip(
+        tr("将当前选中的终端或路由器归为一个 Chiplet：画布上会显示虚线围成的组框。\n"
+           "右键组框可重命名或删除该 Chiplet。"));
+    stripLay->addWidget(createButtonWithLabel(chipletGroupBtn, tr("创建 Chiplet"), stripInner));
+
+    connect(chipletGroupBtn, &ElaIconButton::clicked, this, [this]() {
+        clearPlaceMode();
+        if (m_scene) {
+            m_scene->createChipletFromSelection(this);
+        }
+    });
 
     auto* bookTopoTitle = new QLabel(tr("BookSim 拓扑"), stripInner);
     bookTopoTitle->setForegroundRole(QPalette::WindowText);
@@ -373,12 +377,11 @@ CanvasPage::CanvasPage(QWidget* parent)
         }
         bool ok = false;
         const QString currentName = m_canvasTabs->tabText(index);
-        const QString newName = QInputDialog::getText(this,
-                                                      tr("重命名网络"),
-                                                      tr("网络名称"),
-                                                      QLineEdit::Normal,
-                                                      currentName,
-                                                      &ok)
+        const QString newName = BookCanvasUi::promptLineText(this,
+                                                             tr("重命名网络"),
+                                                             tr("网络名称"),
+                                                             currentName,
+                                                             &ok)
                                     .trimmed();
         if (!ok) {
             return;

@@ -534,8 +534,6 @@ void SimulationPage::handleProcessFinished(QProcess* process,
     }
     if (m_pendingRunCount <= 0) {
         m_pendingRunCount = 0;
-        appendOutput("========================================\n", task.simulationTabId);
-        appendOutput("全部并行仿真任务已结束。\n", task.simulationTabId);
     }
     process->deleteLater();
 }

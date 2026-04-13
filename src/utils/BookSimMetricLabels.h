@@ -2,7 +2,7 @@
 
 #include <QString>
 
-/// 仿真结果页与使用说明「结果参数含义」共用的指标显示名：中文（English），保持两边一致。
+/// 仿真结果页与使用说明「结果参数」共用的指标显示名：中文（English），保持两边一致。
 namespace BookSimMetricLabels {
 
 inline QString sectionLatencyFlit() {
