@@ -1,4 +1,5 @@
 #include "UsageGuidePage.h"
+#include "utils/BookSimMetricLabels.h"
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
 #include <ElaText.h>
@@ -348,155 +349,127 @@ struct MetricTermCard {
 
 QVector<MetricTermCard> metricTermCards() {
     return {
-        {QStringLiteral("端到端包延迟（Packet Latency）"),
-         QStringLiteral("从注入到接收完成的总时延，是最常用的体验型指标。"),
-         QStringLiteral("<h4>定义</h4>"
-                        "<p>端到端包延迟表示一个包从源端开始注入，到目的端完整接收的总耗时，"
-                        "单位通常为 <code>cycle</code>。</p>"
-                        "<h4>分解公式</h4>"
-                        "<p><code>L<sub>packet</sub> = L<sub>inj_queue</sub> + "
-                        "L<sub>network</sub> + L<sub>eject</sub></code></p>"
-                        "<h4>统计公式</h4>"
-                        "<p><code>L<sub>packet</sub> = (&Sigma;<sub>i=1</sub><sup>N</sup>"
-                        "(t<sub>recv,i</sub> - t<sub>inject,i</sub>)) / N</code></p>"
-                        "<h4>判读建议</h4>"
-                        "<ul>"
-                        "<li>先建立低负载基线，再观察倍数增长趋势。</li>"
-                        "<li>若延迟突增，需结合吞吐匹配度和网内延迟联动诊断。</li>"
-                        "</ul>"),
-         QStringLiteral("指标术语 端到端包延迟 packet latency L_packet L_inj_queue L_network "
-                        "L_eject t_recv t_inject cycle 基线 拥塞")},
-        {QStringLiteral("吞吐匹配度（eta_match）"),
-         QStringLiteral("衡量网络接收能力对注入需求的跟随程度。"),
-         QStringLiteral("<h4>定义</h4>"
-                        "<p>吞吐匹配度反映“业务注入需求”与“网络接收能力”的一致性。</p>"
-                        "<h4>常用公式</h4>"
-                        "<p><code>&eta;<sub>match</sub> = accepted_rate / offered_rate &times; 100%"
-                        "</code></p>"
-                        "<h4>判读建议</h4>"
-                        "<ul>"
-                        "<li>接近 100% 通常表示系统仍在可承载区间。</li>"
-                        "<li>持续下滑且伴随延迟斜率抬升，通常表示接近饱和。</li>"
-                        "</ul>"),
-         QStringLiteral("指标术语 吞吐匹配度 eta_match accepted_rate offered_rate saturation")},
-        {QStringLiteral("网内延迟（Network Latency）"),
-         QStringLiteral("只统计包进入网络后的时延，用于区分注入侧与网络侧瓶颈。"),
+        {BookSimMetricLabels::packetLatency(),
+         QString(),
          QStringLiteral(
              "<h4>定义</h4>"
-             "<p>网内延迟不含注入前排队，更聚焦拓扑、路由和竞争本身。</p>"
-             "<h4>统计公式</h4>"
-             "<p><code>L<sub>network</sub> = (&Sigma;<sub>i=1</sub><sup>N</sup>"
-             "(t<sub>exit,i</sub> - t<sub>enter,i</sub>)) / N</code></p>"
-             "<h4>工程近似</h4>"
-             "<p><code>L<sub>network</sub> &asymp; H<sub>avg</sub> &times; t<sub>hop</sub> + "
-             "L<sub>contention</sub></code></p>"
-             "<h4>判读建议</h4>"
-             "<p>若端到端延迟上升但网内延迟平稳，瓶颈更可能在注入侧排队。</p>"),
-         QStringLiteral("指标术语 网内延迟 network latency L_network t_enter t_exit contention")},
-        {QStringLiteral("平均跳数（H_avg）"),
-         QStringLiteral("衡量路径长度效率，可用于判断是否出现绕行。"),
-         QStringLiteral(
-             "<h4>定义</h4>"
-             "<p>平均跳数是包在路由器间经历的平均转发步数。</p>"
+             "<p>BookSim "
+             "在尾微片退休时统计的包级端到端时延（plat）：从包头<strong>创建时刻</strong>到"
+             "尾微片在目的端到达时刻，单位为仿真周期。</p>"
+             "<p>与网内延迟（nlat）的关系：<strong>端到端包延迟 = 网内延迟 + "
+             "源端排队时间</strong>；"
+             "其中源端排队时间为包头创建至注入网络前在源端等待的时间（对应 "
+             "<code>itime<sub>head</sub> "
+             "− ctime<sub>head</sub></code> 等口径）。</p>"
              "<h4>公式</h4>"
-             "<p><code>H<sub>avg</sub> = (&Sigma;<sub>i=1</sub><sup>N</sup>h<sub>i</sub>) / N"
-             "</code></p>"
-             "<h4>对照指标</h4>"
-             "<p><code>&rho;<sub>hop</sub> = H<sub>avg</sub> / H<sub>lb</sub></code>，"
-             "越接近 1 越接近最短路。</p>"
-             "<h4>判读建议</h4>"
-             "<p>若 <code>H<sub>avg</sub></code> 稳定但延迟恶化，通常是竞争拥塞而非路径变长。</p>"),
-         QStringLiteral("指标术语 平均跳数 H_avg H_lb rho_hop hop 路径长度")},
-        {QStringLiteral("Router"),
-         QStringLiteral("执行路由计算、VC 分配与交换仲裁的核心转发节点。"),
-         QStringLiteral("<h4>职责</h4>"
-                        "<ul>"
-                        "<li>根据路由算法选择下一跳输出端口。</li>"
-                        "<li>执行 VC 分配和交换仲裁。</li>"
-                        "<li>在拥塞时产生排队并向上游传播反压。</li>"
-                        "</ul>"
-                        "<h4>观测建议</h4>"
-                        "<p>Router 负载分布不均通常会直接反映为局部热区与尾延迟抬升。</p>"),
-         QStringLiteral("指标术语 router 路由器 仲裁 vc 分配 转发节点")},
-        {QStringLiteral("Terminal / Node"),
-         QStringLiteral("业务流量注入与接收的端点。"),
+             "<p><code>plat = t<sub>arrive,tail</sub> − t<sub>create,head</sub></code>"
+             "（仿真内对应 <code>atime<sub>tail</sub> − ctime<sub>head</sub></code>）</p>"),
+         QStringLiteral("结果参数 延迟 微片 plat packet latency 端到端")},
+        {BookSimMetricLabels::networkLatency(),
+         QString(),
          QStringLiteral(
              "<h4>定义</h4>"
-             "<p>Terminal（或 Node）是产生和接收数据包的终端实体，通常挂接在路由器边缘。</p>"
-             "<h4>影响</h4>"
-             "<ul>"
-             "<li>注入速率和模式直接影响全网拥塞演化。</li>"
-             "<li>端点分布与映射方式会改变局部热度。</li>"
-             "</ul>"),
-         QStringLiteral("指标术语 terminal node 终端 端点 注入 接收")},
-        {QStringLiteral("Hop"),
-         QStringLiteral("包从一个路由器转发到下一个路由器的一次跨越。"),
-         QStringLiteral(
-             "<h4>定义</h4>"
-             "<p>Hop 是路径长度的离散计量单位，常用于估计传播与仲裁累积成本。</p>"
-             "<h4>实践建议</h4>"
-             "<p>结合 <code>H<sub>avg</sub></code> 与延迟变化可区分“路径变长”与“竞争加剧”。</p>"),
-         QStringLiteral("指标术语 hop 跳数 转发步数 路径")},
-        {QStringLiteral("Flit"),
-         QStringLiteral("流控最小单位，一个 packet 通常由多个 flit 组成。"),
+             "<p>BookSim "
+             "统计的网内段时延（nlat）：尾微片到达时刻与包头<strong>注入网络时刻</strong>之差，"
+             "含网内路由、排队与竞争，不含创建到注入之间的等待。</p>"
+             "<h4>公式</h4>"
+             "<p><code>nlat = t<sub>arrive,tail</sub> − t<sub>inject,head</sub></code>"
+             "（<code>atime<sub>tail</sub> − itime<sub>head</sub></code>）</p>"),
+         QStringLiteral("结果参数 nlat network latency 网内")},
+        {BookSimMetricLabels::flitLatency(),
+         QString(),
          QStringLiteral("<h4>定义</h4>"
-                        "<p>Flit（flow control digit）是链路传输和缓冲管理的基本单位。</p>"
-                        "<h4>影响</h4>"
-                        "<ul>"
-                        "<li>flit 级仲裁会影响包级延迟分布。</li>"
-                        "<li>大包由多个 flit 构成时，尾部 flit 更易受拥塞影响。</li>"
-                        "</ul>"),
-         QStringLiteral("指标术语 flit packet 流控单位 仲裁")},
-        {QStringLiteral("VC（Virtual Channel）"),
-         QStringLiteral("共享物理链路的逻辑通道，用于降低队首阻塞风险。"),
+                        "<p>对每个微片统计「到达 − "
+                        "注入」再取样本平均（flat），反映微片粒度上传输与流控带来的时延。</p>"
+                        "<h4>公式</h4>"
+                        "<p>对微片 <code>j</code>：<code>lat<sub>j</sub> = atime<sub>j</sub> − "
+                        "itime<sub>j</sub></code>；"
+                        "<code>flat = mean(lat<sub>j</sub>)</code></p>"
+                        "<h4>提示</h4>"
+                        "<p>通常小于同页包级端到端延迟；若差距异常需结合包长与打散一并看。</p>"),
+         QStringLiteral("结果参数 flit latency flat 微片")},
+        {BookSimMetricLabels::fragmentation(),
+         QString(),
          QStringLiteral(
              "<h4>定义</h4>"
-             "<p>VC 允许多条逻辑流共享同一物理端口缓冲与带宽。</p>"
-             "<h4>作用</h4>"
-             "<ul>"
-             "<li>降低 HOL 队首阻塞概率。</li>"
-             "<li>为死锁规避和服务隔离提供资源维度。</li>"
+             "<p>"
+             "同一包内微片在目的端到达时间的「打散」程度：实际到达跨度与按微片序号理想跨"
+             "度的差。</p>"
+             "<h4>公式</h4>"
+             "<p>在尾微片样本上统计，<code>f</code> 为尾微片、"
+             "<code>head</code> 为包头微片：</p>"
+             "<p><code>frag = (f-&gt;atime − head-&gt;atime) − (f-&gt;id − head-&gt;id)</code></p>"
+             "<ul style=\"margin-top:0.5em;\">"
+             "<li><code>f-&gt;atime − head-&gt;atime</code>：尾 flit 与头 flit 的到达时间差</li>"
+             "<li><code>f-&gt;id − head-&gt;id</code>：包内 flit 数量（ID 差值）</li>"
+             "<li><code>Fragmentation</code>：实际到达时间间隔 − 理想连续到达时间间隔</li>"
              "</ul>"
-             "<h4>调参关联</h4>"
-             "<p>通常与 <code>num_vcs</code> 和 <code>vc_buf_size</code> 联动分析。</p>"),
-         QStringLiteral("指标术语 vc virtual channel num_vcs vc_buf_size hol")},
-        {QStringLiteral("HOL Blocking"),
-         QStringLiteral("队首阻塞现象：前序流受阻导致后序流无法前进。"),
+             "<h4>提示</h4>"
+             "<p>数值越大表示微片到达越分散；持续为 0 "
+             "表示到达紧凑。</p>"),
+         QStringLiteral("结果参数 fragmentation 打散")},
+        {BookSimMetricLabels::throughputMatch(),
+         QString(),
          QStringLiteral(
              "<h4>定义</h4>"
-             "<p>当队首包因下游资源不可用而停滞时，后续包即使目标端口可用也无法越过。</p>"
-             "<h4>典型症状</h4>"
-             "<ul>"
-             "<li>中高负载下吞吐提升变慢。</li>"
-             "<li>平均延迟尚可但尾延迟显著恶化。</li>"
-             "</ul>"
-             "<h4>缓解方向</h4>"
-             "<p>增加 VC、优化路由分流、改进仲裁策略。</p>"),
-         QStringLiteral("指标术语 hol blocking 队首阻塞 tail latency 拥塞")},
-        {QStringLiteral("Backpressure"),
-         QStringLiteral("下游拥塞通过流控信号向上游传播并限制注入。"),
+             "<p>"
+             "结果页根据包级速率计算的匹配程度：接纳相对注入的百分比，用于快速判断网络是否跟上提供"
+             "负载。</p>"
+             "<h4>公式</h4>"
+             "<p><code>吞吐匹配度 = (R<sub>acc, pkt</sub> / R<sub>inj, pkt</sub>) × 100%</code>；"
+             "注入包速率为 0 时不定义，界面显示「—」。</p>"
+             "<h4>提示</h4>"
+             "<p>接近 100% 一般表示匹配良好；明显低于 100% "
+             "且持续，需结合延迟与速率行排查拥塞或反压。</p>"),
+         QStringLiteral("结果参数 throughput match 吞吐匹配 eta")},
+        {BookSimMetricLabels::injectedPacketRate(),
+         QString(),
          QStringLiteral("<h4>定义</h4>"
-                        "<p>Backpressure 是拥塞从下游向上游的反向传播机制，会逐级抬高排队。</p>"
-                        "<h4>观测信号</h4>"
-                        "<ul>"
-                        "<li>注入受限且 accepted_rate 下降。</li>"
-                        "<li>热点附近路由器队列持续增厚。</li>"
-                        "</ul>"
-                        "<h4>处理建议</h4>"
-                        "<p>优先检查热点流量模式、路由分配与缓冲配置。</p>"),
-         QStringLiteral("指标术语 backpressure 反压 注入受限 accepted_rate 热点")},
-        {QStringLiteral("Bisection Bandwidth"),
-         QStringLiteral("网络二分带宽上限，常用于估计高负载吞吐天花板。"),
+                        "<p>源端向网络注入包的平均速率，单位为每仿真周期包数（pkt/cycle）。</p>"),
+         QStringLiteral("结果参数 injected packet rate pkt")},
+        {BookSimMetricLabels::acceptedPacketRate(),
+         QString(),
          QStringLiteral("<h4>定义</h4>"
-                        "<p>将网络切分为两个等规模子集时，跨切分面的总带宽称为二分带宽。</p>"
-                        "<h4>意义</h4>"
-                        "<ul>"
-                        "<li>用于快速评估拓扑在高负载下的潜在上限。</li>"
-                        "<li>可作为跨拓扑比较的结构性参考指标。</li>"
-                        "</ul>"
-                        "<h4>注意事项</h4>"
-                        "<p>二分带宽是上限近似，真实吞吐仍受路由、仲裁和流量模式影响。</p>"),
-         QStringLiteral("指标术语 bisection bandwidth 二分带宽 吞吐上限 拓扑比较")}};
+                        "<p>目的端成功完成接收的包平均速率，单位为 pkt/cycle。</p>"),
+         QStringLiteral("结果参数 accepted packet rate")},
+        {BookSimMetricLabels::injectedFlitRate(),
+         QString(),
+         QStringLiteral("<h4>定义</h4>"
+                        "<p>注入侧微片平均速率，单位为每周期微片数（flits/cycle）。</p>"),
+         QStringLiteral("结果参数 injected flit rate")},
+        {BookSimMetricLabels::acceptedFlitRate(),
+         QString(),
+         QStringLiteral("<h4>定义</h4>"
+                        "<p>目的端接纳微片的平均速率，单位为 flits/cycle。</p>"),
+         QStringLiteral("结果参数 accepted flit rate")},
+        {BookSimMetricLabels::injectedMeanPacketSize(),
+         QString(),
+         QStringLiteral(
+             "<h4>定义</h4>"
+             "<p>注入业务侧统计得到的平均包长，以微片（flit）为单位。</p>"
+             "<h4>提示</h4>"
+             "<p>与配置包长分布一致即可；与接纳平均包长差异大时需检查是否有截断或统计类不一致。</"
+             "p>"),
+         QStringLiteral("结果参数 injected packet size flits")},
+        {BookSimMetricLabels::acceptedMeanPacketSize(),
+         QString(),
+         QStringLiteral(
+             "<h4>定义</h4>"
+             "<p>目的端观测到的平均包长，以微片为单位。</p>"
+             "<h4>提示</h4>"
+             "<p>正常情况下与注入平均包长接近；读数用于验证仿真是否按预期包形态运行。</p>"),
+         QStringLiteral("结果参数 accepted packet size")},
+        {BookSimMetricLabels::meanHops(),
+         QString(),
+         QStringLiteral("<h4>定义</h4>"
+                        "<p>"
+                        "包从源到目的在路由器之间转发的平均跳数；统计口径为经过的路由器跳步，不含终"
+                        "端节点。</p>"
+                        "<h4>提示</h4>"
+                        "<p>"
+                        "与拓扑最短路径下界比较可判断是否绕行；跳数稳定而延迟上升时更可能是竞争而非"
+                        "路径变长。</p>"),
+         QStringLiteral("结果参数 hops平均跳数 mean hops")}};
 }
 
 } // namespace
@@ -618,21 +591,19 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
     }
 
     SectionUi* metricSection = addSection(
-        tr("指标术语"),
+        tr("结果参数含义"),
         tr("解释"),
-        tr("核心指标和术语已拆分为二级卡片，支持按术语名搜索直达。"),
-        tr("<h4>阅读方式</h4>"
-           "<ol>"
-           "<li>先看 KPI：端到端包延迟、吞吐匹配度、网内延迟、平均跳数。</li>"
-           "<li>再看结构术语：Router、Terminal、Hop、Flit、VC。</li>"
-           "<li>最后看拥塞术语：HOL Blocking、Backpressure、Bisection Bandwidth。</li>"
-           "</ol>"),
+        tr("与仿真结果页指标一一对应；每项含定义、公式（HTML）与提示。支持搜索。"),
+        QString(),
         QStringLiteral(
-            "指标 术语 packet latency network latency throughput accepted rate saturation "
-            "router terminal hop flit vc virtual channel hol blocking tail latency p99 "
+            "结果参数含义 指标 术语 packet latency network latency throughput accepted rate "
+            "saturation "
+            "hol blocking tail latency p99 "
             "offered load accepted load jitter backpressure bisection bandwidth 收敛 拐点 "
             "核心 kpi 端到端包延迟 吞吐匹配度 网内延迟 平均跳数 注入排队 饱和判据 "
-            "accepted_rate offered_rate eta_match h_avg h_lb rho_hop"));
+            "accepted_rate offered_rate eta_match h_avg h_lb rho_hop "
+            "延迟与微片打散 fragmentation flit latency plat nlat flat "
+            "吞吐与接纳 包率 flit 率 pkt/cycle injected accepted packet rate flit rate"));
 
     if (metricSection) {
         for (const MetricTermCard& card : metricTermCards()) {
@@ -714,12 +685,15 @@ UsageGuidePage::SectionUi* UsageGuidePage::addSection(
     bodyLay->setContentsMargins(0, 0, 0, 0);
     bodyLay->setSpacing(8);
 
-    auto* browser = new QTextBrowser(body);
-    browser->setOpenExternalLinks(true);
-    browser->setReadOnly(true);
-    browser->setHtml(richText);
-    enableAutoHeight(browser, 48);
-    bodyLay->addWidget(browser);
+    QTextBrowser* browser = nullptr;
+    if (!richText.trimmed().isEmpty()) {
+        browser = new QTextBrowser(body);
+        browser->setOpenExternalLinks(true);
+        browser->setReadOnly(true);
+        browser->setHtml(richText);
+        enableAutoHeight(browser, 48);
+        bodyLay->addWidget(browser);
+    }
 
     if (!templates.isEmpty()) {
         bodyLay->addWidget(createTemplateRow(templates, body));
@@ -793,7 +767,11 @@ void UsageGuidePage::addSubSection(SectionUi& parent,
     auto* browser = new QTextBrowser(body);
     browser->setOpenExternalLinks(true);
     browser->setReadOnly(true);
-    browser->setHtml(QStringLiteral("<p>%1</p>%2").arg(summary.toHtmlEscaped(), richText));
+    const QString htmlBody = summary.trimmed().isEmpty()
+                                 ? richText
+                                 : QStringLiteral("<p>%1</p>%2")
+                                       .arg(summary.toHtmlEscaped(), richText);
+    browser->setHtml(htmlBody);
     enableAutoHeight(browser, 42);
     nestedBodyLay->addWidget(browser);
 

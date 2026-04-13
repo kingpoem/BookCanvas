@@ -55,6 +55,7 @@ ui_*.h
 CMakeLists.txt.user*
 .clangd.local
 .cursor/
+.cursorrules
 
 # ========================
 # Local runtime/config files

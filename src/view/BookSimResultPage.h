@@ -13,7 +13,10 @@ class QVBoxLayout;
 
 struct BookSimMetricRow {
     QString name;
-    QString value;
+    /// splitAvgAndRange 为真时表示「平均值」列；为假时表示整格数值（忽略 range）
+    QString avgOrValue;
+    /// splitAvgAndRange 为真时表示区间列（空则显示「—」）；为假时忽略
+    QString range;
     QString hint;
 };
 
@@ -43,7 +46,8 @@ private:
                                const QVector<BookSimMetricRow>& rows,
                                QWidget* extraWidget = nullptr,
                                const QString& accentColor = QString(),
-                               bool primaryEmphasis = false);
+                               bool primaryEmphasis = false,
+                               bool splitAvgAndRange = false);
 
     ElaText* m_statusText{};
     ElaPushButton* m_pasteButton{};

@@ -1,4 +1,5 @@
 #include "BookSimResultPage.h"
+#include "utils/BookSimMetricLabels.h"
 #include <ElaDef.h>
 #include <ElaPushButton.h>
 #include <ElaScrollPageArea.h>
@@ -15,7 +16,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
-#include <QProgressBar>
+#include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QTabWidget>
@@ -36,7 +37,6 @@ constexpr int kCardTitle = 18; // 卡片标题
 constexpr int kCardTitleEmph = 20;
 constexpr int kStatus = 14;
 constexpr int kMetricValue = 15;
-constexpr int kKpiValue = 28;
 } // namespace TypePx
 
 /// 线性混合：返回 a·t + b·(1−t)。要做「在 b 上混入少许 a」时，应把「混入的浅色」放在 a、底色素放在 b，t 取小比例。
@@ -65,7 +65,6 @@ struct Theme {
     QColor heroG0;
     QColor heroG1;
     QColor heroBorder;
-    QColor barTrack;
     QColor chartPacket;
     QColor chartNetwork;
     QColor chartFlit;
@@ -104,7 +103,6 @@ struct Theme {
         th.heroG0 = QColor(0xF7, 0xF9, 0xFC);
         th.heroG1 = QColor(0xFB, 0xFC, 0xFE);
         th.heroBorder = border;
-        th.barTrack = QColor(0xE7, 0xEB, 0xF0);
         th.fgMain = ink;
         th.fgDim = QColor(0x4A, 0x4F, 0x57);
         th.textMuted = QColor(0x5B, 0x61, 0x6B);
@@ -135,8 +133,6 @@ struct Theme {
         th.heroG0 = QColor(0x22, 0x27, 0x30);
         th.heroG1 = QColor(0x1C, 0x21, 0x29);
         th.heroBorder = border;
-        const QColor base = ElaThemeColor(mode, BasicBase);
-        th.barTrack = mix(QColor(255, 255, 255), base, 0.14);
         th.fgMain = QColor(0xEB, 0xEE, 0xF3);
         const QColor lightGray(0xD9, 0xDE, 0xE6);
         th.textMuted = mix(ElaThemeColor(mode, BasicDetailsText), lightGray, 0.30);
@@ -165,308 +161,37 @@ struct Theme {
 
 namespace {
 
-[[nodiscard]] QString formatBand(const BookSimStatBand& b, int precision) {
-    if (!b.hasAverage) {
-        return QStringLiteral("—");
+void applySelectableLabel(QLabel* label) {
+    if (!label) {
+        return;
     }
-    QString s = QString::number(b.average, 'f', precision);
+    label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    label->setFocusPolicy(Qt::ClickFocus);
+}
+
+void applySelectableLabel(ElaText* text) {
+    applySelectableLabel(static_cast<QLabel*>(text));
+}
+
+[[nodiscard]] BookSimMetricRow metricRowFromBand(const QString& name,
+                                                 const BookSimStatBand& b,
+                                                 int precision) {
+    BookSimMetricRow row;
+    row.name = name;
+    if (!b.hasAverage) {
+        row.avgOrValue = QStringLiteral("—");
+        row.range.clear();
+        return row;
+    }
+    row.avgOrValue = QString::number(b.average, 'f', precision);
     if (b.hasMinimum && b.hasMaximum) {
-        s += QStringLiteral(" · [%1, %2]")
-                 .arg(b.minimum, 0, 'f', precision)
-                 .arg(b.maximum, 0, 'f', precision);
-    }
-    return s;
-}
-
-[[nodiscard]] QString formatAverageOnly(const BookSimStatBand& b, int precision) {
-    if (!b.hasAverage) {
-        return QStringLiteral("—");
-    }
-    return QString::number(b.average, 'f', precision);
-}
-
-void styleProgressTrack(QProgressBar* bar, const QColor& chunk, const BookSimResultUi::Theme& th) {
-    bar->setTextVisible(false);
-    bar->setMinimumHeight(14);
-    bar->setMaximumHeight(14);
-    bar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    bar->setStyleSheet(
-        QStringLiteral("QProgressBar { border: none; border-radius: 6px; "
-                       "background-color: %1; }"
-                       "QProgressBar::chunk { border-radius: 6px; background-color: %2; }")
-            .arg(BookSimResultUi::rgba(th.barTrack), chunk.name(QColor::HexRgb)));
-}
-
-[[nodiscard]] QWidget* makeKpiTile(QWidget* parent,
-                                   const BookSimResultUi::Theme& th,
-                                   const QString& caption,
-                                   const QString& value,
-                                   const QString& footnote,
-                                   const QColor& accentColor) {
-    auto* tile = new QFrame(parent);
-    tile->setMinimumWidth(120);
-    tile->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-    tile->setAttribute(Qt::WA_StyledBackground, true);
-    tile->setStyleSheet(QStringLiteral("QFrame { background-color: %1; border-radius: 16px; "
-                                       "border: 1px solid %2; border-top: 3px solid %3; }")
-                            .arg(BookSimResultUi::rgba(th.tileBg),
-                                 BookSimResultUi::rgba(th.border),
-                                 accentColor.name(QColor::HexRgb)));
-
-    auto* v = new QVBoxLayout(tile);
-    v->setContentsMargins(16, 16, 16, 16);
-    v->setSpacing(8);
-
-    auto* cap = new QLabel(caption, tile);
-    cap->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                           .arg(BookSimResultUi::TypePx::kBody)
-                           .arg(BookSimResultUi::rgba(th.fgDim)));
-    cap->setWordWrap(true);
-
-    auto* val = new QLabel(value, tile);
-    val->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    val->setMinimumHeight(40);
-    val->setStyleSheet(QStringLiteral("font-size: %1px; font-weight: 700; font-family: 'SF Mono', "
-                                      "'Menlo', 'Consolas', monospace; color: %2; padding: 4px 0;")
-                           .arg(BookSimResultUi::TypePx::kKpiValue)
-                           .arg(BookSimResultUi::rgba(th.fgMain)));
-
-    auto* foot = new QLabel(footnote, tile);
-    foot->setWordWrap(true);
-    foot->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                            .arg(BookSimResultUi::TypePx::kBody)
-                            .arg(BookSimResultUi::rgba(th.textHint)));
-
-    v->addWidget(cap);
-    v->addWidget(val);
-    v->addWidget(foot);
-    return tile;
-}
-
-[[nodiscard]] QWidget* makeHeroKpiStrip(QWidget* parent,
-                                        const BookSimTrafficClassStats& s,
-                                        const BookSimResultUi::Theme& th) {
-    auto* wrap = new QFrame(parent);
-    wrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-    wrap->setStyleSheet(
-        QStringLiteral("QFrame { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, "
-                       "stop:0 %1, stop:1 %2); border-radius: 20px; border: 1px solid %3; }")
-            .arg(BookSimResultUi::rgba(th.heroG0),
-                 BookSimResultUi::rgba(th.heroG1),
-                 BookSimResultUi::rgba(th.heroBorder)));
-
-    auto* outer = new QVBoxLayout(wrap);
-    outer->setContentsMargins(22, 18, 22, 18);
-    outer->setSpacing(14);
-
-    auto* hint = new QLabel(QObject::tr("核心指标"), wrap);
-    hint->setStyleSheet(QStringLiteral("font-size: %1px; font-weight: 600; color: %2;")
-                            .arg(BookSimResultUi::TypePx::kLead)
-                            .arg(BookSimResultUi::rgba(th.fgMain)));
-    outer->addWidget(hint);
-
-    auto* row = new QHBoxLayout();
-    row->setSpacing(16);
-
-    const QString pktLat = formatAverageOnly(s.packetLatency, 3);
-    row->addWidget(makeKpiTile(wrap,
-                               th,
-                               QObject::tr("端到端包延迟（周期）"),
-                               pktLat,
-                               QObject::tr("端到端延迟"),
-                               th.kpiPacket),
-                   1);
-
-    const double injP = s.injectedPacketRate.hasAverage ? s.injectedPacketRate.average : 0.;
-    const double accP = s.acceptedPacketRate.hasAverage ? s.acceptedPacketRate.average : 0.;
-    QString satValue;
-    QString satFoot;
-    QColor satAccent = QColor(0x0D, 0x94, 0x88);
-    if (injP <= 1e-12) {
-        satValue = QStringLiteral("—");
-        satFoot = QObject::tr("注入率缺失");
+        row.range = QStringLiteral("[%1, %2]")
+                        .arg(b.minimum, 0, 'f', precision)
+                        .arg(b.maximum, 0, 'f', precision);
     } else {
-        const double ratio = accP / injP;
-        satValue = QStringLiteral("%1%").arg(ratio * 100., 0, 'f', 1);
-        satFoot = QObject::tr("接纳/注入");
-        if (ratio >= 0.98) {
-            satAccent = th.statusBalanced;
-            satFoot += QObject::tr(" · 稳定");
-        } else if (ratio >= 0.85) {
-            satAccent = th.statusWarn;
-            satFoot += QObject::tr(" · 背压");
-        } else {
-            satAccent = th.statusBad;
-            satFoot += QObject::tr(" · 风险");
-        }
+        row.range.clear();
     }
-    row->addWidget(makeKpiTile(wrap, th, QObject::tr("吞吐匹配度"), satValue, satFoot, satAccent),
-                   1);
-
-    row->addWidget(makeKpiTile(wrap,
-                               th,
-                               QObject::tr("网内延迟（周期）"),
-                               formatAverageOnly(s.networkLatency, 3),
-                               QObject::tr("网内延迟"),
-                               th.kpiNetwork),
-                   1);
-
-    row->addWidget(makeKpiTile(wrap,
-                               th,
-                               QObject::tr("平均跳数"),
-                               formatAverageOnly(s.hops, 4),
-                               QObject::tr("路径成本"),
-                               th.kpiHops),
-                   1);
-
-    outer->addLayout(row);
-    return wrap;
-}
-
-[[nodiscard]] QWidget* makeThroughputCompare(QWidget* parent,
-                                             const BookSimTrafficClassStats& s,
-                                             const BookSimResultUi::Theme& th) {
-    auto* wrap = new QWidget(parent);
-    auto* layout = new QVBoxLayout(wrap);
-    layout->setContentsMargins(0, 4, 0, 8);
-    layout->setSpacing(12);
-
-    auto addBarRow =
-        [wrap,
-         &th](const QString& label, double a, double b, const QColor& colorA, const QString& tip) {
-            const double mx = std::max({a, b, 1e-12});
-            auto* rowW = new QWidget(wrap);
-            auto* h = new QHBoxLayout(rowW);
-            h->setContentsMargins(0, 0, 0, 0);
-            h->setSpacing(14);
-            auto* lab = new QLabel(QStringLiteral("%1 — %2").arg(label, tip), rowW);
-            lab->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                                   .arg(BookSimResultUi::TypePx::kBody)
-                                   .arg(BookSimResultUi::rgba(th.fgMain)));
-            lab->setMinimumWidth(220);
-            lab->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
-            auto* bar = new QProgressBar(rowW);
-            bar->setRange(0, 1000);
-            bar->setValue(static_cast<int>(std::lround(1000. * a / mx)));
-            styleProgressTrack(bar, colorA, th);
-            auto* val = new QLabel(QString::number(a, 'f', 5), rowW);
-            val->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-            val->setStyleSheet(QStringLiteral("font-size: %1px; font-family: 'SF Mono', 'Menlo', "
-                                              "'Consolas', monospace; color: %2;")
-                                   .arg(BookSimResultUi::TypePx::kBody)
-                                   .arg(BookSimResultUi::rgba(th.fgMain)));
-            val->setMinimumWidth(96);
-            h->addWidget(lab, 0);
-            h->addWidget(bar, 1);
-            h->addWidget(val, 0);
-            return rowW;
-        };
-
-    const double injPkt = s.injectedPacketRate.hasAverage ? s.injectedPacketRate.average : 0.;
-    const double accPkt = s.acceptedPacketRate.hasAverage ? s.acceptedPacketRate.average : 0.;
-    const double injFlit = s.injectedFlitRate.hasAverage ? s.injectedFlitRate.average : 0.;
-    const double accFlit = s.acceptedFlitRate.hasAverage ? s.acceptedFlitRate.average : 0.;
-
-    auto* sub = new QLabel(QObject::tr("注入/接纳对比"), wrap);
-    sub->setWordWrap(true);
-    sub->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                           .arg(BookSimResultUi::TypePx::kBody)
-                           .arg(BookSimResultUi::rgba(th.fgMain)));
-    layout->addWidget(sub);
-
-    layout->addWidget(addBarRow(QObject::tr("包率（pkt/cycle）"),
-                                injPkt,
-                                accPkt,
-                                th.thrInjPkt,
-                                QObject::tr("注入")),
-                      0);
-    layout->addWidget(addBarRow(QObject::tr("包率（pkt/cycle）"),
-                                accPkt,
-                                injPkt,
-                                th.thrAccPkt,
-                                QObject::tr("接纳")),
-                      0);
-
-    layout->addWidget(addBarRow(QObject::tr("Flit 率"),
-                                injFlit,
-                                accFlit,
-                                th.thrInjFlit,
-                                QObject::tr("注入")),
-                      0);
-    layout->addWidget(addBarRow(QObject::tr("Flit 率"),
-                                accFlit,
-                                injFlit,
-                                th.thrAccFlit,
-                                QObject::tr("接纳")),
-                      0);
-
-    return wrap;
-}
-
-[[nodiscard]] QWidget* makeLatencyLadder(QWidget* parent,
-                                         const BookSimTrafficClassStats& s,
-                                         const BookSimResultUi::Theme& th) {
-    auto* wrap = new QWidget(parent);
-    auto* layout = new QVBoxLayout(wrap);
-    layout->setContentsMargins(0, 4, 0, 8);
-    layout->setSpacing(10);
-
-    const double p = s.packetLatency.hasAverage ? s.packetLatency.average : 0.;
-    const double n = s.networkLatency.hasAverage ? s.networkLatency.average : 0.;
-    const double f = s.flitLatency.hasAverage ? s.flitLatency.average : 0.;
-    const double mx = std::max({p, n, f, 1.});
-
-    const struct RowData {
-        QString label;
-        double value;
-        QString tip;
-        QColor color;
-    } rowData[] = {
-        {QObject::tr("Packet 延迟"), p, QObject::tr("端到端"), th.chartPacket},
-        {QObject::tr("Network 延迟"), n, QObject::tr("网内"), th.chartNetwork},
-        {QObject::tr("Flit 延迟"), f, QObject::tr("Flit 平均"), th.chartFlit},
-    };
-
-    for (const auto& row : rowData) {
-        if (row.value <= 0.) {
-            continue;
-        }
-        auto* rowW = new QWidget(wrap);
-        auto* h = new QHBoxLayout(rowW);
-        h->setContentsMargins(0, 0, 0, 0);
-        h->setSpacing(16);
-        auto* lab = new QLabel(QStringLiteral("%1 (%2)").arg(row.label, row.tip), rowW);
-        lab->setWordWrap(false);
-        lab->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                               .arg(BookSimResultUi::TypePx::kBody)
-                               .arg(BookSimResultUi::rgba(th.fgMain)));
-        lab->setMinimumWidth(260);
-        lab->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
-        auto* bar = new QProgressBar(rowW);
-        bar->setRange(0, 1000);
-        bar->setValue(static_cast<int>(std::lround(1000. * row.value / mx)));
-        bar->setMinimumHeight(28);
-        bar->setMaximumHeight(30);
-        bar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        bar->setTextVisible(true);
-        bar->setFormat(QStringLiteral("%1 周期").arg(row.value, 0, 'f', 2));
-        bar->setStyleSheet(QStringLiteral("QProgressBar { border: none; border-radius: 10px; "
-                                          "background-color: %1; padding-right: 10px; text-align: "
-                                          "right; font-size: %3px; "
-                                          "font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; "
-                                          "color: %4; }"
-                                          "QProgressBar::chunk { border-radius: 10px; "
-                                          "background-color: %2; }")
-                               .arg(BookSimResultUi::rgba(th.barTrack),
-                                    row.color.name(QColor::HexRgb),
-                                    QString::number(BookSimResultUi::TypePx::kBody),
-                                    th.fgMain.name(QColor::HexRgb)));
-        h->addWidget(lab, 0);
-        h->addWidget(bar, 1);
-        layout->addWidget(rowW);
-    }
-
-    return wrap;
+    return row;
 }
 
 struct RecordMetricPoint {
@@ -570,6 +295,65 @@ struct RecordMetricPoint {
                   return lhs.metricA < rhs.metricA;
               });
     return points;
+}
+
+[[nodiscard]] QString buildRecordChartPlainDump(const QVector<RecordMetricPoint>& points,
+                                                const QString& metricALabel,
+                                                const QString& metricBLabel) {
+    if (points.size() < 2) {
+        return {};
+    }
+    double minA = points.front().metricA;
+    double maxA = points.front().metricA;
+    double minB = points.front().metricB;
+    double maxB = points.front().metricB;
+    for (const auto& p : points) {
+        minA = std::min(minA, p.metricA);
+        maxA = std::max(maxA, p.metricA);
+        minB = std::min(minB, p.metricB);
+        maxB = std::max(maxB, p.metricB);
+    }
+    if (std::abs(maxA - minA) < 1e-12) {
+        maxA += 1.0;
+        minA -= 1.0;
+    }
+    if (std::abs(maxB - minB) < 1e-12) {
+        maxB += 1.0;
+        minB -= 1.0;
+    }
+    QString s;
+    s += QStringLiteral("X轴：%1  [%2, %3]\n")
+             .arg(metricALabel, QString::number(minA, 'f', 3), QString::number(maxA, 'f', 3));
+    s += QStringLiteral("Y轴：%1  [%2, %3]\n")
+             .arg(metricBLabel, QString::number(minB, 'f', 3), QString::number(maxB, 'f', 3));
+    s += QStringLiteral("X轴刻度（底边，与图一致）：");
+    for (int i = 0; i <= 6; ++i) {
+        const double t = static_cast<double>(i) / 6.0;
+        const double xTick = minA + t * (maxA - minA);
+        if (i > 0) {
+            s += QLatin1Char('\t');
+        }
+        s += QString::number(xTick, 'f', 2);
+    }
+    s += QStringLiteral(
+        "\n纵轴网格：左侧刻度对应 X 指标量纲、右侧对应 Y 指标量纲（与图左右刻度一致）。\n");
+    for (int i = 0; i <= 5; ++i) {
+        const double t = static_cast<double>(i) / 5.0;
+        const double valueA = minA + t * (maxA - minA);
+        const double valueB = minB + t * (maxB - minB);
+        s += QStringLiteral("左 %1\t右 %2\n")
+                 .arg(QString::number(valueA, 'f', 2), QString::number(valueB, 'f', 2));
+    }
+    s += QStringLiteral("\n数据（制表符分隔，可复制到表格软件）：\n");
+    s += QStringLiteral("记录\t%1\t%2\n").arg(metricALabel, metricBLabel);
+    for (const auto& p : points) {
+        s += QStringLiteral("%1 %2\t%3\t%4\n")
+                 .arg(p.label,
+                      p.fullName,
+                      QString::number(p.metricA, 'f', 6),
+                      QString::number(p.metricB, 'f', 6));
+    }
+    return s;
 }
 
 class DualMetricLineChartWidget : public QWidget {
@@ -762,6 +546,7 @@ BookSimResultPage::BookSimResultPage(QWidget* parent)
     m_statusText = new ElaText(tr("等待仿真结果"), this);
     m_statusText->setTextPixelSize(BookSimResultUi::TypePx::kStatus);
     m_statusText->setWordWrap(true);
+    applySelectableLabel(m_statusText);
 
     m_scrollInner = new QWidget(central);
     m_scrollInner->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -891,6 +676,7 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
         err->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
                                .arg(BookSimResultUi::TypePx::kLead)
                                .arg(th.fgMain.name(QColor::HexRgb)));
+        applySelectableLabel(err);
         m_bodyLayout->addWidget(err);
         m_bodyLayout->addStretch();
         return;
@@ -911,12 +697,14 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
         wlab->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
                                 .arg(BookSimResultUi::TypePx::kBody)
                                 .arg(BookSimResultUi::rgba(th.fgDim)));
+        applySelectableLabel(wlab);
         auto* wval = new QLabel(QStringLiteral("%1 s").arg(*result.totalRunTimeSec, 0, 'g', 9),
                                 wall);
         wval->setStyleSheet(QStringLiteral("font-size: %1px; font-weight: 600; font-family: 'SF "
                                            "Mono', 'Menlo', 'Consolas', monospace; color: %2;")
                                 .arg(BookSimResultUi::TypePx::kLead)
                                 .arg(th.fgMain.name(QColor::HexRgb)));
+        applySelectableLabel(wval);
         wh->addWidget(wlab);
         wh->addStretch();
         wh->addWidget(wval);
@@ -965,6 +753,7 @@ void BookSimResultPage::rebuildRecordLineChart() {
         err->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
                                .arg(BookSimResultUi::TypePx::kLead)
                                .arg(th.fgMain.name(QColor::HexRgb)));
+        applySelectableLabel(err);
         m_bodyLayout->addWidget(err);
         m_bodyLayout->addStretch();
         return;
@@ -989,11 +778,13 @@ void BookSimResultPage::rebuildRecordLineChart() {
     title->setStyleSheet(QStringLiteral("font-size: %1px; font-weight: 600; color: %2;")
                              .arg(BookSimResultUi::TypePx::kSection)
                              .arg(th.fgMain.name(QColor::HexRgb)));
+    applySelectableLabel(title);
     auto* subtitle = new QLabel(tr("按 X 指标升序连线"), summary);
     subtitle->setWordWrap(true);
     subtitle->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
                                 .arg(BookSimResultUi::TypePx::kBody)
                                 .arg(BookSimResultUi::rgba(th.fgMain)));
+    applySelectableLabel(subtitle);
     summaryLayout->addWidget(title);
     summaryLayout->addWidget(subtitle);
     m_bodyLayout->addWidget(summary);
@@ -1020,6 +811,7 @@ void BookSimResultPage::rebuildRecordLineChart() {
                               chartCard);
     legend->setTextFormat(Qt::RichText);
     legend->setStyleSheet(QStringLiteral("font-size: %1px;").arg(BookSimResultUi::TypePx::kLead));
+    applySelectableLabel(legend);
     chartCardLayout->addWidget(legend);
     chartCardLayout->addWidget(new DualMetricLineChartWidget(points,
                                                              m_chartMetricALabel,
@@ -1027,16 +819,35 @@ void BookSimResultPage::rebuildRecordLineChart() {
                                                              th,
                                                              chartCard),
                                1);
+    auto* chartCopy = new QPlainTextEdit(chartCard);
+    chartCopy->setReadOnly(true);
+    chartCopy->setPlainText(
+        buildRecordChartPlainDump(points, m_chartMetricALabel, m_chartMetricBLabel));
+    chartCopy->setMaximumBlockCount(0);
+    chartCopy->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    chartCopy->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    chartCopy->setMinimumHeight(140);
+    chartCopy->setMaximumHeight(260);
+    chartCopy->setStyleSheet(
+        QStringLiteral("QPlainTextEdit { font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; "
+                       "font-size: %1px; color: %2; background: %3; border: 1px solid %4; "
+                       "border-radius: 8px; padding: 8px; }")
+            .arg(BookSimResultUi::TypePx::kBody)
+            .arg(th.fgMain.name(QColor::HexRgb))
+            .arg(BookSimResultUi::rgba(BookSimResultUi::mix(th.cardBg, th.pageBg, 0.92)))
+            .arg(BookSimResultUi::rgba(th.border)));
+    chartCardLayout->addWidget(chartCopy);
     m_bodyLayout->addWidget(chartCard);
 
     auto* table = new QTableWidget(static_cast<int>(points.size()), 3, m_scrollInner);
     table->setHorizontalHeaderLabels({tr("记录"), m_chartMetricALabel, m_chartMetricBLabel});
     table->verticalHeader()->setVisible(false);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setSelectionMode(QAbstractItemView::NoSelection);
+    table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    table->setSelectionBehavior(QAbstractItemView::SelectItems);
     table->setAlternatingRowColors(true);
     table->setShowGrid(false);
-    table->setFocusPolicy(Qt::NoFocus);
+    table->setFocusPolicy(Qt::StrongFocus);
     table->horizontalHeader()->setStretchLastSection(true);
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
@@ -1069,7 +880,8 @@ QFrame* BookSimResultPage::createCategoryCard(QWidget* host,
                                               const QVector<BookSimMetricRow>& rows,
                                               QWidget* extraWidget,
                                               const QString& accentColor,
-                                              bool primaryEmphasis) {
+                                              bool primaryEmphasis,
+                                              bool splitAvgAndRange) {
     const BookSimResultUi::Theme th = BookSimResultUi::themeFrom(eTheme->getThemeMode());
     auto* card = new QFrame(host);
     card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -1095,6 +907,7 @@ QFrame* BookSimResultPage::createCategoryCard(QWidget* host,
     titleT->setTextPixelSize(primaryEmphasis ? BookSimResultUi::TypePx::kCardTitleEmph
                                              : BookSimResultUi::TypePx::kCardTitle);
     titleT->setStyleSheet(QStringLiteral("color: %1;").arg(th.fgMain.name(QColor::HexRgb)));
+    applySelectableLabel(titleT);
     v->addWidget(titleT);
 
     if (!subtitle.isEmpty()) {
@@ -1103,6 +916,7 @@ QFrame* BookSimResultPage::createCategoryCard(QWidget* host,
         sub->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
                                .arg(BookSimResultUi::TypePx::kBody)
                                .arg(BookSimResultUi::rgba(th.fgMain)));
+        applySelectableLabel(sub);
         v->addWidget(sub);
     }
 
@@ -1110,36 +924,114 @@ QFrame* BookSimResultPage::createCategoryCard(QWidget* host,
         v->addWidget(extraWidget);
     }
 
+    const QColor tableInnerBg = BookSimResultUi::mix(th.cardBg,
+                                                     th.tileBg,
+                                                     primaryEmphasis ? 0.38 : 0.52);
+    auto* tableWrap = new QFrame(card);
+    tableWrap->setObjectName(QStringLiteral("metricTableWrap"));
+    tableWrap->setStyleSheet(
+        QStringLiteral("QFrame#metricTableWrap { background-color: %1; border: 1px solid %2; "
+                       "border-radius: 14px; }")
+            .arg(BookSimResultUi::rgba(tableInnerBg), BookSimResultUi::rgba(th.border)));
+    auto* tableWrapLay = new QVBoxLayout(tableWrap);
+    tableWrapLay->setContentsMargins(14, 12, 14, 14);
+    tableWrapLay->setSpacing(0);
+
     auto* grid = new QGridLayout();
-    grid->setHorizontalSpacing(16);
-    grid->setVerticalSpacing(8);
+    grid->setHorizontalSpacing(18);
+    grid->setVerticalSpacing(splitAvgAndRange ? 10 : 8);
     int r = 0;
+    const QString headerStyle
+        = QStringLiteral("font-size: %1px; font-weight: 600; color: %2; padding-bottom: 8px; "
+                         "border-bottom: 1px solid %3;")
+              .arg(BookSimResultUi::TypePx::kBody)
+              .arg(BookSimResultUi::rgba(th.textHint))
+              .arg(BookSimResultUi::rgba(BookSimResultUi::mix(th.border, tableInnerBg, 0.62)));
+    const QString valueStyle
+        = QStringLiteral("font-size: %1px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; "
+                         "color: %2;")
+              .arg(BookSimResultUi::TypePx::kMetricValue)
+              .arg(th.fgMain.name(QColor::HexRgb));
+    const QString nameStyle = QStringLiteral("font-size: %1px; font-weight: 500; color: %2;")
+                                  .arg(BookSimResultUi::TypePx::kBody)
+                                  .arg(th.fgMain.name(QColor::HexRgb));
+
+    if (splitAvgAndRange) {
+        auto* h0 = new QLabel(tr("指标"), tableWrap);
+        h0->setStyleSheet(headerStyle);
+        applySelectableLabel(h0);
+        auto* h1 = new QLabel(tr("平均值"), tableWrap);
+        h1->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        h1->setStyleSheet(headerStyle);
+        applySelectableLabel(h1);
+        auto* h2 = new QLabel(tr("[ 最小值， 最大值 ]"), tableWrap);
+        h2->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        h2->setStyleSheet(headerStyle);
+        applySelectableLabel(h2);
+        grid->addWidget(h0, r, 0);
+        grid->addWidget(h1, r, 1);
+        grid->addWidget(h2, r, 2);
+        ++r;
+    } else if (!rows.isEmpty()) {
+        auto* h0 = new QLabel(tr("指标"), tableWrap);
+        h0->setStyleSheet(headerStyle);
+        applySelectableLabel(h0);
+        auto* h1 = new QLabel(tr("平均值"), tableWrap);
+        h1->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        h1->setStyleSheet(headerStyle);
+        applySelectableLabel(h1);
+        grid->addWidget(h0, r, 0);
+        grid->addWidget(h1, r, 1);
+        ++r;
+    }
+
     for (const BookSimMetricRow& row : rows) {
-        auto* nameL = new QLabel(row.name, card);
-        nameL->setStyleSheet(QStringLiteral("font-size: %1px; font-weight: 500; color: %2;")
-                                 .arg(BookSimResultUi::TypePx::kBody)
-                                 .arg(th.fgMain.name(QColor::HexRgb)));
-        auto* valL = new QLabel(row.value, card);
-        valL->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        valL->setStyleSheet(QStringLiteral("font-size: %1px; font-family: 'SF Mono', 'Menlo', "
-                                           "'Consolas', monospace; color: %2;")
-                                .arg(BookSimResultUi::TypePx::kMetricValue)
-                                .arg(th.fgMain.name(QColor::HexRgb)));
+        auto* nameL = new QLabel(row.name, tableWrap);
+        nameL->setStyleSheet(nameStyle);
+        applySelectableLabel(nameL);
         grid->addWidget(nameL, r, 0);
-        grid->addWidget(valL, r, 1);
+
+        if (splitAvgAndRange) {
+            auto* avgL = new QLabel(row.avgOrValue, tableWrap);
+            avgL->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            avgL->setStyleSheet(valueStyle);
+            applySelectableLabel(avgL);
+            const QString rangeShow = row.range.isEmpty() ? QStringLiteral("—") : row.range;
+            auto* rangeL = new QLabel(rangeShow, tableWrap);
+            rangeL->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            rangeL->setStyleSheet(valueStyle);
+            applySelectableLabel(rangeL);
+            grid->addWidget(avgL, r, 1);
+            grid->addWidget(rangeL, r, 2);
+        } else {
+            auto* valL = new QLabel(row.avgOrValue, tableWrap);
+            valL->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            valL->setStyleSheet(valueStyle);
+            applySelectableLabel(valL);
+            grid->addWidget(valL, r, 1);
+        }
         ++r;
         if (!row.hint.isEmpty()) {
-            auto* hintL = new QLabel(row.hint, card);
+            auto* hintL = new QLabel(row.hint, tableWrap);
             hintL->setWordWrap(true);
             hintL->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
                                      .arg(BookSimResultUi::TypePx::kBody)
                                      .arg(BookSimResultUi::rgba(th.fgMain)));
-            grid->addWidget(hintL, r, 0, 1, 2);
+            applySelectableLabel(hintL);
+            grid->addWidget(hintL, r, 0, 1, splitAvgAndRange ? 3 : 2);
             ++r;
         }
     }
-    grid->setColumnStretch(1, 1);
-    v->addLayout(grid);
+    grid->setColumnStretch(0, 1);
+    if (splitAvgAndRange) {
+        grid->setColumnMinimumWidth(1, 112);
+        grid->setColumnMinimumWidth(2, 132);
+    } else {
+        grid->setColumnMinimumWidth(1, 112);
+        grid->setColumnStretch(1, 0);
+    }
+    tableWrapLay->addLayout(grid);
+    v->addWidget(tableWrap);
     return card;
 }
 
@@ -1155,6 +1047,7 @@ QWidget* BookSimResultPage::buildClassPanel(QWidget* host, const BookSimTrafficC
     auto* classHead = new ElaText(tr("流量类别 %1").arg(stats.classId), panel);
     classHead->setTextPixelSize(BookSimResultUi::TypePx::kSection);
     classHead->setStyleSheet(QStringLiteral("color: %1;").arg(th.fgMain.name(QColor::HexRgb)));
+    applySelectableLabel(classHead);
     lay->addWidget(classHead);
 
     const int sampleNote = stats.packetLatency.hasAverage ? stats.packetLatency.samples : 0;
@@ -1163,77 +1056,82 @@ QWidget* BookSimResultPage::buildClassPanel(QWidget* host, const BookSimTrafficC
         badge->setStyleSheet(QStringLiteral("font-size: %1px; color: %2; padding: 4px 0;")
                                  .arg(BookSimResultUi::TypePx::kBody)
                                  .arg(BookSimResultUi::rgba(th.fgMain)));
+        applySelectableLabel(badge);
         lay->addWidget(badge);
     }
 
-    lay->addWidget(makeHeroKpiStrip(panel, stats, th));
-
     QVector<BookSimMetricRow> latencyRows;
-    latencyRows.push_back({tr("Packet 延迟"), formatBand(stats.packetLatency, 4), QString()});
-    latencyRows.push_back({tr("Network 延迟"), formatBand(stats.networkLatency, 4), QString()});
-    latencyRows.push_back({tr("Flit 延迟"), formatBand(stats.flitLatency, 4), QString()});
-    latencyRows.push_back({tr("Fragmentation"), formatBand(stats.fragmentation, 6), QString()});
+    latencyRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::packetLatency(), stats.packetLatency, 4));
+    latencyRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::networkLatency(), stats.networkLatency, 4));
+    latencyRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::flitLatency(), stats.flitLatency, 4));
+    latencyRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::fragmentation(), stats.fragmentation, 6));
     lay->addWidget(createCategoryCard(panel,
-                                      tr("延迟与微片打散"),
-                                      tr("延迟分层"),
+                                      BookSimMetricLabels::sectionLatencyFlit(),
+                                      QString(),
                                       latencyRows,
-                                      makeLatencyLadder(panel, stats, th),
+                                      nullptr,
                                       th.kpiPacket.name(QColor::HexRgb),
+                                      true,
                                       true));
 
     const double injP = stats.injectedPacketRate.hasAverage ? stats.injectedPacketRate.average : 0.;
     const double accP = stats.acceptedPacketRate.hasAverage ? stats.acceptedPacketRate.average : 0.;
-    QString thrHint = tr("注入/接纳对比");
-    if (injP > 1e-9 && accP > 1e-9) {
+    QString matchVal;
+    QString matchFoot;
+    if (injP <= 1e-12) {
+        matchVal = QStringLiteral("—");
+        matchFoot = tr("注入包速率为 0，无法计算比值。");
+    } else {
         const double ratio = accP / injP;
-        thrHint += tr("，比值 %1").arg(ratio, 0, 'f', 3);
+        matchVal = QStringLiteral("%1%").arg(ratio * 100., 0, 'f', 1);
+        if (ratio >= 0.98) {
+            matchFoot.clear();
+        } else if (ratio >= 0.85) {
+            matchFoot = tr("偏低，可能存在背压或拥塞。");
+        } else {
+            matchFoot = tr("明显偏低，需关注丢包或饱和。");
+        }
     }
 
     QVector<BookSimMetricRow> thrRows;
-    thrRows.push_back({tr("注入包率"), formatBand(stats.injectedPacketRate, 5), QString()});
-    thrRows.push_back({tr("接纳包率"), formatBand(stats.acceptedPacketRate, 5), QString()});
-    thrRows.push_back({tr("注入 flit 率"), formatBand(stats.injectedFlitRate, 5), QString()});
-    thrRows.push_back({tr("接纳 flit 率"), formatBand(stats.acceptedFlitRate, 5), QString()});
+    thrRows.push_back({BookSimMetricLabels::throughputMatch(), matchVal, QString(), matchFoot});
+    thrRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::injectedPacketRate(), stats.injectedPacketRate, 5));
+    thrRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::acceptedPacketRate(), stats.acceptedPacketRate, 5));
+    thrRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::injectedFlitRate(), stats.injectedFlitRate, 5));
+    thrRows.push_back(
+        metricRowFromBand(BookSimMetricLabels::acceptedFlitRate(), stats.acceptedFlitRate, 5));
     lay->addWidget(createCategoryCard(panel,
-                                      tr("吞吐与接纳"),
-                                      thrHint,
+                                      BookSimMetricLabels::sectionThroughput(),
+                                      QString(),
                                       thrRows,
-                                      makeThroughputCompare(panel, stats, th),
+                                      nullptr,
                                       th.thrAccPkt.name(QColor::HexRgb),
+                                      false,
+                                      true));
+
+    QVector<BookSimMetricRow> shapePathRows;
+    shapePathRows.push_back(metricRowFromBand(BookSimMetricLabels::injectedMeanPacketSize(),
+                                              stats.injectedPacketSize,
+                                              4));
+    shapePathRows.push_back(metricRowFromBand(BookSimMetricLabels::acceptedMeanPacketSize(),
+                                              stats.acceptedPacketSize,
+                                              4));
+    shapePathRows.push_back(metricRowFromBand(BookSimMetricLabels::meanHops(), stats.hops, 5));
+    lay->addWidget(createCategoryCard(panel,
+                                      BookSimMetricLabels::sectionShapePath(),
+                                      QString(),
+                                      shapePathRows,
+                                      nullptr,
+                                      th.accentHops.name(QColor::HexRgb),
+                                      false,
                                       false));
-
-    auto* detailRow = new QWidget(panel);
-    detailRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-    auto* detailLay = new QHBoxLayout(detailRow);
-    detailLay->setContentsMargins(0, 0, 0, 0);
-    detailLay->setSpacing(16);
-
-    QVector<BookSimMetricRow> shapeRows;
-    shapeRows.push_back(
-        {tr("注入平均包长（flits）"), formatBand(stats.injectedPacketSize, 4), QString()});
-    shapeRows.push_back(
-        {tr("接纳平均包长（flits）"), formatBand(stats.acceptedPacketSize, 4), QString()});
-
-    QVector<BookSimMetricRow> hopRows;
-    hopRows.push_back({tr("平均跳数"), formatBand(stats.hops, 5), QString()});
-
-    detailLay->addWidget(createCategoryCard(detailRow,
-                                            tr("数据包形态"),
-                                            QString(),
-                                            shapeRows,
-                                            nullptr,
-                                            th.accentShape.name(QColor::HexRgb),
-                                            false),
-                         1);
-    detailLay->addWidget(createCategoryCard(detailRow,
-                                            tr("路径与拓扑"),
-                                            QString(),
-                                            hopRows,
-                                            nullptr,
-                                            th.accentHops.name(QColor::HexRgb),
-                                            false),
-                         1);
-    lay->addWidget(detailRow);
 
     return panel;
 }
