@@ -719,14 +719,15 @@ void SimulationRecordPage::openLineChartDialog() {
             selectAllBox->setCheckState(Qt::PartiallyChecked);
         }
     };
-    QObject::connect(selectAllBox, &QCheckBox::checkStateChanged, &dialog, [&](Qt::CheckState state) {
-        if (syncingSelectAll || state == Qt::PartiallyChecked) {
+    QObject::connect(selectAllBox, &QCheckBox::stateChanged, &dialog, [&](int state) {
+        const auto cs = static_cast<Qt::CheckState>(state);
+        if (syncingSelectAll || cs == Qt::PartiallyChecked) {
             return;
         }
         syncingSelectAll = true;
-        const Qt::CheckState cs = (state == Qt::Checked) ? Qt::Checked : Qt::Unchecked;
+        const Qt::CheckState applied = (cs == Qt::Checked) ? Qt::Checked : Qt::Unchecked;
         for (int i = 0; i < recordList->count(); ++i) {
-            recordList->item(i)->setCheckState(cs);
+            recordList->item(i)->setCheckState(applied);
         }
         syncingSelectAll = false;
     });
@@ -889,14 +890,15 @@ void SimulationRecordPage::openScatter3DDialog() {
             selectAllBox->setCheckState(Qt::PartiallyChecked);
         }
     };
-    QObject::connect(selectAllBox, &QCheckBox::checkStateChanged, &dialog, [&](Qt::CheckState state) {
-        if (syncingSelectAll || state == Qt::PartiallyChecked) {
+    QObject::connect(selectAllBox, &QCheckBox::stateChanged, &dialog, [&](int state) {
+        const auto cs = static_cast<Qt::CheckState>(state);
+        if (syncingSelectAll || cs == Qt::PartiallyChecked) {
             return;
         }
         syncingSelectAll = true;
-        const Qt::CheckState cs = (state == Qt::Checked) ? Qt::Checked : Qt::Unchecked;
+        const Qt::CheckState applied = (cs == Qt::Checked) ? Qt::Checked : Qt::Unchecked;
         for (int i = 0; i < recordList->count(); ++i) {
-            recordList->item(i)->setCheckState(cs);
+            recordList->item(i)->setCheckState(applied);
         }
         syncingSelectAll = false;
     });
