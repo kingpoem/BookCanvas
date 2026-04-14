@@ -166,20 +166,12 @@ void BookSimResultPage::rebuildContent(const BookSimParseResult& result) {
         delete item;
     }
 
-    const BookSimResultUi::Theme th = BookSimResultUi::themeFrom(eTheme->getThemeMode());
-
     if (!result.ok()) {
         setStatus(result.errorMessage, true);
-        auto* err = new QLabel(result.errorMessage, m_scrollInner);
-        err->setWordWrap(true);
-        err->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
-                               .arg(BookSimResultUi::TypePx::kLead)
-                               .arg(th.fgMain.name(QColor::HexRgb)));
-        applySelectableLabel(err);
-        m_bodyLayout->addWidget(err);
         return;
     }
 
+    const BookSimResultUi::Theme th = BookSimResultUi::themeFrom(eTheme->getThemeMode());
     setStatus(tr("已解析：%1 个 class").arg(result.classes.size()), false);
 
     if (result.totalRunTimeSec.has_value()) {

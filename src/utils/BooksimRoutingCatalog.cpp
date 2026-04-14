@@ -84,6 +84,9 @@ QStringList routingIdsForTopology(const QString& topologyId) {
     if (t == QLatin1String("dragonflynew")) {
         return {QStringLiteral("min"), QStringLiteral("ugal")};
     }
+    if (t == QLatin1String("chiplet_mesh")) {
+        return {QStringLiteral("dim_order_chiplet_mesh")};
+    }
     if (t == QLatin1String("anynet")) {
         return {QStringLiteral("min")};
     }
@@ -224,6 +227,10 @@ QString routingUiLabel(const QString& topologyId, const QString& routingId) {
         if (id == QLatin1String("min")) {
             return T("min · 任意网");
         }
+    } else if (topo == QLatin1String("chiplet_mesh")) {
+        if (id == QLatin1String("dim_order_chiplet_mesh")) {
+            return T("dim_order_chiplet_mesh · 芯粒网格维序");
+        }
     }
     return id;
 }
@@ -254,6 +261,9 @@ QString defaultRoutingIdForTopology(const QString& topologyId) {
     }
     if (t == QLatin1String("anynet")) {
         return QStringLiteral("min");
+    }
+    if (t == QLatin1String("chiplet_mesh")) {
+        return QStringLiteral("dim_order_chiplet_mesh");
     }
     return QStringLiteral("min");
 }

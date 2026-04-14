@@ -29,6 +29,12 @@ public:
     void setLine(const QLineF& line);
     [[nodiscard]] const QLineF& line() const { return m_line; }
 
+    [[nodiscard]] bool isChipletInterDieLink() const { return m_chipletInterDie; }
+
+    /// 跨芯粒的路由器互连（偏红样式），与普通跨芯粒青色自动装饰互斥
+    [[nodiscard]] bool isChipletRedInterconnect() const { return m_chipletRedInterconnect; }
+    void setChipletRedInterconnect(bool v);
+
     [[nodiscard]] QRectF boundingRect() const override;
     [[nodiscard]] QPainterPath shape() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
@@ -51,6 +57,7 @@ private:
     void syncBendHandlePos();
     void onBendHandleMoved(const QPointF& handleTopLeft);
     [[nodiscard]] QPointF clampedHandleTopLeft(const QPointF& handleTopLeft) const;
+    void syncChipletInterDieFlag();
 
     GraphNode* m_startNode;
     GraphNode* m_endNode;
@@ -62,4 +69,6 @@ private:
     QPointF m_bendScene;
     bool m_bendUserEdited = false;
     bool m_syncingBendHandle = false;
+    bool m_chipletInterDie = false;
+    bool m_chipletRedInterconnect = false;
 };

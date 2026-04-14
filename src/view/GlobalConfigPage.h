@@ -22,6 +22,9 @@ public:
     [[nodiscard]] QMap<QString, QString> config() const { return m_config; }
     [[nodiscard]] QMap<QString, QString> collectCurrentConfig();
 
+    /// 将拓扑设为 chiplet_mesh，并选择 dim_order_chiplet_mesh（供画布创建芯粒等流程调用）
+    void applyChipletMeshTopologyAndRouting();
+
 signals:
     void globalConfigChanged(const QMap<QString, QString>& config);
 
@@ -58,5 +61,6 @@ private:
     ElaPushButton* m_importBtn = nullptr;
     ElaPushButton* m_resetBtn = nullptr;
     QWidget* m_pageRoot = nullptr;
+    QFrame* m_chipletMeshSectionCard = nullptr;
     bool m_topologyRoutingWired = false;
 };

@@ -1,4 +1,5 @@
 #include "GraphScene.h"
+#include "ChipletSimConfigDialogs.h"
 #include "GraphChiplet.h"
 #include "GraphTopologyBlock.h"
 #include "RouterConfigDialog.h"
@@ -6,6 +7,7 @@
 #include "utils/CanvasDebugLog.h"
 #include "utils/ThemedInputDialog.h"
 #include <QBrush>
+#include <QDialog>
 #include <QFile>
 #include <QGraphicsLineItem>
 #include <QGraphicsSceneMouseEvent>
@@ -143,11 +145,12 @@ private:
 
 class GraphScene::AddEdgeCommand final : public QUndoCommand {
 public:
-    AddEdgeCommand(GraphScene* scene, QString startId, QString endId, double weight)
+    AddEdgeCommand(GraphScene* scene, QString startId, QString endId, double weight, bool chipletRed)
         : m_scene(scene)
         , m_startId(std::move(startId))
         , m_endId(std::move(endId))
-        , m_weight(weight) {
+        , m_weight(weight)
+        , m_chipletRed(chipletRed) {
         setText(QObject::tr("添加连线"));
     }
 
@@ -160,7 +163,7 @@ public:
         if (!start || !end) {
             return;
         }
-        m_scene->createEdgeInternal(start, end, m_weight);
+        m_scene->createEdgeInternal(start, end, m_weight, m_chipletRed);
     }
 
     void undo() override {
@@ -172,7 +175,8 @@ public:
                 continue;
             }
             if (edge->startNode() && edge->endNode() && edge->startNode()->getId() == m_startId
-                && edge->endNode()->getId() == m_endId && qFuzzyCompare(edge->weight(), m_weight)) {
+                && edge->endNode()->getId() == m_endId && qFuzzyCompare(edge->weight(), m_weight)
+                && edge->isChipletRedInterconnect() == m_chipletRed) {
                 m_scene->removeEdgeInternal(edge);
                 return;
             }
@@ -184,15 +188,18 @@ private:
     QString m_startId;
     QString m_endId;
     double m_weight = 1.0;
+    bool m_chipletRed = false;
 };
 
 class GraphScene::RemoveEdgeCommand final : public QUndoCommand {
 public:
-    RemoveEdgeCommand(GraphScene* scene, QString startId, QString endId, double weight)
+    RemoveEdgeCommand(
+        GraphScene* scene, QString startId, QString endId, double weight, bool chipletRed)
         : m_scene(scene)
         , m_startId(std::move(startId))
         , m_endId(std::move(endId))
-        , m_weight(weight) {
+        , m_weight(weight)
+        , m_chipletRed(chipletRed) {
         setText(QObject::tr("删除连线"));
     }
 
@@ -205,7 +212,8 @@ public:
                 continue;
             }
             if (edge->startNode()->getId() == m_startId && edge->endNode()->getId() == m_endId
-                && qFuzzyCompare(edge->weight(), m_weight)) {
+                && qFuzzyCompare(edge->weight(), m_weight)
+                && edge->isChipletRedInterconnect() == m_chipletRed) {
                 m_scene->removeEdgeInternal(edge);
                 return;
             }
@@ -221,7 +229,7 @@ public:
         if (!start || !end) {
             return;
         }
-        m_scene->createEdgeInternal(start, end, m_weight);
+        m_scene->createEdgeInternal(start, end, m_weight, m_chipletRed);
     }
 
 private:
@@ -229,6 +237,7 @@ private:
     QString m_startId;
     QString m_endId;
     double m_weight = 1.0;
+    bool m_chipletRed = false;
 };
 
 class GraphScene::RemoveNodeCommand final : public QUndoCommand {
@@ -237,12 +246,19 @@ public:
         QString startId;
         QString endId;
         double weight = 1.0;
+        bool chipletRedInterconnect = false;
     };
 
     struct ChipletMembershipSnap {
         QString chipletId;
         QString label;
         QStringList members;
+        int gridCx = 0;
+        int gridCy = 0;
+        int dieK = 1;
+        QString dieIntra;
+        QString dieClockPeriod;
+        QString dieClockPhase;
     };
 
     RemoveNodeCommand(GraphScene* scene, GraphNode* node)
@@ -261,8 +277,10 @@ public:
                 continue;
             }
             if (edge->startNode() == node || edge->endNode() == node) {
-                m_incidentEdges.push_back(
-                    {edge->startNode()->getId(), edge->endNode()->getId(), edge->weight()});
+                m_incidentEdges.push_back({edge->startNode()->getId(),
+                                           edge->endNode()->getId(),
+                                           edge->weight(),
+                                           edge->isChipletRedInterconnect()});
             }
         }
         for (GraphChiplet* c : scene->m_chiplets) {
@@ -271,6 +289,12 @@ public:
                 s.chipletId = c->chipletId();
                 s.label = c->label();
                 s.members = c->memberIdsSorted();
+                s.gridCx = c->gridCx();
+                s.gridCy = c->gridCy();
+                s.dieK = c->dieK();
+                s.dieIntra = c->dieIntraLatencyText();
+                s.dieClockPeriod = c->dieClockPeriodText();
+                s.dieClockPhase = c->dieClockPhaseText();
                 m_chipletSnaps.push_back(std::move(s));
             }
         }
@@ -303,17 +327,33 @@ public:
             if (!start || !end) {
                 continue;
             }
-            m_scene->createEdgeInternal(start, end, edge.weight);
+            m_scene->createEdgeInternal(start, end, edge.weight, edge.chipletRedInterconnect);
         }
         for (const ChipletMembershipSnap& s : m_chipletSnaps) {
             GraphChiplet* c = m_scene->findChipletById(s.chipletId);
             if (c) {
                 c->setMembers(s.members);
+                c->setGridCx(s.gridCx);
+                c->setGridCy(s.gridCy);
+                c->setDieK(s.dieK);
+                c->setDieIntraLatencyText(s.dieIntra);
+                c->setDieClockPeriodText(s.dieClockPeriod);
+                c->setDieClockPhaseText(s.dieClockPhase);
                 m_scene->layoutChipletAroundMembers(c);
-            } else {
-                m_scene->createChipletInternal(s.chipletId, s.label, s.members);
+            } else if (GraphChiplet* n = m_scene->createChipletInternal(s.chipletId,
+                                                                        s.label,
+                                                                        s.members,
+                                                                        false)) {
+                n->setGridCx(s.gridCx);
+                n->setGridCy(s.gridCy);
+                n->setDieK(s.dieK);
+                n->setDieIntraLatencyText(s.dieIntra);
+                n->setDieClockPeriodText(s.dieClockPeriod);
+                n->setDieClockPhaseText(s.dieClockPhase);
+                m_scene->layoutChipletAroundMembers(n);
             }
         }
+        m_scene->refreshAllEdgesChipletDecoration();
     }
 
 private:
@@ -411,7 +451,7 @@ public:
         , m_id(std::move(id))
         , m_label(std::move(label))
         , m_members(std::move(members)) {
-        setText(QObject::tr("创建 Chiplet"));
+        setText(QObject::tr("创建芯粒"));
     }
 
     void redo() override {
@@ -445,8 +485,14 @@ public:
             m_id = chiplet->chipletId();
             m_label = chiplet->label();
             m_members = chiplet->memberIdsSorted();
+            m_gridCx = chiplet->gridCx();
+            m_gridCy = chiplet->gridCy();
+            m_dieK = chiplet->dieK();
+            m_dieIntra = chiplet->dieIntraLatencyText();
+            m_dieClockPeriod = chiplet->dieClockPeriodText();
+            m_dieClockPhase = chiplet->dieClockPhaseText();
         }
-        setText(QObject::tr("删除 Chiplet"));
+        setText(QObject::tr("删除芯粒"));
     }
 
     void redo() override {
@@ -462,7 +508,16 @@ public:
         if (!m_scene || m_scene->findChipletById(m_id)) {
             return;
         }
-        m_scene->createChipletInternal(m_id, m_label, m_members);
+        if (GraphChiplet* c = m_scene->createChipletInternal(m_id, m_label, m_members, false)) {
+            c->setGridCx(m_gridCx);
+            c->setGridCy(m_gridCy);
+            c->setDieK(m_dieK);
+            c->setDieIntraLatencyText(m_dieIntra);
+            c->setDieClockPeriodText(m_dieClockPeriod);
+            c->setDieClockPhaseText(m_dieClockPhase);
+            m_scene->layoutChipletAroundMembers(c);
+            m_scene->refreshAllEdgesChipletDecoration();
+        }
     }
 
 private:
@@ -470,6 +525,12 @@ private:
     QString m_id;
     QString m_label;
     QStringList m_members;
+    int m_gridCx = 0;
+    int m_gridCy = 0;
+    int m_dieK = 1;
+    QString m_dieIntra;
+    QString m_dieClockPeriod;
+    QString m_dieClockPhase;
 };
 
 GraphScene::GraphScene(QObject* parent)
@@ -481,6 +542,10 @@ GraphScene::GraphScene(QObject* parent)
 }
 
 void GraphScene::setPlaceTool(PlaceTool tool) {
+    if (m_highlightNode) {
+        m_highlightNode->setNodeState(GraphNode::Normal);
+        m_highlightNode = nullptr;
+    }
     m_placeTool = tool;
     if (tool != PlaceTool::TopologyBlock) {
         m_pendingBooksimTopologyActive = false;
@@ -1396,9 +1461,13 @@ void GraphScene::removeNode(GraphNode* node) {
     m_undoStack.push(new RemoveNodeCommand(this, node));
 }
 
-GraphEdge* GraphScene::createEdgeInternal(GraphNode* start, GraphNode* end, double weight) {
-    if (!start || !end)
+GraphEdge* GraphScene::createEdgeInternal(GraphNode* start,
+                                          GraphNode* end,
+                                          double weight,
+                                          bool chipletRedInterconnect) {
+    if (!start || !end) {
         return nullptr;
+    }
 
     // 检查连接是否合法
     if (!isConnectionValid(start, end)) {
@@ -1406,10 +1475,23 @@ GraphEdge* GraphScene::createEdgeInternal(GraphNode* start, GraphNode* end, doub
         return nullptr;
     }
 
+    for (GraphEdge* ex : m_edges) {
+        if (!ex || !ex->startNode() || !ex->endNode()) {
+            continue;
+        }
+        const bool samePair = (ex->startNode() == start && ex->endNode() == end)
+                              || (ex->startNode() == end && ex->endNode() == start);
+        if (samePair && qFuzzyCompare(ex->weight(), weight)
+            && ex->isChipletRedInterconnect() == chipletRedInterconnect) {
+            return ex;
+        }
+    }
+
     auto* edge = new GraphEdge(start, end);
     addItem(edge);
 
     edge->setWeight(weight);
+    edge->setChipletRedInterconnect(chipletRedInterconnect);
     edge->updatePosition();
 
     // 让边随节点移动（节点发出 posChanged）
@@ -1420,20 +1502,48 @@ GraphEdge* GraphScene::createEdgeInternal(GraphNode* start, GraphNode* end, doub
     return edge;
 }
 
-GraphEdge* GraphScene::createEdge(GraphNode* start, GraphNode* end, double weight) {
+bool GraphScene::canCreateChipletRedInterconnect(GraphNode* a, GraphNode* b) const {
+    if (!chipletGroupingAllowed() || !a || !b) {
+        return false;
+    }
+    if (a->getType() != GraphNode::Router || b->getType() != GraphNode::Router) {
+        return false;
+    }
+    GraphChiplet* ca = findChipletContainingMember(a->getId());
+    GraphChiplet* cb = findChipletContainingMember(b->getId());
+    return ca && cb && ca != cb;
+}
+
+GraphEdge* GraphScene::createEdge(GraphNode* start,
+                                  GraphNode* end,
+                                  double weight,
+                                  bool chipletRedInterconnect) {
     if (!start || !end) {
         return nullptr;
     }
-    if (!isRecordingHistory()) {
-        return createEdgeInternal(start, end, weight);
+    for (GraphEdge* ex : m_edges) {
+        if (!ex || !ex->startNode() || !ex->endNode()) {
+            continue;
+        }
+        const bool samePair = (ex->startNode() == start && ex->endNode() == end)
+                              || (ex->startNode() == end && ex->endNode() == start);
+        if (samePair && qFuzzyCompare(ex->weight(), weight)
+            && ex->isChipletRedInterconnect() == chipletRedInterconnect) {
+            return ex;
+        }
     }
-    m_undoStack.push(new AddEdgeCommand(this, start->getId(), end->getId(), weight));
+    if (!isRecordingHistory()) {
+        return createEdgeInternal(start, end, weight, chipletRedInterconnect);
+    }
+    m_undoStack.push(
+        new AddEdgeCommand(this, start->getId(), end->getId(), weight, chipletRedInterconnect));
     for (GraphEdge* edge : m_edges) {
         if (!edge || !edge->startNode() || !edge->endNode()) {
             continue;
         }
         if (edge->startNode()->getId() == start->getId() && edge->endNode()->getId() == end->getId()
-            && qFuzzyCompare(edge->weight(), weight)) {
+            && qFuzzyCompare(edge->weight(), weight)
+            && edge->isChipletRedInterconnect() == chipletRedInterconnect) {
             return edge;
         }
     }
@@ -1483,7 +1593,8 @@ void GraphScene::removeEdge(GraphEdge* edge) {
     m_undoStack.push(new RemoveEdgeCommand(this,
                                            edge->startNode()->getId(),
                                            edge->endNode()->getId(),
-                                           edge->weight()));
+                                           edge->weight(),
+                                           edge->isChipletRedInterconnect()));
 }
 
 void GraphScene::setAllEdgeWeightsVisible(bool visible) {
@@ -1590,6 +1701,7 @@ void GraphScene::clearAllContent() {
     m_pendingToolName.clear();
     m_pendingBooksimTopologyActive = false;
     m_placeTool = PlaceTool::None;
+    m_chipletMeshConnect = QStringLiteral("x");
 
     const QList<GraphChiplet*> chiplets = m_chiplets;
     for (GraphChiplet* c : chiplets) {
@@ -1745,11 +1857,13 @@ void GraphScene::stripNodeFromChiplets(const QString& nodeId) {
     for (GraphChiplet* c : dead) {
         removeChipletInternal(c);
     }
+    refreshAllEdgesChipletDecoration();
 }
 
 GraphChiplet* GraphScene::createChipletInternal(const QString& id,
                                                 const QString& label,
-                                                const QStringList& members) {
+                                                const QStringList& members,
+                                                const bool assignAutoGrid) {
     auto* c = new GraphChiplet(id, label);
     addItem(c);
     c->setZValue(-120);
@@ -1764,8 +1878,14 @@ GraphChiplet* GraphScene::createChipletInternal(const QString& id,
         c->addMember(mid);
     }
     m_chiplets.append(c);
+    if (assignAutoGrid) {
+        assignDefaultGridForChiplet(c);
+        c->setDieK(qMax(1, defaultMeshKForChiplets()));
+    }
     layoutChipletAroundMembers(c);
     wireChiplet(c);
+    refreshAllEdgesChipletDecoration();
+    emit chipletMeshGlobalConfigRequested();
     return c;
 }
 
@@ -1775,6 +1895,7 @@ void GraphScene::removeChipletInternal(GraphChiplet* chiplet) {
     }
     m_chiplets.removeAll(chiplet);
     removeItem(chiplet);
+    refreshAllEdgesChipletDecoration();
 }
 
 void GraphScene::wireChiplet(GraphChiplet* chiplet) {
@@ -1794,6 +1915,9 @@ void GraphScene::wireChiplet(GraphChiplet* chiplet) {
     });
     connect(chiplet, &GraphChiplet::renameRequested, this, [this](GraphChiplet* ch) {
         promptRenameChiplet(ch);
+    });
+    connect(chiplet, &GraphChiplet::configureDieParamsRequested, this, [this](GraphChiplet* ch) {
+        promptConfigureChipletDie(ch, graphSceneWindowParent(this));
     });
     connect(chiplet, &GraphChiplet::handleDragStarted, this, [this](GraphChiplet* c) {
         m_chipletHandleDragSource = c;
@@ -1851,12 +1975,105 @@ void GraphScene::wireChiplet(GraphChiplet* chiplet) {
         if (ids.isEmpty()) {
             return;
         }
-        m_undoStack.beginMacro(tr("移动 Chiplet"));
+        m_undoStack.beginMacro(tr("移动芯粒"));
         for (int i = 0; i < ids.size(); ++i) {
             m_undoStack.push(new MoveNodeCommand(this, ids[i], froms[i], tos[i]));
         }
         m_undoStack.endMacro();
     });
+}
+
+void GraphScene::promptConfigureChipletDie(GraphChiplet* chiplet, QWidget* dialogParent) {
+    if (!chiplet) {
+        return;
+    }
+    QWidget* const p = dialogParent ? dialogParent : graphSceneWindowParent(this);
+    ChipletDieParamsDialog dlg(this, chiplet, p);
+    if (dlg.exec() == QDialog::Accepted) {
+        dlg.applyToChiplet();
+        layoutChipletAroundMembers(chiplet);
+        refreshAllEdgesChipletDecoration();
+    }
+}
+
+bool GraphScene::chipletGroupingAllowed() const {
+    return m_globalConfig.value(QStringLiteral("topology")).trimmed().toLower()
+           == QLatin1String("chiplet_mesh");
+}
+
+bool GraphScene::edgeConnectsDistinctChiplets(const GraphEdge* edge) const {
+    if (!edge) {
+        return false;
+    }
+    const GraphNode* a = edge->startNode();
+    const GraphNode* b = edge->endNode();
+    if (!a || !b) {
+        return false;
+    }
+    if (a->getType() != GraphNode::Router || b->getType() != GraphNode::Router) {
+        return false;
+    }
+    const GraphChiplet* ca = findChipletContainingMember(a->getId());
+    const GraphChiplet* cb = findChipletContainingMember(b->getId());
+    return ca && cb && ca != cb;
+}
+
+void GraphScene::assignDefaultGridForChiplet(GraphChiplet* chiplet) {
+    if (!chiplet) {
+        return;
+    }
+    QSet<QString> used;
+    used.reserve(m_chiplets.size() * 2);
+    auto key = [](int x, int y) { return QStringLiteral("%1,%2").arg(x).arg(y); };
+    for (GraphChiplet* o : m_chiplets) {
+        if (o && o != chiplet) {
+            used.insert(key(o->gridCx(), o->gridCy()));
+        }
+    }
+    int maxCx = 0;
+    int maxCy = 0;
+    for (GraphChiplet* o : m_chiplets) {
+        if (o && o != chiplet) {
+            maxCx = qMax(maxCx, o->gridCx());
+            maxCy = qMax(maxCy, o->gridCy());
+        }
+    }
+    const int spanX = qMax(0, maxCx);
+    const int spanY = qMax(0, maxCy);
+    for (int cy = 0; cy <= spanY + 2; ++cy) {
+        for (int cx = 0; cx <= spanX + 2; ++cx) {
+            if (!used.contains(key(cx, cy))) {
+                chiplet->setGridCx(cx);
+                chiplet->setGridCy(cy);
+                return;
+            }
+        }
+    }
+    chiplet->setGridCx(spanX + 1);
+    chiplet->setGridCy(0);
+}
+
+int GraphScene::defaultMeshKForChiplets() const {
+    if (m_topologyBlocks.size() == 1) {
+        const BooksimTopologyParams p = m_topologyBlocks.first()->params();
+        if (p.topologyId.toLower() == QLatin1String("mesh")) {
+            return qMax(1, p.k);
+        }
+    }
+    bool ok = false;
+    const int k = m_globalConfig.value(QStringLiteral("k")).toInt(&ok);
+    if (ok && k > 0) {
+        return k;
+    }
+    return 1;
+}
+
+void GraphScene::refreshAllEdgesChipletDecoration() {
+    for (GraphEdge* e : m_edges) {
+        if (e) {
+            e->updatePosition();
+        }
+    }
 }
 
 void GraphScene::promptRenameChiplet(GraphChiplet* chiplet) {
@@ -1866,7 +2083,7 @@ void GraphScene::promptRenameChiplet(GraphChiplet* chiplet) {
     QWidget* const p = graphSceneWindowParent(this);
     bool ok = false;
     const QString t = BookCanvasUi::promptLineText(p,
-                                                   tr("重命名 Chiplet"),
+                                                   tr("重命名芯粒"),
                                                    tr("名称："),
                                                    chiplet->label(),
                                                    &ok);
@@ -1881,16 +2098,16 @@ void GraphScene::promptRenameChiplet(GraphChiplet* chiplet) {
 }
 
 void GraphScene::createChipletFromSelection(QWidget* dialogParent) {
+    QWidget* const p = dialogParent ? dialogParent : graphSceneWindowParent(this);
     QList<GraphNode*> sel;
     for (QGraphicsItem* it : selectedItems()) {
         if (auto* n = dynamic_cast<GraphNode*>(it)) {
             sel.append(n);
         }
     }
-    QWidget* const p = dialogParent ? dialogParent : graphSceneWindowParent(this);
     if (sel.isEmpty()) {
         BookCanvasUi::alertInformation(p,
-                                       tr("创建 Chiplet"),
+                                       tr("创建芯粒"),
                                        tr("请先在画布上选中至少一个终端或路由器。"));
         return;
     }
@@ -1904,7 +2121,7 @@ void GraphScene::createChipletFromSelection(QWidget* dialogParent) {
     }
     if (memberIds.isEmpty()) {
         BookCanvasUi::alertInformation(p,
-                                       tr("创建 Chiplet"),
+                                       tr("创建芯粒"),
                                        tr("请先在画布上选中至少一个终端或路由器。"));
         return;
     }
@@ -1916,15 +2133,15 @@ void GraphScene::createChipletFromSelection(QWidget* dialogParent) {
     }
     if (!conflictLines.isEmpty()) {
         BookCanvasUi::alertWarning(p,
-                                   tr("无法创建 Chiplet"),
-                                   tr("每个终端或路由器只能属于一个 Chiplet：\n\n%1")
+                                   tr("无法创建芯粒"),
+                                   tr("每个终端或路由器只能属于一个芯粒：\n\n%1")
                                        .arg(conflictLines.trimmed()));
         return;
     }
     bool ok = false;
-    const QString defaultLabel = tr("Chiplet %1").arg(m_chiplets.size());
+    const QString defaultLabel = tr("芯粒 %1").arg(m_chiplets.size());
     const QString label = BookCanvasUi::promptLineText(p,
-                                                       tr("创建 Chiplet"),
+                                                       tr("创建芯粒"),
                                                        tr("名称："),
                                                        defaultLabel,
                                                        &ok);
@@ -2057,8 +2274,9 @@ void GraphScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
                 m_highlightNode->setNodeState(GraphNode::Normal);
                 m_highlightNode = nullptr;
             } else {
-                // 有高亮节点且点了别的节点 → 创建连线
-                createEdge(m_highlightNode, node, 1.0);
+                // 有高亮节点且点了别的节点 → 创建连线（跨芯粒路由器互连时为红色）
+                const bool redCrossChiplet = canCreateChipletRedInterconnect(m_highlightNode, node);
+                createEdge(m_highlightNode, node, 1.0, redCrossChiplet);
                 // 两个节点恢复默认
                 m_highlightNode->setNodeState(GraphNode::Normal);
                 node->setNodeState(GraphNode::Normal);
@@ -2458,6 +2676,110 @@ QMap<QString, QString> GraphScene::mergedGlobalConfigForExport(
         }
     }
 
+    if (!m_chiplets.isEmpty()) {
+        int maxCx = -1;
+        int maxCy = -1;
+        for (GraphChiplet* ch : m_chiplets) {
+            if (!ch) {
+                continue;
+            }
+            maxCx = qMax(maxCx, ch->gridCx());
+            maxCy = qMax(maxCy, ch->gridCy());
+        }
+        const int Cx = qMax(1, maxCx + 1);
+        const int Cy = qMax(1, maxCy + 1);
+        const int fallbackK = defaultMeshKForChiplets();
+
+        QStringList dieK;
+        QStringList dil;
+        QStringList dcp;
+        QStringList dcph;
+        int kMax = 1;
+        for (int cy = 0; cy < Cy; ++cy) {
+            for (int cx = 0; cx < Cx; ++cx) {
+                GraphChiplet* hit = nullptr;
+                for (GraphChiplet* c : m_chiplets) {
+                    if (c && c->gridCx() == cx && c->gridCy() == cy) {
+                        hit = c;
+                        break;
+                    }
+                }
+                const int k = hit ? hit->dieK() : fallbackK;
+                kMax = qMax(kMax, k);
+                dieK.append(QString::number(qMax(1, k)));
+
+                int intra = 0;
+                if (hit && !hit->dieIntraLatencyText().trimmed().isEmpty()) {
+                    bool ok = false;
+                    intra = hit->dieIntraLatencyText().trimmed().toInt(&ok);
+                    if (!ok) {
+                        intra = 0;
+                    }
+                }
+                dil.append(QString::number(intra));
+
+                int cp = 1;
+                if (hit && !hit->dieClockPeriodText().trimmed().isEmpty()) {
+                    bool ok = false;
+                    cp = hit->dieClockPeriodText().trimmed().toInt(&ok);
+                    if (!ok || cp < 1) {
+                        cp = 1;
+                    }
+                }
+                dcp.append(QString::number(cp));
+
+                int cph = 0;
+                if (hit && !hit->dieClockPhaseText().trimmed().isEmpty()) {
+                    bool ok = false;
+                    cph = hit->dieClockPhaseText().trimmed().toInt(&ok);
+                    if (!ok) {
+                        cph = 0;
+                    }
+                }
+                dcph.append(QString::number(cph));
+            }
+        }
+
+        QString conn = globalConfigToExport
+                           .value(QStringLiteral("chiplet_connect"), m_chipletMeshConnect)
+                           .trimmed()
+                           .toLower();
+        if (conn != QLatin1String("x") && conn != QLatin1String("xy")) {
+            conn = QStringLiteral("x");
+        }
+
+        bool nonDefaultDieClock = false;
+        for (int i = 0; i < dcp.size(); ++i) {
+            bool okP = false;
+            bool okPh = false;
+            const int period = dcp[i].toInt(&okP);
+            const int phase = dcph[i].toInt(&okPh);
+            if (!okP || !okPh || period != 1 || phase != 0) {
+                nonDefaultDieClock = true;
+                break;
+            }
+        }
+        if (nonDefaultDieClock) {
+            globalConfigToExport.insert(QStringLiteral("chiplet_cdc_enable"), QStringLiteral("1"));
+        }
+
+        globalConfigToExport.insert(QStringLiteral("topology"), QStringLiteral("chiplet_mesh"));
+        globalConfigToExport.insert(QStringLiteral("routing_function"),
+                                    QStringLiteral("dim_order_chiplet_mesh"));
+        globalConfigToExport.insert(QStringLiteral("chiplet_x"), QString::number(Cx));
+        globalConfigToExport.insert(QStringLiteral("chiplet_y"), QString::number(Cy));
+        globalConfigToExport.insert(QStringLiteral("chiplet_k"), QString::number(kMax));
+        globalConfigToExport.insert(QStringLiteral("chiplet_connect"), conn);
+        globalConfigToExport.insert(QStringLiteral("chiplet_die_k"),
+                                    QStringLiteral("{%1}").arg(dieK.join(QLatin1Char(','))));
+        globalConfigToExport.insert(QStringLiteral("chiplet_die_intra_latency"),
+                                    QStringLiteral("{%1}").arg(dil.join(QLatin1Char(','))));
+        globalConfigToExport.insert(QStringLiteral("chiplet_die_clock_period"),
+                                    QStringLiteral("{%1}").arg(dcp.join(QLatin1Char(','))));
+        globalConfigToExport.insert(QStringLiteral("chiplet_die_clock_phase"),
+                                    QStringLiteral("{%1}").arg(dcph.join(QLatin1Char(','))));
+    }
+
     return globalConfigToExport;
 }
 
@@ -2570,8 +2892,41 @@ void GraphScene::writeJSONConfigToStream(QTextStream& out,
                 firstM = false;
                 out << "\"" << escapeJsonString(mid) << "\"";
             }
-            out << "]\n";
+            out << "],\n";
+            out << "      \"grid_cx\": " << ch->gridCx() << ",\n";
+            out << "      \"grid_cy\": " << ch->gridCy() << ",\n";
+            out << "      \"die_k\": " << ch->dieK() << ",\n";
+            out << "      \"die_intra_latency\": \"" << escapeJsonString(ch->dieIntraLatencyText())
+                << "\",\n";
+            out << "      \"die_clock_period\": \"" << escapeJsonString(ch->dieClockPeriodText())
+                << "\",\n";
+            out << "      \"die_clock_phase\": \"" << escapeJsonString(ch->dieClockPhaseText())
+                << "\"\n";
             out << "    }";
+        }
+        out << "\n  ]";
+        out << ",\n\n  \"bookcanvas_chiplet_mesh\": {\n";
+        out << "    \"connect\": \"" << escapeJsonString(m_chipletMeshConnect) << "\"\n";
+        out << "  }";
+    }
+
+    QList<GraphEdge*> redExport;
+    for (GraphEdge* e : m_edges) {
+        if (e && e->isChipletRedInterconnect() && e->startNode() && e->endNode()) {
+            redExport.append(e);
+        }
+    }
+    if (!redExport.isEmpty()) {
+        out << ",\n\n  \"bookcanvas_chiplet_red_links\": [\n";
+        bool firstR = true;
+        for (GraphEdge* e : redExport) {
+            if (!firstR) {
+                out << ",\n";
+            }
+            firstR = false;
+            out << "    { \"from\": \"" << escapeJsonString(e->startNode()->getId()) << "\", ";
+            out << "\"to\": \"" << escapeJsonString(e->endNode()->getId()) << "\", ";
+            out << "\"weight\": " << e->weight() << " }";
         }
         out << "\n  ]";
     }

@@ -1,4 +1,5 @@
 #include "CanvasPage.h"
+#include "GlobalConfigPage.h"
 #include "component/BooksimTopologyPlaceDialog.h"
 #include "component/GraphEdge.h"
 #include "component/GraphNode.h"
@@ -215,7 +216,7 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addWidget(createButtonWithLabel(m_placeTermPick, tr("终端"), stripInner));
     stripLay->addWidget(createButtonWithLabel(m_placeRouterPick, tr("路由器"), stripInner));
 
-    auto* chipletTitle = new QLabel(tr("Chiplet"), stripInner);
+    auto* chipletTitle = new QLabel(tr("芯粒"), stripInner);
     chipletTitle->setForegroundRole(QPalette::WindowText);
     bindLabelToElaBasicText(chipletTitle);
     QFont chf = chipletTitle->font();
@@ -229,12 +230,13 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* chipletGroupBtn = new ElaIconButton(ElaIconType::ObjectGroup, 18, stripInner);
     chipletGroupBtn->setBorderRadius(8);
     chipletGroupBtn->setToolTip(
-        tr("将当前选中的终端或路由器归为一个 Chiplet：画布上会显示虚线围成的组框。\n"
-           "右键组框可重命名或删除该 Chiplet。"));
-    stripLay->addWidget(createButtonWithLabel(chipletGroupBtn, tr("创建 Chiplet"), stripInner));
+        tr("将当前选中的终端或路由器归为一个芯粒：画布上会显示虚线围成的组框。\n"
+           "会自动将「全局配置」拓扑切换为 chiplet_mesh；右键芯粒组框可配置参数，或重命名/删除。"));
+    stripLay->addWidget(createButtonWithLabel(chipletGroupBtn, tr("创建芯粒"), stripInner));
 
     connect(chipletGroupBtn, &ElaIconButton::clicked, this, [this]() {
         clearPlaceMode();
+        ensureChipletMeshGlobalConfig();
         if (m_scene) {
             m_scene->createChipletFromSelection(this);
         }
@@ -800,6 +802,37 @@ void CanvasPage::exportConfigJson() {
 
 CanvasPage::~CanvasPage() = default;
 
+void CanvasPage::setGlobalConfigSyncSource(GlobalConfigPage* page) {
+    m_globalConfigSyncSource = page;
+}
+
+void CanvasPage::pullGlobalConfigIntoAllScenes() {
+    if (!m_globalConfigSyncSource || !m_canvasTabs) {
+        return;
+    }
+    const QMap<QString, QString> cfg = m_globalConfigSyncSource->collectCurrentConfig();
+    for (int i = 0; i < m_canvasTabs->count(); ++i) {
+        QWidget* page = m_canvasTabs->widget(i);
+        if (!page) {
+            continue;
+        }
+        if (GraphScene* sc = page->findChild<GraphScene*>()) {
+            sc->setGlobalConfig(cfg);
+            if (cfg.contains(QStringLiteral("chiplet_connect"))) {
+                sc->setChipletMeshConnect(cfg.value(QStringLiteral("chiplet_connect")));
+            }
+        }
+    }
+}
+
+void CanvasPage::ensureChipletMeshGlobalConfig() {
+    if (!m_globalConfigSyncSource) {
+        return;
+    }
+    m_globalConfigSyncSource->applyChipletMeshTopologyAndRouting();
+    pullGlobalConfigIntoAllScenes();
+}
+
 void CanvasPage::activateAdjacentCanvasTab(bool backward) {
     if (!m_canvasTabs || m_canvasTabs->count() <= 1) {
         return;
@@ -894,6 +927,11 @@ void CanvasPage::createCanvasTab() {
                     scene->updateTopologyBlockParams(block, dlg.getParams());
                 }
             });
+    connect(scene,
+            &GraphScene::chipletMeshGlobalConfigRequested,
+            this,
+            &CanvasPage::ensureChipletMeshGlobalConfig,
+            Qt::DirectConnection);
 
     const QString defaultName = tr("网络 %1").arg(tabId);
     const QString tabName = loadPersistedTabName(scopeToken, defaultName);
@@ -1020,6 +1058,7 @@ void CanvasPage::clearPlaceMode() {
 
 void CanvasPage::showEvent(QShowEvent* event) {
     BasePage::showEvent(event);
+    pullGlobalConfigIntoAllScenes();
 }
 
 void CanvasPage::hideEvent(QHideEvent* event) {

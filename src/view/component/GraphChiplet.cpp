@@ -10,11 +10,22 @@
 #include <QMenu>
 #include <QPainter>
 #include <QPalette>
+#include <QRegularExpression>
 #include <QStyleOptionGraphicsItem>
 
 namespace {
 bool isTerminalOrRouter(const GraphNode* n) {
     return n && (n->getType() == GraphNode::Node || n->getType() == GraphNode::Router);
+}
+
+/// 画布标题仅用于绘制：默认中文「芯粒 N」显示为「Chiplet N」，其它自定义名称原样显示。
+[[nodiscard]] QString chipletTitlePaintText(const QString& storedLabel) {
+    static const QRegularExpression re(QStringLiteral(R"(^芯粒\s*(\d+)$)"));
+    const QRegularExpressionMatch m = re.match(storedLabel.trimmed());
+    if (m.hasMatch()) {
+        return QStringLiteral("Chiplet %1").arg(m.captured(1));
+    }
+    return storedLabel;
 }
 } // namespace
 
@@ -132,7 +143,7 @@ QRectF GraphChiplet::titleHandleRect() const {
     titleFont.setBold(true);
     titleFont.setPointSize(9);
     const QFontMetricsF fm(titleFont);
-    const qreal textW = fm.horizontalAdvance(m_label);
+    const qreal textW = fm.horizontalAdvance(chipletTitlePaintText(m_label));
     const qreal textH = fm.height();
     constexpr qreal padX = 10.0;
     constexpr qreal padY = 6.0;
@@ -166,7 +177,9 @@ void GraphChiplet::paintTitleLabel(QPainter* painter,
     titleFont.setPointSize(9);
     painter->setFont(titleFont);
     painter->setPen(labelText);
-    painter->drawText(handle.adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, m_label);
+    painter->drawText(handle.adjusted(10, 0, -10, 0),
+                      Qt::AlignVCenter | Qt::AlignLeft,
+                      chipletTitlePaintText(m_label));
 }
 
 void GraphChiplet::paint(QPainter* painter,
@@ -206,7 +219,7 @@ void GraphChiplet::paint(QPainter* painter,
     sub.setBold(false);
     sub.setPointSize(8);
     painter->setFont(sub);
-    const QString subline = tr("成员 %1 个 · Chiplet").arg(liveTerminalRouterMemberCount());
+    const QString subline = tr("成员 %1 个 · 芯粒").arg(liveTerminalRouterMemberCount());
     painter->drawText(rr.adjusted(10, 28, -10, -8), Qt::AlignLeft | Qt::AlignBottom, subline);
 }
 
@@ -268,10 +281,18 @@ void GraphChiplet::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
 
 void GraphChiplet::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
     QMenu menu;
+    QAction* cfgAction = nullptr;
+    auto* gs = qobject_cast<GraphScene*>(scene());
+    if (gs) {
+        cfgAction = menu.addAction(tr("芯粒仿真参数…"));
+        menu.addSeparator();
+    }
     QAction* renameAction = menu.addAction(tr("重命名…"));
-    QAction* delAction = menu.addAction(tr("删除 Chiplet"));
+    QAction* delAction = menu.addAction(tr("删除芯粒"));
     QAction* sel = menu.exec(event->screenPos());
-    if (sel == renameAction) {
+    if (cfgAction && sel == cfgAction) {
+        emit configureDieParamsRequested(this);
+    } else if (sel == renameAction) {
         emit renameRequested(this);
     } else if (sel == delAction) {
         canvasDebugLog(QStringLiteral("GraphChiplet menu 删除 id=%1").arg(m_chipletId));

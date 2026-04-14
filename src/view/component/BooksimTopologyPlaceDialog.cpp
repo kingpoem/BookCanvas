@@ -56,12 +56,8 @@ void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     const QString topo = m_topologyId.trimmed().toLower();
     m_kSpin = new QSpinBox(this);
     m_kSpin->setRange(2, 128);
-    m_kSpin->setValue((topo == QLatin1String("mesh") || topo == QLatin1String("torus")
-                       || topo == QLatin1String("cmesh") || topo == QLatin1String("fly")
-                       || topo == QLatin1String("qtree") || topo == QLatin1String("tree4")
-                       || topo == QLatin1String("fattree"))
-                          ? 4
-                          : 8);
+    constexpr int kDefaultConfigurable = 3;
+    m_kSpin->setValue(kDefaultConfigurable);
     m_kSpin->setToolTip(tr("k：每维路由器数量（基数）"));
     if (topo == QLatin1String("dragonflynew")) {
         m_kSpin->setValue(2);
@@ -132,7 +128,7 @@ BooksimTopologyParams BooksimTopologyPlaceDialog::getParams() const {
     BooksimTopologyParams p;
     p.topologyId = m_topologyId;
     p.displayLabel = m_displayLabel;
-    p.k = m_kSpin ? m_kSpin->value() : 8;
+    p.k = m_kSpin ? m_kSpin->value() : 3;
     p.n = m_nSpin ? m_nSpin->value() : 2;
     p.c = m_cSpin ? m_cSpin->value() : 1;
     if (p.topologyId == QLatin1String("cmesh")) {

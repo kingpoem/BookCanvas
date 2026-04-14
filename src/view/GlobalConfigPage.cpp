@@ -88,6 +88,8 @@ struct InputSpec {
         QStringLiteral("viewer_trace"),
         QStringLiteral("sim_power"),
         QStringLiteral("channel_sweep"),
+        QStringLiteral("chiplet_cdc_enable"),
+        QStringLiteral("chiplet_cdc_gray_fifo"),
     };
 
     static const QSet<QString> kFloatKeys = {
@@ -115,6 +117,7 @@ struct InputSpec {
 
     // 与画布「BookSim 拓扑」按钮顺序一致，末尾保留 anynet（自定义拓扑文件）
     static const QMap<QString, QStringList> kEnumOptions = {
+        {QStringLiteral("chiplet_connect"), {QStringLiteral("x"), QStringLiteral("xy")}},
         {QStringLiteral("topology"),
          {QStringLiteral("mesh"),
           QStringLiteral("torus"),
@@ -125,6 +128,7 @@ struct InputSpec {
           QStringLiteral("fattree"),
           QStringLiteral("flatfly"),
           QStringLiteral("dragonflynew"),
+          QStringLiteral("chiplet_mesh"),
           QStringLiteral("anynet")}},
         {QStringLiteral("router"),
          {QStringLiteral("iq"), QStringLiteral("event"), QStringLiteral("chaos")}},
@@ -191,6 +195,19 @@ struct InputSpec {
     return k;
 }
 
+[[nodiscard]] const QSet<QString>& chipletMeshSectionKeys() {
+    static const QSet<QString> k{QStringLiteral("chiplet_connect"),
+                                 QStringLiteral("chiplet_d2d_latency"),
+                                 QStringLiteral("chiplet_intra_latency"),
+                                 QStringLiteral("chiplet_cdc_enable"),
+                                 QStringLiteral("chiplet_cdc_fifo_depth"),
+                                 QStringLiteral("chiplet_cdc_sync_cycles"),
+                                 QStringLiteral("chiplet_cdc_credit_sync_cycles"),
+                                 QStringLiteral("chiplet_cdc_gray_fifo"),
+                                 QStringLiteral("chiplet_cdc_gray_stages")};
+    return k;
+}
+
 [[nodiscard]] QSet<QString> topologyStructureVisibleKeys(const QString& topologyId) {
     const QString t = topologyId.trimmed().toLower();
     QSet<QString> vis{QStringLiteral("channel_file"),
@@ -217,7 +234,7 @@ struct InputSpec {
 [[nodiscard]] bool useNoCLatencyApplicableTopology(const QString& topologyId) {
     const QString t = topologyId.trimmed().toLower();
     return t == QLatin1String("mesh") || t == QLatin1String("torus") || t == QLatin1String("cmesh")
-           || t == QLatin1String("flatfly");
+           || t == QLatin1String("flatfly") || t == QLatin1String("chiplet_mesh");
 }
 
 [[nodiscard]] bool configKeyUsesMergedValueWhenHidden(const QString& key,
@@ -318,7 +335,7 @@ void GlobalConfigPage::setupUi() {
     addSectionTitle("网络拓扑参数");
     addConfigItem("channel_file", "通道文件 (channel_file)", "");
     addConfigItem("topology", "拓扑结构 (topology)", "anynet");
-    addConfigItem("k", "每维基数 (k)", "8");
+    addConfigItem("k", "每维基数 (k)", "3");
     addConfigItem("n", "维数 (n)", "2");
     addConfigItem("c", "集中度 (c)", "1");
     addConfigItem("x", "X维度 (x)", "8");
@@ -425,6 +442,20 @@ void GlobalConfigPage::setupUi() {
     addConfigItem("write_request_size", "写请求大小 (write_request_size)", "1");
     addConfigItem("read_reply_size", "读回复大小 (read_reply_size)", "4");
     addConfigItem("write_reply_size", "写回复大小 (write_reply_size)", "4");
+
+    addSectionTitle(tr("芯粒 mesh — 跨 die（D2D / CDC）"));
+    m_chipletMeshSectionCard = m_sections.isEmpty() ? nullptr : m_sections.last().card;
+    addConfigItem("chiplet_connect", tr("芯粒互连方向 (chiplet_connect)"), "x");
+    addConfigItem("chiplet_d2d_latency", tr("跨 die 线延迟 (chiplet_d2d_latency)"), "2");
+    addConfigItem("chiplet_intra_latency", tr("片内默认跳延迟 (chiplet_intra_latency)"), "1");
+    addConfigItem("chiplet_cdc_enable", tr("启用跨时钟域 D2D (chiplet_cdc_enable)"), "0");
+    addConfigItem("chiplet_cdc_fifo_depth", tr("CDC异步 FIFO 深度 (chiplet_cdc_fifo_depth)"), "64");
+    addConfigItem("chiplet_cdc_sync_cycles", tr("CDC flit 同步周期 (chiplet_cdc_sync_cycles)"), "2");
+    addConfigItem("chiplet_cdc_credit_sync_cycles",
+                  tr("CDC credit 同步周期 (chiplet_cdc_credit_sync_cycles)"),
+                  "2");
+    addConfigItem("chiplet_cdc_gray_fifo", tr("CDC Gray 指针 FIFO (chiplet_cdc_gray_fifo)"), "0");
+    addConfigItem("chiplet_cdc_gray_stages", tr("CDC Gray 级数 (chiplet_cdc_gray_stages)"), "2");
 
     addSectionTitle("仿真控制参数");
     addConfigItem("sim_type", "仿真类型 (sim_type)", "latency");
@@ -553,6 +584,18 @@ void GlobalConfigPage::refreshTopologyFieldVisibility() {
         mergeUi(key);
     }
     mergeUi(QStringLiteral("use_noc_latency"));
+    for (const QString& key : chipletMeshSectionKeys()) {
+        if (QWidget* w = m_inputs.value(key)) {
+            QString value = readInputValue(w, key);
+            if (inputSpecForKey(key).kind == InputKind::Boolean) {
+                value = normalizeBoolLike(value);
+                if (value != QLatin1String("0") && value != QLatin1String("1")) {
+                    value = QStringLiteral("0");
+                }
+            }
+            m_config[key] = value;
+        }
+    }
 
     const QString topo = currentTopologyId();
     const QSet<QString> structVis = topologyStructureVisibleKeys(topo);
@@ -563,6 +606,9 @@ void GlobalConfigPage::refreshTopologyFieldVisibility() {
     }
     if (QWidget* row = m_inputRows.value(QStringLiteral("use_noc_latency"))) {
         row->setVisible(useNoCLatencyApplicableTopology(topo));
+    }
+    if (m_chipletMeshSectionCard) {
+        m_chipletMeshSectionCard->setVisible(topo == QLatin1String("chiplet_mesh"));
     }
 
     const QStringList lockableKeys{QStringLiteral("k"),
@@ -810,6 +856,10 @@ QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
     QMap<QString, QString> config;
     for (auto it = m_inputs.begin(); it != m_inputs.end(); ++it) {
         const QString& key = it.key();
+        if (chipletMeshSectionKeys().contains(key) && topo != QLatin1String("chiplet_mesh")) {
+            config[key] = m_config.value(key, fallbacks.value(key));
+            continue;
+        }
         if (configKeyUsesMergedValueWhenHidden(key, topo)) {
             const QString merged = m_config.value(key, fallbacks.value(key));
             config[key] = merged;
@@ -841,6 +891,20 @@ QMap<QString, QString> GlobalConfigPage::collectConfigFromUi() const {
 QMap<QString, QString> GlobalConfigPage::collectCurrentConfig() {
     m_config = collectConfigFromUi();
     return m_config;
+}
+
+void GlobalConfigPage::applyChipletMeshTopologyAndRouting() {
+    auto* tcombo = qobject_cast<ElaComboBox*>(m_inputs.value(QStringLiteral("topology")));
+    if (!tcombo) {
+        return;
+    }
+    const int idxMesh = tcombo->findData(QStringLiteral("chiplet_mesh"));
+    if (idxMesh >= 0) {
+        const QSignalBlocker b(tcombo);
+        tcombo->setCurrentIndex(idxMesh);
+    }
+    refreshGlobalRoutingComboFromUiConfig(QStringLiteral("dim_order_chiplet_mesh"));
+    refreshTopologyFieldVisibility();
 }
 
 void GlobalConfigPage::onViewRawConfigFileClicked() {

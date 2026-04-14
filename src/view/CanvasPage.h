@@ -9,12 +9,15 @@ class QTabWidget;
 class ElaIconButton;
 class GraphScene;
 class GraphView;
+class GlobalConfigPage;
 
 class CanvasPage : public BasePage {
     Q_OBJECT
 public:
     explicit CanvasPage(QWidget* parent = nullptr);
     ~CanvasPage() override;
+    /// 与「全局配置」页绑定后，进入 Canvas 或创建芯粒前会把该页当前选项同步到各网络 Tab 的场景
+    void setGlobalConfigSyncSource(GlobalConfigPage* page);
     [[nodiscard]] QMap<QString, QString> globalConfig() const;
     void setGlobalConfig(const QMap<QString, QString>& config);
     void exportConfigJson();
@@ -52,11 +55,14 @@ private:
     [[nodiscard]] GraphView* currentGraphView() const;
     [[nodiscard]] QString currentTabScopeToken() const;
     void clearPlaceMode();
+    /// 将「全局配置」切到 chiplet_mesh 并下发到所有网络 Tab 的场景
+    void ensureChipletMeshGlobalConfig();
     void installNetworkTabKeyboardShortcuts();
     void updateCanvasTabNavigateButtons();
     void clickCanvasTabNavigateButton(bool backward);
     void previewCurrentNetworkConfigJson();
     void previewCurrentNetworkTopologyFile();
+    void pullGlobalConfigIntoAllScenes();
 
     QTabWidget* m_canvasTabs = nullptr;
     GraphScene* m_scene = nullptr;
@@ -66,5 +72,6 @@ private:
     ElaIconButton* m_tabPrevBtn = nullptr;
     ElaIconButton* m_tabNextBtn = nullptr;
     QWidget* m_leftBuildPanel = nullptr;
+    GlobalConfigPage* m_globalConfigSyncSource = nullptr;
     int m_nextCanvasTabId = 1;
 };

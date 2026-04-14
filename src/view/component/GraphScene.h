@@ -39,6 +39,8 @@ public:
     // 信号：节点配置请求
     Q_SIGNAL void nodeConfigureRequested(GraphNode* node);
     Q_SIGNAL void topologyBlockConfigureRequested(GraphTopologyBlock* block);
+    /// 画布上出现芯粒或需要 chiplet_mesh 时请求同步「全局配置」拓扑与路由
+    Q_SIGNAL void chipletMeshGlobalConfigRequested();
     Q_SIGNAL void undoStateChanged(bool canUndo,
                                    bool canRedo,
                                    const QString& undoText,
@@ -53,7 +55,10 @@ public:
     } // 返回当前场景中所有节点的列表
 
     // 边管理
-    GraphEdge* createEdge(GraphNode* start, GraphNode* end, double weight = 1.0);
+    GraphEdge* createEdge(GraphNode* start,
+                          GraphNode* end,
+                          double weight = 1.0,
+                          bool chipletRedInterconnect = false);
     void removeEdge(GraphEdge* edge);
     [[nodiscard]] QList<GraphEdge*> edges() const { return m_edges; }
 
@@ -63,9 +68,19 @@ public:
     bool renumberAllNodesFromZero();
     // 删除没有任何连线的节点（路由器/终端），返回删除数量
     int removeUnconnectedNodes();
-    /// 将当前选中的终端/路由器归为一个 Chiplet（画布上显示为虚线包围框）
+    /// 将当前选中的终端/路由器归为一个芯粒（画布上显示为虚线包围框）
     void createChipletFromSelection(QWidget* dialogParent = nullptr);
     void removeChiplet(GraphChiplet* chiplet);
+
+    [[nodiscard]] QList<GraphChiplet*> chiplets() const { return m_chiplets; }
+    /// 与场景内 m_globalConfig 的 topology=chiplet_mesh 一致（创建芯粒后会由画布同步全局配置）
+    [[nodiscard]] bool chipletGroupingAllowed() const;
+
+    [[nodiscard]] QString chipletMeshConnect() const { return m_chipletMeshConnect; }
+    void setChipletMeshConnect(QString v) { m_chipletMeshConnect = std::move(v); }
+
+    /// 路由器–路由器边且两端属于不同芯粒分组时视为跨芯粒链路（用于视觉与菜单）
+    [[nodiscard]] bool edgeConnectsDistinctChiplets(const GraphEdge* edge) const;
 
     // 清空画布上的全部内容（节点、边、拓扑块）
     void clearAllContent();
@@ -152,7 +167,8 @@ private:
     [[nodiscard]] QString allocateNextChipletId() const;
     GraphChiplet* createChipletInternal(const QString& id,
                                         const QString& label,
-                                        const QStringList& members);
+                                        const QStringList& members,
+                                        bool assignAutoGrid = true);
     void removeChipletInternal(GraphChiplet* chiplet);
     void layoutChipletAroundMembers(GraphChiplet* chiplet);
     void refitChipletsContainingMember(const QString& nodeId);
@@ -161,9 +177,17 @@ private:
     [[nodiscard]] GraphChiplet* findChipletContainingMember(const QString& nodeId) const;
     void wireChiplet(GraphChiplet* chiplet);
     void promptRenameChiplet(GraphChiplet* chiplet);
+    void promptConfigureChipletDie(GraphChiplet* chiplet, QWidget* dialogParent);
+    void assignDefaultGridForChiplet(GraphChiplet* chiplet);
+    [[nodiscard]] int defaultMeshKForChiplets() const;
+    void refreshAllEdgesChipletDecoration();
     GraphNode* createNodeInternal(const QString& id, const QPointF& pos, GraphNode::NodeType type);
     void removeNodeInternal(GraphNode* node);
-    GraphEdge* createEdgeInternal(GraphNode* start, GraphNode* end, double weight);
+    GraphEdge* createEdgeInternal(GraphNode* start,
+                                  GraphNode* end,
+                                  double weight,
+                                  bool chipletRedInterconnect = false);
+    [[nodiscard]] bool canCreateChipletRedInterconnect(GraphNode* a, GraphNode* b) const;
     void removeEdgeInternal(GraphEdge* edge);
     [[nodiscard]] GraphNode* findNodeById(const QString& id) const;
     void emitUndoStateNow();
@@ -190,6 +214,7 @@ private:
     QPointer<GraphChiplet> m_chipletHandleDragSource;
     QMap<QString, QPointF> m_chipletHandleDragStartPos;
     QList<GraphChiplet*> m_chiplets;
+    QString m_chipletMeshConnect = QStringLiteral("x");
     struct ManagedTopologyState {
         BooksimTopologyParams params;
         QList<QPointer<GraphNode>> routers;

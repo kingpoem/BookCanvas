@@ -567,6 +567,7 @@ void SimulationPage::appendRoutingHint(const QString& prefix, int simulationTabI
     appendOutput(prefix + "- flatfly 推荐 ran_min / xyyx / adaptive_xyyx\n", simulationTabId);
     appendOutput(prefix + "- dragonflynew 推荐 min / ugal\n", simulationTabId);
     appendOutput(prefix + "- anynet 使用 min\n", simulationTabId);
+    appendOutput(prefix + "- chiplet_mesh 使用 dim_order_chiplet_mesh\n", simulationTabId);
     appendOutput(prefix + "注意不要手动填写 *_topology 后缀，BookSim 会自动拼接。\n",
                  simulationTabId);
 }

@@ -292,6 +292,7 @@ void MainWindow::initContent() {
     globalConfigPage = new GlobalConfigPage(this);
     addPageNode(tr("全局配置"), globalConfigPage, ElaIconType::CarWrench);
     globalConfigPage->setConfig(canvasPage->globalConfig());
+    canvasPage->setGlobalConfigSyncSource(globalConfigPage);
     simulationPage->setSaveContext(canvasPage, globalConfigPage);
 
     usageGuidePage = new UsageGuidePage(this);

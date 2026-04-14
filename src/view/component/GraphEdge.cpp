@@ -1,8 +1,10 @@
 #include "GraphEdge.h"
+#include "ChipletSimConfigDialogs.h"
 #include "GraphScene.h"
 #include <ElaDef.h>
 #include <ElaTheme.h>
 #include <QBrush>
+#include <QGraphicsView>
 #include <QGuiApplication>
 #include <QInputDialog>
 #include <QMenu>
@@ -336,6 +338,22 @@ void GraphEdge::onBendHandleMoved(const QPointF& handleTopLeft) {
     update();
 }
 
+void GraphEdge::setChipletRedInterconnect(bool v) {
+    m_chipletRedInterconnect = v;
+}
+
+void GraphEdge::syncChipletInterDieFlag() {
+    bool v = false;
+    if (!m_chipletRedInterconnect) {
+        if (auto* gs = qobject_cast<GraphScene*>(scene())) {
+            v = gs->edgeConnectsDistinctChiplets(this);
+        }
+    }
+    if (v != m_chipletInterDie) {
+        m_chipletInterDie = v;
+    }
+}
+
 void GraphEdge::updatePosition() {
     if (!m_startNode || !m_endNode) {
         return;
@@ -347,6 +365,7 @@ void GraphEdge::updatePosition() {
     prepareGeometryChange();
     rebuildPolylineFromAnchors();
     placeWeightLabel();
+    syncChipletInterDieFlag();
     update();
     if (isSelected()) {
         syncBendHandlePos();
@@ -397,9 +416,46 @@ void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
 
     painter->setRenderHint(QPainter::Antialiasing, true);
 
+    if (m_chipletRedInterconnect) {
+        const QColor redCore = lightCanvas ? QColor(185, 48, 58) : QColor(248, 120, 132);
+        QColor haloR = lightCanvas ? QColor(220, 72, 82) : QColor(255, 160, 168);
+        haloR.setAlpha(lightCanvas ? 88 : 100);
+        QPen haloPen(haloR, 5.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        haloPen.setStyle(Qt::DashLine);
+        haloPen.setDashPattern({7.0, 4.5});
+        painter->setPen(haloPen);
+        if (m_polylineLocal.size() >= 2) {
+            painter->drawPolyline(m_polylineLocal.constData(),
+                                  static_cast<int>(m_polylineLocal.size()));
+        } else {
+            painter->drawLine(m_line);
+        }
+        painter->setPen(QPen(redCore, 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        if (m_polylineLocal.size() >= 2) {
+            painter->drawPolyline(m_polylineLocal.constData(),
+                                  static_cast<int>(m_polylineLocal.size()));
+        } else {
+            painter->drawLine(m_line);
+        }
+        if (m_polylineLocal.size() >= 2) {
+            const QPointF mid = midAlongPolyline(m_polylineLocal);
+            painter->setPen(QPen(redCore.lighter(lightCanvas ? 108 : 115), 1.2));
+            const qreal s = 4.8;
+            painter->drawEllipse(mid, s * 0.55, s * 0.55);
+        }
+        return;
+    }
+
     QColor halo = c;
     halo.setAlpha(lightCanvas ? 50 : 65);
-    QPen haloPen(halo, 4.25, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen haloPen(halo, m_chipletInterDie ? 5.1 : 4.25, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    if (m_chipletInterDie) {
+        haloPen.setStyle(Qt::DashLine);
+        haloPen.setDashPattern({6.0, 4.0});
+        QColor accent = lightCanvas ? QColor(13, 148, 136) : QColor(94, 234, 212);
+        accent.setAlpha(lightCanvas ? 95 : 110);
+        haloPen.setColor(accent);
+    }
     painter->setPen(haloPen);
     if (m_polylineLocal.size() >= 2) {
         painter->drawPolyline(m_polylineLocal.constData(), static_cast<int>(m_polylineLocal.size()));
@@ -413,6 +469,14 @@ void GraphEdge::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidge
         painter->drawPolyline(m_polylineLocal.constData(), static_cast<int>(m_polylineLocal.size()));
     } else {
         painter->drawLine(m_line);
+    }
+
+    if (m_chipletInterDie && m_polylineLocal.size() >= 2) {
+        const QPointF mid = midAlongPolyline(m_polylineLocal);
+        painter->setPen(QPen(lightCanvas ? QColor(13, 148, 136) : QColor(94, 234, 212), 1.15));
+        const qreal s = 5.5;
+        painter->drawLine(mid + QPointF(-s, -s), mid + QPointF(s, s));
+        painter->drawLine(mid + QPointF(-s, s), mid + QPointF(s, -s));
     }
 }
 
@@ -440,9 +504,14 @@ void GraphEdge::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
 }
 
 void GraphEdge::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
+    syncChipletInterDieFlag();
     QMenu menu;
     QAction* editAction = menu.addAction("Edit Weight");
     QAction* resetRouteAction = menu.addAction(tr("恢复自动布线"));
+    QAction* d2dCfgAction = nullptr;
+    if (m_chipletInterDie) {
+        d2dCfgAction = menu.addAction(tr("跨芯粒 D2D / CDC 全局参数…"));
+    }
     QAction* deleteAction = menu.addAction("Delete Edge");
 
     QAction* selected = menu.exec(event->screenPos());
@@ -462,6 +531,15 @@ void GraphEdge::contextMenuEvent(QGraphicsSceneContextMenuEvent* event) {
     } else if (selected == resetRouteAction) {
         m_bendUserEdited = false;
         updatePosition();
+    } else if (d2dCfgAction && selected == d2dCfgAction) {
+        if (auto* gscene = dynamic_cast<GraphScene*>(scene())) {
+            QWidget* parent = nullptr;
+            if (scene() && !scene()->views().isEmpty()) {
+                parent = scene()->views().first()->window();
+            }
+            ChipletD2dGlobalsDialog dlg(gscene, parent);
+            dlg.exec();
+        }
     } else if (selected == deleteAction) {
         if (scene()) {
             auto* gscene = dynamic_cast<GraphScene*>(scene());

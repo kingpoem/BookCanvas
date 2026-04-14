@@ -277,7 +277,7 @@ QMap<QString, QString> RouterGlobalConfigDialog::getDefaultConfig() {
     defaultConfig["subnets"] = "1";
     defaultConfig["topology"] = "anynet";
     defaultConfig["network_file"] = "anynet_file";
-    defaultConfig["k"] = "8";
+    defaultConfig["k"] = "3";
     defaultConfig["n"] = "2";
     defaultConfig["c"] = "1";
     defaultConfig["routing_function"] = "min";
@@ -393,6 +393,16 @@ QMap<QString, QString> RouterGlobalConfigDialog::getDefaultConfig() {
     defaultConfig["tech_file"] = "";
     defaultConfig["channel_width"] = "128";
     defaultConfig["channel_sweep"] = "0";
+
+    defaultConfig["chiplet_connect"] = "x";
+    defaultConfig["chiplet_d2d_latency"] = "2";
+    defaultConfig["chiplet_intra_latency"] = "1";
+    defaultConfig["chiplet_cdc_enable"] = "0";
+    defaultConfig["chiplet_cdc_fifo_depth"] = "64";
+    defaultConfig["chiplet_cdc_sync_cycles"] = "2";
+    defaultConfig["chiplet_cdc_credit_sync_cycles"] = "2";
+    defaultConfig["chiplet_cdc_gray_fifo"] = "0";
+    defaultConfig["chiplet_cdc_gray_stages"] = "2";
 
     return defaultConfig;
 }
