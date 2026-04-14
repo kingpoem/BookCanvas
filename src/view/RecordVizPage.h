@@ -41,14 +41,12 @@ private:
     void updateExportButtonsEnabled();
     void exportChartPng();
     void exportChartJpg();
-    void exportChartSvg();
     void exportChartDataXlsx();
     [[nodiscard]] QString defaultDownloadsPath(const QString& fileName) const;
 
     ElaText* m_statusText{};
     ElaPushButton* m_exportPngBtn{};
     ElaPushButton* m_exportJpgBtn{};
-    ElaPushButton* m_exportSvgBtn{};
     ElaPushButton* m_exportXlsxBtn{};
     QScrollArea* m_scroll{};
     QWidget* m_scrollInner{};

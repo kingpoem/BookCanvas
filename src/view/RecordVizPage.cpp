@@ -9,7 +9,6 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
-#include <QFileInfo>
 #include <QFrame>
 #include <QHeaderView>
 #include <QLabel>
@@ -24,7 +23,6 @@
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
-#include <QtSvg/QSvgGenerator>
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -706,11 +704,9 @@ RecordVizPage::RecordVizPage(QWidget* parent)
 
     m_exportPngBtn = new ElaPushButton(tr("导出 PNG"), this);
     m_exportJpgBtn = new ElaPushButton(tr("导出 JPG"), this);
-    m_exportSvgBtn = new ElaPushButton(tr("导出 SVG"), this);
     m_exportXlsxBtn = new ElaPushButton(tr("导出 XLSX"), this);
     toolbarLay->addWidget(m_exportPngBtn);
     toolbarLay->addWidget(m_exportJpgBtn);
-    toolbarLay->addWidget(m_exportSvgBtn);
     toolbarLay->addWidget(m_exportXlsxBtn);
     toolbarLay->addStretch();
 
@@ -739,7 +735,6 @@ RecordVizPage::RecordVizPage(QWidget* parent)
 
     connect(m_exportPngBtn, &ElaPushButton::clicked, this, &RecordVizPage::exportChartPng);
     connect(m_exportJpgBtn, &ElaPushButton::clicked, this, &RecordVizPage::exportChartJpg);
-    connect(m_exportSvgBtn, &ElaPushButton::clicked, this, &RecordVizPage::exportChartSvg);
     connect(m_exportXlsxBtn, &ElaPushButton::clicked, this, &RecordVizPage::exportChartDataXlsx);
 
     connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
@@ -833,9 +828,6 @@ void RecordVizPage::updateExportButtonsEnabled() {
     if (m_exportJpgBtn) {
         m_exportJpgBtn->setEnabled(ok);
     }
-    if (m_exportSvgBtn) {
-        m_exportSvgBtn->setEnabled(ok);
-    }
     if (m_exportXlsxBtn) {
         m_exportXlsxBtn->setEnabled(ok);
     }
@@ -882,32 +874,6 @@ void RecordVizPage::exportChartJpg() {
         return;
     }
     setStatus(tr("已导出 JPG：%1").arg(path), false);
-}
-
-void RecordVizPage::exportChartSvg() {
-    if (!m_chartExportHost) {
-        return;
-    }
-    const QString stem = (m_vizKind == VizKind::Scatter3D) ? QStringLiteral("BookCanvas_scatter3d")
-                                                           : QStringLiteral("BookCanvas_linechart");
-    const QString path = defaultDownloadsPath(
-        QStringLiteral("%1_%2.svg")
-            .arg(stem, QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"))));
-    const QSize sz = m_chartExportHost->size();
-    QSvgGenerator generator;
-    generator.setFileName(path);
-    generator.setSize(sz);
-    generator.setViewBox(QRect(0, 0, sz.width(), sz.height()));
-    generator.setTitle(QStringLiteral("BookCanvas"));
-    generator.setDescription(stem);
-    QPainter painter(&generator);
-    m_chartExportHost->render(&painter);
-    painter.end();
-    if (!QFileInfo::exists(path)) {
-        QMessageBox::warning(this, tr("导出失败"), tr("无法写入 SVG：%1").arg(path));
-        return;
-    }
-    setStatus(tr("已导出 SVG：%1").arg(path), false);
 }
 
 void RecordVizPage::exportChartDataXlsx() {
