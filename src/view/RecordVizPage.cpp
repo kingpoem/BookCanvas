@@ -773,10 +773,8 @@ void RecordVizPage::rebuildEmptyHint() {
     clearBody();
     m_vizKind = VizKind::None;
     const BookSimResultUi::Theme th = BookSimResultUi::themeFrom(eTheme->getThemeMode());
-    auto* hint = new QLabel(
-        tr("请在「仿真记录」页创建折线图或三维图，图表将在此显示。导出 PNG / JPG / "
-           "SVG 仅包含图例与绘图区；表格数据可使用「导出 XLSX」。默认保存到「下载」文件夹。"),
-        m_scrollInner);
+    auto* hint = new QLabel(tr("请在「仿真记录」页创建折线图或三维图，图表将在此显示。"),
+                            m_scrollInner);
     hint->setWordWrap(true);
     hint->setStyleSheet(QStringLiteral("font-size: %1px; color: %2;")
                             .arg(BookSimResultUi::TypePx::kLead)

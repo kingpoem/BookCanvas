@@ -1350,18 +1350,7 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
         tr("建模"),
         tr("按 BookSim 语义分组：拓扑与几何、路由器微架构、流控与分配器、流量与事务、统计与"
            "功耗。每组下为参数名卡片，摘要与详述均针对该键单独撰写。"),
-        tr("<h4>参数使用顺序</h4>"
-           "<ol>"
-           "<li>先看 <code>topology</code> 与 "
-           "<code>routing_function</code>，确认结构与路由兼容。</li>"
-           "<li>再看结构规模参数 <code>k</code>、<code>n</code>、<code>c</code>。</li>"
-           "<li>随后设置负载与流控参数：<code>traffic</code>、<code>injection_rate</code>、"
-           "<code>num_vcs</code>、<code>vc_buf_size</code>。</li>"
-           "<li>最后检查统计参数：<code>warmup_periods</code>、<code>sample_period</code>、"
-           "<code>max_samples</code>、<code>sim_type</code>。</li>"
-           "<li>若需模拟随机链路故障，再设置 <code>link_failures</code> 与 "
-           "<code>fail_seed</code>。</li>"
-           "</ol>"),
+        QString(),
         QStringLiteral(
             "配置参数 参数 核心参数 二级卡片 嵌套 card nested topology 路由算法概览 "
             "routing_function router iq "

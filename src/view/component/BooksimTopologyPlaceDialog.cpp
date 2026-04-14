@@ -47,24 +47,6 @@ BooksimTopologyPlaceDialog::BooksimTopologyPlaceDialog(const QString& topologyId
 
 void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     auto* root = new QVBoxLayout(this);
-    const bool autoBuildTopology = (m_topologyId == QLatin1String("mesh")
-                                    || m_topologyId == QLatin1String("torus")
-                                    || m_topologyId == QLatin1String("cmesh")
-                                    || m_topologyId == QLatin1String("fly")
-                                    || m_topologyId == QLatin1String("qtree")
-                                    || m_topologyId == QLatin1String("tree4")
-                                    || m_topologyId == QLatin1String("fattree")
-                                    || m_topologyId == QLatin1String("flatfly")
-                                    || m_topologyId == QLatin1String("dragonflynew"));
-    const QString hintText
-        = autoBuildTopology ? tr("确认参数后，在画布空白处单击一次会放置 %1 组件，并自动生成"
-                                 "路由器、终端与内部连线。\n你仍可与现有节点继续手动连线。")
-                                  .arg(m_topologyId)
-                            : tr("确认参数后，在画布空白处单击一次即可放置该拓扑块。\n配置将随「导"
-                                 "出配置」写入 JSON（画布上仅一块时生效）。");
-    auto* hint = new QLabel(hintText, this);
-    hint->setWordWrap(true);
-    root->addWidget(hint);
 
     auto* topoRow = new QLabel(tr("拓扑类型：%1 — <b>%2</b>").arg(m_topologyId, displayLabel), this);
     topoRow->setTextFormat(Qt::RichText);

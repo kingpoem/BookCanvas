@@ -99,7 +99,7 @@ QString routingUiLabel(const QString& topologyId, const QString& routingId) {
     };
     if (topo == QLatin1String("mesh")) {
         if (id == QLatin1String("dor")) {
-            return T("dor · 维序（默认）");
+            return T("dor · 维序");
         }
         if (id == QLatin1String("dim_order")) {
             return T("dim_order · 维序");
@@ -136,7 +136,7 @@ QString routingUiLabel(const QString& topologyId, const QString& routingId) {
         }
     } else if (topo == QLatin1String("torus")) {
         if (id == QLatin1String("dim_order")) {
-            return T("dim_order · 维序（默认）");
+            return T("dim_order · 维序");
         }
         if (id == QLatin1String("dim_order_ni")) {
             return T("dim_order_ni · 维序 NI");
@@ -158,7 +158,7 @@ QString routingUiLabel(const QString& topologyId, const QString& routingId) {
         }
     } else if (topo == QLatin1String("cmesh")) {
         if (id == QLatin1String("dor_no_express")) {
-            return T("dor_no_express · 维序无捷径（默认）");
+            return T("dor_no_express · 维序无捷径");
         }
         if (id == QLatin1String("dor")) {
             return T("dor · 维序含捷径");
@@ -171,29 +171,29 @@ QString routingUiLabel(const QString& topologyId, const QString& routingId) {
         }
     } else if (topo == QLatin1String("fly")) {
         if (id == QLatin1String("dest_tag")) {
-            return T("dest_tag · 蝶形（默认）");
+            return T("dest_tag · 蝶形");
         }
     } else if (topo == QLatin1String("qtree")) {
         if (id == QLatin1String("nca")) {
-            return T("nca · 最近公共祖先（默认）");
+            return T("nca · 最近公共祖先");
         }
     } else if (topo == QLatin1String("tree4")) {
         if (id == QLatin1String("nca")) {
-            return T("nca · 最近公共祖先（默认）");
+            return T("nca · 最近公共祖先");
         }
         if (id == QLatin1String("anca")) {
             return T("anca · 自适应 NCA");
         }
     } else if (topo == QLatin1String("fattree")) {
         if (id == QLatin1String("nca")) {
-            return T("nca · 最近公共祖先（默认）");
+            return T("nca · 最近公共祖先");
         }
         if (id == QLatin1String("anca")) {
             return T("anca · 自适应 NCA");
         }
     } else if (topo == QLatin1String("flatfly")) {
         if (id == QLatin1String("ran_min")) {
-            return T("ran_min · 随机最小（默认）");
+            return T("ran_min · 随机最小");
         }
         if (id == QLatin1String("xyyx")) {
             return T("xyyx · XY/YX");
@@ -215,14 +215,14 @@ QString routingUiLabel(const QString& topologyId, const QString& routingId) {
         }
     } else if (topo == QLatin1String("dragonflynew")) {
         if (id == QLatin1String("min")) {
-            return T("min · 最小路由（默认）");
+            return T("min · 最小路由");
         }
         if (id == QLatin1String("ugal")) {
             return T("ugal · UGAL");
         }
     } else if (topo == QLatin1String("anynet")) {
         if (id == QLatin1String("min")) {
-            return T("min · 任意网（默认）");
+            return T("min · 任意网");
         }
     }
     return id;
