@@ -55,7 +55,6 @@ private:
     void installNetworkTabKeyboardShortcuts();
     void updateCanvasTabNavigateButtons();
     void clickCanvasTabNavigateButton(bool backward);
-    void exportNetworkTableData();
     void previewCurrentNetworkConfigJson();
     void previewCurrentNetworkTopologyFile();
 

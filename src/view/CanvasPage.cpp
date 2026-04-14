@@ -10,7 +10,6 @@
 #include "component/ShowButton.h"
 #include "utils/BooksimPaths.h"
 #include "utils/CanvasDebugLog.h"
-#include "utils/NetworkTableExport.h"
 #include "utils/Settings.hpp"
 #include "utils/ThemedInputDialog.h"
 #include <ElaDef.h>
@@ -20,7 +19,6 @@
 #include <ElaPushButton.h>
 #include <ElaTheme.h>
 #include <QApplication>
-#include <QDateTime>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -31,14 +29,12 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QMouseEvent>
-#include <QRegularExpression>
 #include <QScrollArea>
 #include <QShortcut>
 #include <QShowEvent>
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QSplitterHandle>
-#include <QStandardPaths>
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <Version.h>
@@ -177,10 +173,6 @@ CanvasPage::CanvasPage(QWidget* parent)
     auto* importNetworkBtn = new ElaIconButton(ElaIconType::NetworkWired, 18, stripInner);
     importNetworkBtn->setBorderRadius(8);
     importNetworkBtn->setToolTip(tr("选择拓扑网络文件，并在画布上恢复网络"));
-    auto* exportNetworkTableBtn = new ElaIconButton(ElaIconType::FileExcel, 18, stripInner);
-    exportNetworkTableBtn->setBorderRadius(8);
-    exportNetworkTableBtn->setToolTip(
-        tr("将当前网络的 BookSim 合并配置、节点、链路与路由器参数导出为 Excel XML（.xml）或 CSV"));
 
     auto* leftCol = new QVBoxLayout(leftBuildPanel);
     leftCol->setContentsMargins(0, 0, 0, 0);
@@ -200,7 +192,6 @@ CanvasPage::CanvasPage(QWidget* parent)
     stripLay->addWidget(createButtonWithLabel(smartRenumberBtn, tr("智能重编号"), stripInner));
     stripLay->addWidget(createButtonWithLabel(pruneUnconnectedBtn, tr("清理孤立节点"), stripInner));
     stripLay->addWidget(createButtonWithLabel(importNetworkBtn, tr("恢复网络"), stripInner));
-    stripLay->addWidget(createButtonWithLabel(exportNetworkTableBtn, tr("导出表格"), stripInner));
 
     auto* placeHint = new QLabel(tr("点击放置"), stripInner);
     placeHint->setForegroundRole(QPalette::WindowText);
@@ -488,9 +479,6 @@ CanvasPage::CanvasPage(QWidget* parent)
         }
         QMessageBox::information(this, tr("恢复成功"), tr("已从文件恢复网络:\n%1").arg(filePath));
     });
-    connect(exportNetworkTableBtn, &ElaIconButton::clicked, this, [this]() {
-        exportNetworkTableData();
-    });
 
     connect(m_placeTermPick, &ElaIconButton::toggled, this, [this](bool on) {
         if (on) {
@@ -679,97 +667,6 @@ QMap<QString, QString> CanvasPage::mergedBooksimConfigForSimulationRecord() cons
     const QString topoPath = currentTopologyExportPath();
     const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
     return scene->mergedGlobalConfigForExport(netField);
-}
-
-void CanvasPage::exportNetworkTableData() {
-    auto* scene = currentScene();
-    if (!scene) {
-        QMessageBox::warning(this, tr("导出"), tr("画布未就绪。"));
-        return;
-    }
-    const QString cfgPath = currentConfigExportPath();
-    const QString topoPath = currentTopologyExportPath();
-    const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
-    const QMap<QString, QString> cfg = scene->mergedGlobalConfigForExport(netField);
-
-    QVector<NetworkTableExport::NodeRow> nodes;
-    nodes.reserve(scene->nodes().size());
-    for (GraphNode* n : scene->nodes()) {
-        if (!n) {
-            continue;
-        }
-        NetworkTableExport::NodeRow row;
-        row.id = n->getId();
-        row.type = n->getType() == GraphNode::Router ? QStringLiteral("Router")
-                                                       : QStringLiteral("Terminal");
-        row.sceneX = n->scenePos().x();
-        row.sceneY = n->scenePos().y();
-        nodes.push_back(row);
-    }
-
-    QVector<NetworkTableExport::LinkRow> links;
-    links.reserve(scene->edges().size());
-    for (GraphEdge* e : scene->edges()) {
-        if (!e || !e->startNode() || !e->endNode()) {
-            continue;
-        }
-        links.push_back({e->startNode()->getId(), e->endNode()->getId(), e->weight()});
-    }
-
-    QVector<NetworkTableExport::RouterParamRow> routerRows;
-    for (GraphNode* n : scene->nodes()) {
-        if (!n || n->getType() != GraphNode::Router) {
-            continue;
-        }
-        const QMap<QString, QString> rc = scene->getRouterConfig(n->getId());
-        for (auto it = rc.constBegin(); it != rc.constEnd(); ++it) {
-            routerRows.push_back({n->getId(), it.key(), it.value()});
-        }
-    }
-
-    QString tabTitle = canvasTabTitle(currentCanvasTabIndex()).trimmed();
-    if (tabTitle.isEmpty()) {
-        tabTitle = QStringLiteral("network");
-    }
-    static const QRegularExpression badChars(QStringLiteral(R"([\\/:*?"<>|])"));
-    const QString safeTitle = QString(tabTitle).replace(badChars, QStringLiteral("_"));
-    const QString defaultName = QStringLiteral("BookCanvas_network_%1_%2.xml")
-                                    .arg(safeTitle,
-                                         QDateTime::currentDateTime().toString(
-                                             QStringLiteral("yyyyMMdd_HHmmss")));
-
-    QString dir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-    if (dir.isEmpty()) {
-        dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    }
-    if (dir.isEmpty()) {
-        dir = QDir::homePath();
-    }
-
-    QFileDialog dlg(this, tr("导出网络数据"), QDir(dir).filePath(defaultName));
-    dlg.setAcceptMode(QFileDialog::AcceptSave);
-    dlg.setNameFilters({tr("Excel XML (*.xml)"), tr("CSV 表格 (*.csv)")});
-    dlg.selectNameFilter(tr("Excel XML (*.xml)"));
-    if (dlg.exec() != QDialog::Accepted) {
-        return;
-    }
-    const QStringList files = dlg.selectedFiles();
-    if (files.isEmpty()) {
-        return;
-    }
-    QString path = files.first();
-    const bool asCsv = dlg.selectedNameFilter().contains(QStringLiteral("csv"), Qt::CaseInsensitive);
-    if (QFileInfo(path).suffix().isEmpty()) {
-        path += asCsv ? QStringLiteral(".csv") : QStringLiteral(".xml");
-    }
-
-    const bool ok = asCsv ? NetworkTableExport::writeCsvUtf8Bom(path, cfg, nodes, links, routerRows)
-                          : NetworkTableExport::writeExcel2003Xml(path, cfg, nodes, links, routerRows);
-    if (!ok) {
-        QMessageBox::warning(this, tr("导出失败"), tr("无法写入文件：\n%1").arg(path));
-        return;
-    }
-    QMessageBox::information(this, tr("导出成功"), tr("网络数据已导出到：\n%1").arg(path));
 }
 
 void CanvasPage::previewCurrentNetworkConfigJson() {
