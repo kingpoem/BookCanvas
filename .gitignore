@@ -14,6 +14,7 @@
 build*/
 cmake-build-*/
 Install/
+dist/
 
 # ========================
 # CMake / compilation cache

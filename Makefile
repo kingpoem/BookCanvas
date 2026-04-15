@@ -27,3 +27,11 @@ endif
 
 include make/common.mk
 include make/$(PLATFORM).mk
+
+.PHONY: win-package
+
+win-package:
+	@if [ "$(PLATFORM)" != "Windows" ]; then \
+		exit 1; \
+	fi
+	powershell -NoProfile -ExecutionPolicy Bypass -File "./scripts/package-windows.ps1" $(WIN_PACKAGE_ARGS)
