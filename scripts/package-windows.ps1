@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$BuildDir = "build-vs2022",
     [string]$Config = "Release",
     [string]$Generator = "Visual Studio 17 2022",
