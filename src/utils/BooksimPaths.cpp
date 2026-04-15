@@ -223,27 +223,27 @@ void ensureDefaultExportPathSettings() {
 }
 
 QString topologyExportPathFromSettings() {
-    if (const QString installed = installedFilePath(QStringLiteral("anynet_file"));
-        !installed.isEmpty()) {
-        return installed;
-    }
     const QString configured
         = settings.value(QStringLiteral("booksimTopologyExportPath")).toString().trimmed();
     if (!configured.isEmpty()) {
         return configured;
     }
+    if (const QString installed = installedFilePath(QStringLiteral("anynet_file"));
+        !installed.isEmpty()) {
+        return installed;
+    }
     return defaultTopologyExportPath();
 }
 
 QString configExportPathFromSettings() {
-    if (const QString installed = installedFilePath(QStringLiteral("anynet_config.json"));
-        !installed.isEmpty()) {
-        return installed;
-    }
     const QString configured
         = settings.value(QStringLiteral("booksimConfigExportPath")).toString().trimmed();
     if (!configured.isEmpty()) {
         return configured;
+    }
+    if (const QString installed = installedFilePath(QStringLiteral("anynet_config.json"));
+        !installed.isEmpty()) {
+        return installed;
     }
     return defaultConfigExportPath();
 }

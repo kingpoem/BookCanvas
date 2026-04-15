@@ -141,9 +141,25 @@ set_target_properties(BookCanvas PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+if(WIN32)
+    # 与 BookCanvas.exe 同目录放置 booksim.exe，使默认引擎/工作目录与导出 JSON 一致（避免依赖 3rdpart 相对路径）
+    add_dependencies(BookCanvas booksim2)
+    add_custom_command(
+        TARGET BookCanvas
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${BOOKSIM2_EXECUTABLE}"
+                "$<TARGET_FILE_DIR:BookCanvas>/booksim.exe"
+        COMMENT "Copying booksim.exe next to BookCanvas.exe"
+        VERBATIM)
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS BookCanvas
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+if(WIN32)
+    install(PROGRAMS "${BOOKSIM2_EXECUTABLE}" DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
