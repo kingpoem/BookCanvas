@@ -19,6 +19,49 @@ $distDir = Join-Path $repoRoot "dist"
 $actionCliDir = Join-Path $repoRoot "action-cli"
 $issPath = Join-Path $actionCliDir "InstallerScript.iss"
 
+# booksim 为 MinGW 构建；须与 bookcanvas 同目录分发 libgcc/libstdc++/libwinpthread，否则会报缺少 libgcc_s_seh-1.dll。
+# 设置 BOOKSIM_MINGW_BIN（如 C:\msys64\ucrt64\bin），或将用于编译 booksim 的 g++.exe 所在目录加入 PATH。
+function Copy-BooksimMingwRuntimeDlls {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Destination
+    )
+
+    $mingwBin = $env:BOOKSIM_MINGW_BIN
+    if (-not $mingwBin) {
+        $gpp = Get-Command "g++.exe" -ErrorAction SilentlyContinue
+        if ($gpp) {
+            $mingwBin = Split-Path -Parent $gpp.Source
+        }
+    }
+    if (-not $mingwBin -or -not (Test-Path -LiteralPath $mingwBin)) {
+        throw "无法定位 MinGW 的 bin（缺少 libgcc_s_seh-1.dll 等）。请设置 BOOKSIM_MINGW_BIN 为编译 booksim 时使用的目录（例如 C:\msys64\ucrt64\bin），或将该环境的 g++.exe 加入 PATH 后重新运行打包脚本。"
+    }
+
+    foreach ($name in @("libstdc++-6.dll", "libwinpthread-1.dll")) {
+        $src = Join-Path $mingwBin $name
+        if (-not (Test-Path -LiteralPath $src)) {
+            throw "未找到 booksim 依赖的运行库: $src （检查 BOOKSIM_MINGW_BIN=$mingwBin）"
+        }
+        Copy-Item -LiteralPath $src -Destination $Destination -Force
+    }
+
+    $gccCopied = $false
+    foreach ($name in @("libgcc_s_seh-1.dll", "libgcc_s_dw2-1.dll")) {
+        $src = Join-Path $mingwBin $name
+        if (Test-Path -LiteralPath $src) {
+            Copy-Item -LiteralPath $src -Destination $Destination -Force
+            $gccCopied = $true
+            break
+        }
+    }
+    if (-not $gccCopied) {
+        throw "在 $mingwBin 中未找到 libgcc_s_seh-1.dll 或 libgcc_s_dw2-1.dll。"
+    }
+
+    Write-Host "    已从 $mingwBin 复制 MinGW 运行库（供 booksim.exe 使用）"
+}
+
 Push-Location $repoRoot
 try {
     if (-not (Test-Path $actionCliDir)) {
@@ -57,6 +100,9 @@ try {
     Write-Host "==> Stage runtime files to dist/"
     Copy-Item $bookCanvasExe (Join-Path $distDir "bookcanvas.exe")
     Copy-Item $booksimExe (Join-Path $distDir "booksim.exe")
+
+    Write-Host "==> 复制 booksim 所需的 MinGW 运行库到 dist（windeployqt 不会处理）"
+    Copy-BooksimMingwRuntimeDlls -Destination $distDir
 
     $windeployqt = $null
     $qtHint = "C:\Qt\qt6\6.7.0\msvc2019_64\bin"
