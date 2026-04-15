@@ -1,7 +1,8 @@
 # BookCanvas — GNU Make 入口：按平台加载 make/<Platform>.mk
 #
 # 提供: clean, cdb, format, install, uninstall — 见 README「Install」与仓库内注释
-# macOS 另有: reinstall — 见 make/Darwin.mk
+# macOS 另有: reinstall、mac-package — 见 make/Darwin.mk、scripts/packages-macos.sh
+# Windows: win-package — 见 scripts/package-windows.ps1
 # 可选本地覆盖: 仓库根目录创建 UserMakefile（已 gitignore），在末尾 -include
 # 需安装: cmake、对应平台工具链（见 README）
 
@@ -28,10 +29,16 @@ endif
 include make/common.mk
 include make/$(PLATFORM).mk
 
-.PHONY: win-package
+.PHONY: win-package mac-package
 
 win-package:
 	@if [ "$(PLATFORM)" != "Windows" ]; then \
 		exit 1; \
 	fi
 	powershell -NoProfile -ExecutionPolicy Bypass -File "./scripts/package-windows.ps1" $(WIN_PACKAGE_ARGS)
+
+mac-package:
+	@if [ "$(PLATFORM)" != "Darwin" ]; then \
+		exit 1; \
+	fi
+	bash "./scripts/packages-macos.sh" $(MAC_PACKAGE_ARGS)

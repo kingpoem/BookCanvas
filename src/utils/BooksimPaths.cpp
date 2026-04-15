@@ -43,7 +43,7 @@ namespace {
 
 [[nodiscard]] bool hasInstalledAnyNetFiles() {
     return !installedFilePath(QStringLiteral("anynet_file")).isEmpty()
-        || !installedFilePath(QStringLiteral("anynet_config.json")).isEmpty();
+           || !installedFilePath(QStringLiteral("anynet_config.json")).isEmpty();
 }
 
 } // namespace
