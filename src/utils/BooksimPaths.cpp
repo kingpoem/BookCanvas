@@ -20,6 +20,32 @@ namespace {
     return QDir::cleanPath(fi.absoluteFilePath());
 }
 
+[[nodiscard]] QString installedFilePath(const QString& name) {
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QString candidate = normalizedExistingPath(QDir(appDir).filePath(name));
+    if (candidate.isEmpty()) {
+        return {};
+    }
+    return candidate;
+}
+
+[[nodiscard]] QString installedBooksimPath() {
+#ifdef Q_OS_WIN
+    if (const QString p = installedFilePath(QStringLiteral("booksim.exe")); !p.isEmpty()) {
+        return p;
+    }
+#endif
+    if (const QString p = installedFilePath(QStringLiteral("booksim")); !p.isEmpty()) {
+        return p;
+    }
+    return {};
+}
+
+[[nodiscard]] bool hasInstalledAnyNetFiles() {
+    return !installedFilePath(QStringLiteral("anynet_file")).isEmpty()
+        || !installedFilePath(QStringLiteral("anynet_config.json")).isEmpty();
+}
+
 } // namespace
 
 namespace BooksimPaths {
@@ -99,6 +125,10 @@ void ensureDefaultEnginePathSettings() {
 }
 
 QString findBooksimExecutable() {
+    if (const QString p = installedBooksimPath(); !p.isEmpty()) {
+        return p;
+    }
+
     const QString configured
         = settings.value(QStringLiteral("booksimEnginePath")).toString().trimmed();
     if (!configured.isEmpty()) {
@@ -114,6 +144,10 @@ QString findBooksimExecutable() {
 
 QString booksimWorkingDirectory() {
     const QString appDir = QCoreApplication::applicationDirPath();
+
+    if (!installedBooksimPath().isEmpty() || hasInstalledAnyNetFiles()) {
+        return QDir::cleanPath(appDir);
+    }
 
     const QString configuredEngine
         = settings.value(QStringLiteral("booksimEnginePath")).toString().trimmed();
@@ -175,20 +209,43 @@ QString defaultConfigExportPath() {
 }
 
 void ensureDefaultExportPathSettings() {
+    const QString installedTopo = installedFilePath(QStringLiteral("anynet_file"));
+    const QString installedCfg = installedFilePath(QStringLiteral("anynet_config.json"));
+
     if (!settings.contains(QStringLiteral("booksimTopologyExportPath"))) {
-        settings.setValue(QStringLiteral("booksimTopologyExportPath"), defaultTopologyExportPath());
+        settings.setValue(QStringLiteral("booksimTopologyExportPath"),
+                          installedTopo.isEmpty() ? defaultTopologyExportPath() : installedTopo);
     }
     if (!settings.contains(QStringLiteral("booksimConfigExportPath"))) {
-        settings.setValue(QStringLiteral("booksimConfigExportPath"), defaultConfigExportPath());
+        settings.setValue(QStringLiteral("booksimConfigExportPath"),
+                          installedCfg.isEmpty() ? defaultConfigExportPath() : installedCfg);
     }
 }
 
 QString topologyExportPathFromSettings() {
-    return settings.value(QStringLiteral("booksimTopologyExportPath")).toString().trimmed();
+    if (const QString installed = installedFilePath(QStringLiteral("anynet_file"));
+        !installed.isEmpty()) {
+        return installed;
+    }
+    const QString configured
+        = settings.value(QStringLiteral("booksimTopologyExportPath")).toString().trimmed();
+    if (!configured.isEmpty()) {
+        return configured;
+    }
+    return defaultTopologyExportPath();
 }
 
 QString configExportPathFromSettings() {
-    return settings.value(QStringLiteral("booksimConfigExportPath")).toString().trimmed();
+    if (const QString installed = installedFilePath(QStringLiteral("anynet_config.json"));
+        !installed.isEmpty()) {
+        return installed;
+    }
+    const QString configured
+        = settings.value(QStringLiteral("booksimConfigExportPath")).toString().trimmed();
+    if (!configured.isEmpty()) {
+        return configured;
+    }
+    return defaultConfigExportPath();
 }
 
 QString scopedExportPath(const QString& basePath, const QString& scopeToken) {
