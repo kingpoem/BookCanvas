@@ -74,39 +74,36 @@ qt_add_executable(BookCanvas MACOSX_BUNDLE
 set(ELAWIDGETTOOLS_BUILD_STATIC_LIB "STATIC" CACHE STRING "Build ElaWidgetTools as a static library")
 add_subdirectory(3rdpart/ElaWidgetTools)
 
-# Set booksim2 source directory and binary directory
+# booksim2：统一在 3rdpart/booksim2/src 下用顶层 Makefile 本地编译（需 GNU Make、flex、bison、C++ 编译器）
 set(BOOKSIM2_SRC_DIR ${CMAKE_SOURCE_DIR}/3rdpart/booksim2/src)
 if(WIN32)
     set(BOOKSIM2_EXECUTABLE ${BOOKSIM2_SRC_DIR}/booksim.exe)
-    set(BOOKSIM2_DOWNLOAD_URL "https://github.com/kingpoem/booksim2/releases/download/v0.0.1/booksim.exe")
-    set(BOOKSIM2_DOWNLOAD_SCRIPT ${CMAKE_SOURCE_DIR}/.cmake/download_booksim2.cmake)
-
-    add_custom_command(
-        OUTPUT ${BOOKSIM2_EXECUTABLE}
-        COMMAND ${CMAKE_COMMAND}
-            "-DBOOKSIM2_DOWNLOAD_URL=${BOOKSIM2_DOWNLOAD_URL}"
-            "-DBOOKSIM2_EXECUTABLE=${BOOKSIM2_EXECUTABLE}"
-            -P ${BOOKSIM2_DOWNLOAD_SCRIPT}
-        COMMENT "Downloading booksim.exe for Windows..."
-        VERBATIM
-    )
 else()
     set(BOOKSIM2_EXECUTABLE ${BOOKSIM2_SRC_DIR}/booksim)
-
-    # Custom command to compile booksim
-    find_program(MAKE_PROGRAM make)
-    if(NOT MAKE_PROGRAM)
-        message(FATAL_ERROR "Cannot find 'make' to build booksim2.")
-    endif()
-
-    add_custom_command(
-        OUTPUT ${BOOKSIM2_EXECUTABLE}
-        COMMAND ${CMAKE_COMMAND} -E chdir ${BOOKSIM2_SRC_DIR} ${MAKE_PROGRAM}
-        COMMENT "Building booksim2..."
-        WORKING_DIRECTORY ${BOOKSIM2_SRC_DIR}
-        VERBATIM
-    )
 endif()
+
+set(BOOKSIM2_MAKE_PROGRAM "" CACHE STRING
+    "用于编译 booksim2 的 make 可执行文件（留空则自动查找 mingw32-make、make、gmake）")
+if(BOOKSIM2_MAKE_PROGRAM)
+    set(_booksim2_make_cmd "${BOOKSIM2_MAKE_PROGRAM}")
+else()
+    find_program(_booksim2_make_cmd NAMES mingw32-make make gmake)
+endif()
+
+if(NOT _booksim2_make_cmd)
+    message(
+        FATAL_ERROR
+        "未找到用于构建 booksim2 的 make（已尝试 mingw32-make、make、gmake）。\n"
+        "  Windows：请安装 MSYS2，执行 pacman 安装 mingw-w64 工具链、flex、bison、make，"
+        "并将 ucrt64\\bin 加入 PATH，或配置 -DBOOKSIM2_MAKE_PROGRAM=... 指向 mingw32-make。\n")
+endif()
+
+add_custom_command(
+    OUTPUT ${BOOKSIM2_EXECUTABLE}
+    COMMAND ${CMAKE_COMMAND} -E chdir ${BOOKSIM2_SRC_DIR} ${_booksim2_make_cmd}
+    COMMENT "Building booksim2 in ${BOOKSIM2_SRC_DIR}..."
+    VERBATIM
+)
 
 # Add custom target
 add_custom_target(booksim2
