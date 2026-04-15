@@ -1340,25 +1340,10 @@ UsageGuidePage::UsageGuidePage(QWidget* parent)
            "</li>"
            "<li>上述两项可在「设置」中通过「拓扑文件模板」「JSON 配置模板」改为任意路径；多 "
            "Tab 导出时文件名可能自动追加后缀。</li>"
-           "</ul>"
-           "<h4>芯粒网格（chiplet_mesh）— BookSim 侧文件位置</h4>"
-           "<ul>"
-           "<li><code>3rdpart/booksim2/docs/chiplet_config_reference.md</code></li>"
-           "<li><code>3rdpart/booksim2/docs/chiplet_cdc_build_steps.md</code></li>"
-           "<li><code>3rdpart/booksim2/src/booksim_config.cpp</code>（<code>chiplet_*</code> "
-           "默认值）</li>"
-           "<li><code>3rdpart/booksim2/tools/mesh_chiplet.schema.json</code>、"
-           "<code>mesh_chiplet_spec.sample.json</code>、"
-           "<code>chiplet_spec_to_config.py</code></li>"
-           "</ul>"
-           "<p>导出 JSON 中的 <code>bookcanvas_chiplets</code>、"
-           "<code>bookcanvas_chiplet_mesh</code>、<code>bookcanvas_chiplet_red_links</code> "
-           "等仅用于 BookCanvas 还原；仿真使用合并后的 <code>chiplet_*</code> 等 BookSim "
-           "键。</p>"),
+           "</ul>"),
         QStringLiteral("文件 路径 settings.ini simulation_records.json anynet_file "
                        "anynet_config.json 拓扑 导出 "
-                       "json 全局配置 book-canvas 存储 目录 windows mac linux appdata njupt "
-                       "chiplet_config_reference chiplet mesh芯粒 bookcanvas_chiplets"));
+                       "json 全局配置 book-canvas 存储 目录 windows mac linux appdata njupt"));
 
     addSection(
         tr("Chiplet mesh（芯粒网格）"),
