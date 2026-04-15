@@ -210,7 +210,7 @@ struct RecordMetricPoint3D {
              .arg(metricALabel, QString::number(minA, 'f', 3), QString::number(maxA, 'f', 3));
     s += QStringLiteral("Y轴：%1  [%2, %3]\n")
              .arg(metricBLabel, QString::number(minB, 'f', 3), QString::number(maxB, 'f', 3));
-    s += QStringLiteral("X轴刻度（底边，与图一致）：");
+    s += QStringLiteral("X轴刻度：");
     for (int i = 0; i <= 6; ++i) {
         const double t = static_cast<double>(i) / 6.0;
         const double xTick = minA + t * (maxA - minA);
