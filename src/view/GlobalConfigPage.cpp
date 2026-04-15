@@ -2,6 +2,7 @@
 #include "component/RouterGlobalConfigDialog.h"
 #include "utils/BooksimRoutingCatalog.h"
 #include "utils/SelectableLabel.h"
+#include "utils/WindowsLightDialogPolish.h"
 #include <ElaComboBox.h>
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
@@ -976,6 +977,7 @@ void GlobalConfigPage::showRawConfigContent(const QString& title, const QString&
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(title);
     dialog->resize(860, 620);
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(dialog);
 
     auto* layout = new QVBoxLayout(dialog);
     auto* editor = new QPlainTextEdit(dialog);

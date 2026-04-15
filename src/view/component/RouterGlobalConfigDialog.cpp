@@ -1,4 +1,5 @@
 #include "RouterGlobalConfigDialog.h"
+#include "utils/WindowsLightDialogPolish.h"
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
 #include <QFont>
@@ -19,6 +20,7 @@ RouterGlobalConfigDialog::RouterGlobalConfigDialog(QWidget* parent)
     setupUI();
     setWindowTitle("全局配置");
     setMinimumSize(600, 700);
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(this);
 }
 
 void RouterGlobalConfigDialog::setupUI() {

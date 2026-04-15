@@ -1,4 +1,5 @@
 #include "RouterConfigDialog.h"
+#include "utils/WindowsLightDialogPolish.h"
 #include <ElaComboBox.h>
 #include <ElaDef.h>
 #include <ElaDialog.h>
@@ -150,6 +151,7 @@ RouterConfigDialog::RouterConfigDialog(const QString& routerId, QWidget* parent)
     QObject::connect(eTheme, &ElaTheme::themeModeChanged, this, [this](ElaThemeType::ThemeMode) {
         applyDialogChrome();
     });
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(this);
 }
 
 void RouterConfigDialog::addFieldRow(const QString& labelText, QWidget* field) {

@@ -1,6 +1,7 @@
 #include "ChipletSimConfigDialogs.h"
 #include "GraphChiplet.h"
 #include "GraphScene.h"
+#include "utils/WindowsLightDialogPolish.h"
 #include <ElaComboBox.h>
 #include <ElaLineEdit.h>
 #include <ElaPushButton.h>
@@ -67,6 +68,7 @@ ChipletDieParamsDialog::ChipletDieParamsDialog(GraphScene* scene,
     lay->addLayout(form);
     lay->addWidget(hint);
     lay->addWidget(buttons);
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(this);
 }
 
 void ChipletDieParamsDialog::accept() {
@@ -169,6 +171,7 @@ ChipletD2dGlobalsDialog::ChipletD2dGlobalsDialog(GraphScene* scene, QWidget* par
     lay->addLayout(form);
     lay->addWidget(hint);
     lay->addWidget(buttons);
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(this);
 }
 
 void ChipletD2dGlobalsDialog::accept() {

@@ -1,5 +1,6 @@
 #include "BooksimTopologyPlaceDialog.h"
 #include "utils/BooksimRoutingCatalog.h"
+#include "utils/WindowsLightDialogPolish.h"
 #include <ElaComboBox.h>
 #include <ElaPushButton.h>
 #include <QComboBox>
@@ -43,6 +44,7 @@ BooksimTopologyPlaceDialog::BooksimTopologyPlaceDialog(const QString& topologyId
     buildUi(displayLabel);
     setWindowTitle(tr("BookSim 拓扑 — %1").arg(displayLabel));
     setMinimumWidth(320);
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(this);
 }
 
 void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {

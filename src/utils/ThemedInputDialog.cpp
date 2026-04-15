@@ -1,5 +1,6 @@
 #include "ThemedInputDialog.h"
 #include "utils/SelectableLabel.h"
+#include "utils/WindowsLightDialogPolish.h"
 #include <ElaDef.h>
 #include <ElaDialog.h>
 #include <ElaLineEdit.h>
@@ -21,6 +22,7 @@ void showThemedAlert(QWidget* parent,
                      const QString& text,
                      const QString& okButtonText) {
     ElaDialog dlg(parent);
+    installWindowsLightTopLevelDialogPolish(&dlg);
     dlg.setWindowTitle(title);
     dlg.setWindowModality(Qt::WindowModal);
     dlg.setWindowButtonFlags(ElaAppBarType::CloseButtonHint);
@@ -69,6 +71,7 @@ QString promptLineText(QWidget* parent,
     }
 
     ElaDialog dlg(parent);
+    installWindowsLightTopLevelDialogPolish(&dlg);
     dlg.setWindowTitle(windowTitle);
     dlg.setWindowModality(Qt::WindowModal);
     dlg.setWindowButtonFlags(ElaAppBarType::CloseButtonHint);
@@ -115,6 +118,7 @@ QString promptLineText(QWidget* parent,
 
 void showReadOnlyTextPreview(QWidget* parent, const QString& windowTitle, const QString& bodyText) {
     ElaDialog dlg(parent);
+    installWindowsLightTopLevelDialogPolish(&dlg);
     dlg.setWindowTitle(windowTitle);
     dlg.setWindowModality(Qt::WindowModal);
     dlg.setWindowButtonFlags(ElaAppBarType::CloseButtonHint);

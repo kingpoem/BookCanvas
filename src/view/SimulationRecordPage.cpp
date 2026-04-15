@@ -1,5 +1,6 @@
 #include "SimulationRecordPage.h"
 #include "utils/SelectableLabel.h"
+#include "utils/WindowsLightDialogPolish.h"
 #include <ElaCheckBox.h>
 #include <ElaComboBox.h>
 #include <ElaLineEdit.h>
@@ -641,6 +642,7 @@ void SimulationRecordPage::openLineChartDialog() {
     QDialog dialog(this);
     dialog.setWindowTitle(tr("创建折线图"));
     dialog.resize(680, 520);
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(&dialog);
 
     auto* layout = new QVBoxLayout(&dialog);
     layout->setContentsMargins(16, 16, 16, 16);
@@ -801,6 +803,7 @@ void SimulationRecordPage::openScatter3DDialog() {
     QDialog dialog(this);
     dialog.setWindowTitle(tr("创建三维图"));
     dialog.resize(680, 560);
+    BookCanvasUi::installWindowsLightTopLevelDialogPolish(&dialog);
 
     auto* layout = new QVBoxLayout(&dialog);
     layout->setContentsMargins(16, 16, 16, 16);

@@ -219,8 +219,7 @@ struct RecordMetricPoint3D {
         }
         s += QString::number(xTick, 'f', 2);
     }
-    s += QStringLiteral(
-        "\n纵轴网格：左侧刻度对应 X 指标量纲、右侧对应 Y 指标量纲（与图左右刻度一致）。\n");
+    s += QLatin1Char('\n');
     for (int i = 0; i <= 5; ++i) {
         const double t = static_cast<double>(i) / 5.0;
         const double valueA = minA + t * (maxA - minA);
