@@ -2,6 +2,10 @@
 
 Design, customize, and simulate irregular NoC topologies with a drag-and-drop interface!
 
+## Showcase
+
+![BookCanvas canvas page](./doc/canvas-page.png)
+
 ## Build
 
 ### Windows
