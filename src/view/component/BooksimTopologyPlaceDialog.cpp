@@ -50,7 +50,12 @@ BooksimTopologyPlaceDialog::BooksimTopologyPlaceDialog(const QString& topologyId
 void BooksimTopologyPlaceDialog::buildUi(const QString& displayLabel) {
     auto* root = new QVBoxLayout(this);
 
-    auto* topoRow = new QLabel(tr("拓扑类型：%1 — <b>%2</b>").arg(m_topologyId, displayLabel), this);
+    const QString topoLine
+        = (m_topologyId.trimmed().compare(displayLabel.trimmed(), Qt::CaseInsensitive) == 0)
+              ? tr("拓扑类型：<b>%1</b>").arg(displayLabel.toHtmlEscaped())
+              : tr("拓扑类型：%1 — <b>%2</b>")
+                    .arg(m_topologyId.toHtmlEscaped(), displayLabel.toHtmlEscaped());
+    auto* topoRow = new QLabel(topoLine, this);
     topoRow->setTextFormat(Qt::RichText);
     root->addWidget(topoRow);
 

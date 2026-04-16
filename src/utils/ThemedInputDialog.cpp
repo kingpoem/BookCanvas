@@ -116,7 +116,10 @@ QString promptLineText(QWidget* parent,
     return edit->text();
 }
 
-void showReadOnlyTextPreview(QWidget* parent, const QString& windowTitle, const QString& bodyText) {
+void showReadOnlyTextPreview(QWidget* parent,
+                             const QString& windowTitle,
+                             const QString& bodyText,
+                             const QString& absoluteExportPath) {
     ElaDialog dlg(parent);
     installWindowsLightTopLevelDialogPolish(&dlg);
     dlg.setWindowTitle(windowTitle);
@@ -131,6 +134,26 @@ void showReadOnlyTextPreview(QWidget* parent, const QString& windowTitle, const 
     root->setContentsMargins(20, 28, 20, 16);
     root->setSpacing(12);
 
+    const auto mode = eTheme->getThemeMode();
+    const QColor border = ElaThemeColor(mode, BasicBorder);
+    const QColor textMain = ElaThemeColor(mode, BasicText);
+    const QColor panelBg = ElaThemeColor(mode, PopupBase);
+
+    if (!absoluteExportPath.isEmpty()) {
+        auto* pathValue = new QLabel(absoluteExportPath, &dlg);
+        pathValue->setWordWrap(true);
+        applySelectableLabelText(pathValue);
+
+        pathValue->setStyleSheet(
+            QStringLiteral("QLabel { background-color: %1; color: %2; border: 1px solid %3; "
+                           "border-radius: 8px; padding: 8px; }")
+                .arg(panelBg.name(QColor::HexRgb),
+                     textMain.name(QColor::HexRgb),
+                     border.name(QColor::HexRgb)));
+
+        root->addWidget(pathValue);
+    }
+
     auto* te = new QPlainTextEdit(&dlg);
     te->setReadOnly(true);
     te->setPlainText(bodyText);
@@ -142,10 +165,7 @@ void showReadOnlyTextPreview(QWidget* parent, const QString& windowTitle, const 
     mono.setPointSize(11);
     te->setFont(mono);
 
-    const auto mode = eTheme->getThemeMode();
-    const QColor border = ElaThemeColor(mode, BasicBorder);
-    const QColor textMain = ElaThemeColor(mode, BasicText);
-    const QColor editorBg = ElaThemeColor(mode, PopupBase);
+    const QColor editorBg = panelBg;
     te->setStyleSheet(
         QStringLiteral("QPlainTextEdit { background-color: %1; color: %2; border: 1px solid %3; "
                        "border-radius: 8px; }")

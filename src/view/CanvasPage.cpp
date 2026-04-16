@@ -21,6 +21,7 @@
 #include <ElaTheme.h>
 #include <QApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
@@ -306,13 +307,8 @@ CanvasPage::CanvasPage(QWidget* parent)
 
     auto* viewConfigJsonBtn = new ElaIconButton(ElaIconType::FileCode, 18, stripInner);
     viewConfigJsonBtn->setBorderRadius(8);
-    viewConfigJsonBtn->setToolTip(
-        tr("查看当前网络 Tab 将导出到 BookSim 的 JSON 配置全文（与「导出配置」写入内容一致，"
- "随 Tab 切换变化；未导出到磁盘时也可预览）。"));
     auto* viewTopologyBtn = new ElaIconButton(ElaIconType::ShareNodes, 18, stripInner);
     viewTopologyBtn->setBorderRadius(8);
-    viewTopologyBtn->setToolTip(
-        tr("查看当前网络 Tab 将导出的 anynet 拓扑文本（与「导出拓扑」写入内容一致，随 Tab 切换变化）。"));
     stripLay->addWidget(createButtonWithLabel(viewConfigJsonBtn, tr("配置 JSON"), stripInner));
     stripLay->addWidget(createButtonWithLabel(viewTopologyBtn, tr("拓扑文件"), stripInner));
 
@@ -683,16 +679,16 @@ void CanvasPage::previewCurrentNetworkConfigJson() {
     const QString body = scene->exportJSONConfigText(netField);
 
     QString title = tr("BookSim 配置 JSON");
-    if (!cfgPath.isEmpty()) {
-        title = tr("%1 — %2").arg(title, QFileInfo(cfgPath).fileName());
-    } else {
+    if (cfgPath.trimmed().isEmpty()) {
         title = tr("%1（未设置 JSON 导出路径）").arg(title);
     }
     const QString tabName = canvasTabTitle(currentCanvasTabIndex()).trimmed();
     if (!tabName.isEmpty()) {
         title = tr("[%1] %2").arg(tabName, title);
     }
-    BookCanvasUi::showReadOnlyTextPreview(this, title, body);
+    const QString absExport
+        = cfgPath.trimmed().isEmpty() ? QString() : QFileInfo(cfgPath).absoluteFilePath();
+    BookCanvasUi::showReadOnlyTextPreview(this, title, body, absExport);
 }
 
 void CanvasPage::previewCurrentNetworkTopologyFile() {
@@ -704,16 +700,16 @@ void CanvasPage::previewCurrentNetworkTopologyFile() {
     const QString body = scene->exportTopologyFileText();
     QString title = tr("BookSim 网络拓扑");
     const QString topoPath = currentTopologyExportPath();
-    if (!topoPath.isEmpty()) {
-        title = tr("%1 — %2").arg(title, QFileInfo(topoPath).fileName());
-    } else {
+    if (topoPath.trimmed().isEmpty()) {
         title = tr("%1（未设置拓扑导出路径）").arg(title);
     }
     const QString tabName = canvasTabTitle(currentCanvasTabIndex()).trimmed();
     if (!tabName.isEmpty()) {
         title = tr("[%1] %2").arg(tabName, title);
     }
-    BookCanvasUi::showReadOnlyTextPreview(this, title, body);
+    const QString absExport
+        = topoPath.trimmed().isEmpty() ? QString() : QFileInfo(topoPath).absoluteFilePath();
+    BookCanvasUi::showReadOnlyTextPreview(this, title, body, absExport);
 }
 
 int CanvasPage::canvasTabCount() const {
@@ -752,7 +748,13 @@ bool CanvasPage::exportTopologySilently(QString* errorMessage) {
         }
         return false;
     }
-    scene->exportGraph(path);
+    QString ioError;
+    if (!scene->exportGraph(path, &ioError)) {
+        if (errorMessage) {
+            *errorMessage = QObject::tr("无法写入拓扑文件：\n%1\n%2").arg(path, ioError);
+        }
+        return false;
+    }
     return true;
 }
 
@@ -779,7 +781,13 @@ bool CanvasPage::exportConfigJsonSilently(QString* errorMessage) {
         return false;
     }
     const QString netField = BooksimPaths::networkFileFieldForJson(topoPath, cfgPath);
-    scene->exportJSONConfig(cfgPath, netField);
+    QString ioError;
+    if (!scene->exportJSONConfig(cfgPath, netField, &ioError)) {
+        if (errorMessage) {
+            *errorMessage = QObject::tr("无法写入 JSON 配置文件：\n%1\n%2").arg(cfgPath, ioError);
+        }
+        return false;
+    }
     return true;
 }
 

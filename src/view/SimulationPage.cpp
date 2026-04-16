@@ -176,16 +176,19 @@ bool SimulationPage::prepareRunTaskForTab(int tabIndex,
     QString saveError;
     if (!m_canvasPage->exportTopologySilently(&saveError)) {
         appendOutput(prefix + tr("拓扑保存失败: %1\n").arg(saveError), simulationTabId);
+        appendBooksimExportPathPermissionHint(prefix, simulationTabId);
         return false;
     }
     if (!m_canvasPage->exportConfigJsonSilently(&saveError)) {
         appendOutput(prefix + tr("配置保存失败: %1\n").arg(saveError), simulationTabId);
+        appendBooksimExportPathPermissionHint(prefix, simulationTabId);
         return false;
     }
 
     const QString configFilePath = m_canvasPage->currentConfigExportPath();
     if (configFilePath.isEmpty() || !QFileInfo::exists(configFilePath)) {
         appendOutput(prefix + tr("找不到配置文件: %1\n").arg(configFilePath), simulationTabId);
+        appendBooksimExportPathPermissionHint(prefix, simulationTabId);
         return false;
     }
 
@@ -518,8 +521,12 @@ void SimulationPage::handleProcessFinished(QProcess* process,
     const QString prefix = taskPrefix(task);
     if (exitStatus == QProcess::NormalExit) {
         appendOutput(prefix + tr("仿真结束，退出码: %1\n").arg(exitCode), task.simulationTabId);
+        if (exitCode != 0) {
+            appendBooksimExportPathPermissionHint(prefix, task.simulationTabId);
+        }
     } else {
         appendOutput(prefix + tr("仿真异常结束（进程崩溃或启动失败）\n"), task.simulationTabId);
+        appendBooksimExportPathPermissionHint(prefix, task.simulationTabId);
     }
 
     if (output.contains(QStringLiteral("Invalid routing function:"), Qt::CaseInsensitive)) {
@@ -545,6 +552,15 @@ QString SimulationPage::taskPrefix(const RunTask& task) {
         .arg(task.simulationTabId)
         .arg(task.tabIndex + 1)
         .arg(title);
+}
+
+void SimulationPage::appendBooksimExportPathPermissionHint(const QString& prefix,
+                                                             int simulationTabId) {
+    appendOutput(prefix
+                     + tr("提示：若与生成或读取拓扑/配置文件失败有关，请到「设置」中将「拓扑文件模板」和「JSON "
+                          "配置模板」设为当前用户可写路径（例如「文档」或用户配置目录），不要使用 Program "
+                          "Files 等需要管理员权限的目录。\n"),
+                 simulationTabId);
 }
 
 void SimulationPage::appendRoutingHint(const QString& prefix, int simulationTabId) {

@@ -96,8 +96,8 @@ public:
     // 检查连接是否合法（节点只能连接路由器，路由器可以连接任何节点）
     static bool isConnectionValid(GraphNode* start, GraphNode* end);
 
-    // 导出图信息
-    void exportGraph(const QString& filePath);
+    // 导出图信息；无法创建/打开目标文件时返回 false，并可写入 QFile 错误说明
+    [[nodiscard]] bool exportGraph(const QString& filePath, QString* ioErrorMessage = nullptr);
     /// 与 exportGraph 写入内容一致（任意网络文本格式）
     [[nodiscard]] QString exportTopologyFileText() const;
     // 从 BookSim network 文件恢复图；失败时返回 false，并可写出错误信息
@@ -107,7 +107,9 @@ public:
     [[nodiscard]] QMap<QString, QString> mergedGlobalConfigForExport(
         const QString& networkFileOverride = {}) const;
     // 导出JSON配置；networkFileOverride 非空时覆盖写入的 network_file，便于与拓扑导出路径一致
-    void exportJSONConfig(const QString& filePath, const QString& networkFileOverride = {});
+    [[nodiscard]] bool exportJSONConfig(const QString& filePath,
+                                        const QString& networkFileOverride = {},
+                                        QString* ioErrorMessage = nullptr);
     /// 与 exportJSONConfig 写入内容一致
     [[nodiscard]] QString exportJSONConfigText(const QString& networkFileOverride = {}) const;
 

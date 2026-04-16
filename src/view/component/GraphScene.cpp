@@ -2398,13 +2398,17 @@ void GraphScene::writeTopologyToStream(QTextStream& out) const {
 }
 
 // 导出图信息
-void GraphScene::exportGraph(const QString& filePath) {
+bool GraphScene::exportGraph(const QString& filePath, QString* ioErrorMessage) {
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        return;
+        if (ioErrorMessage) {
+            *ioErrorMessage = file.errorString();
+        }
+        return false;
     }
     QTextStream out(&file);
     writeTopologyToStream(out);
+    return true;
 }
 
 QString GraphScene::exportTopologyFileText() const {
@@ -2935,13 +2939,19 @@ void GraphScene::writeJSONConfigToStream(QTextStream& out,
 }
 
 // 导出JSON配置
-void GraphScene::exportJSONConfig(const QString& filePath, const QString& networkFileOverride) {
+bool GraphScene::exportJSONConfig(const QString& filePath,
+                                  const QString& networkFileOverride,
+                                  QString* ioErrorMessage) {
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        return;
+        if (ioErrorMessage) {
+            *ioErrorMessage = file.errorString();
+        }
+        return false;
     }
     QTextStream out(&file);
     writeJSONConfigToStream(out, networkFileOverride);
+    return true;
 }
 
 QString GraphScene::exportJSONConfigText(const QString& networkFileOverride) const {

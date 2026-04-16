@@ -55,3 +55,24 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+var
+  SelectDirAdminHint: TNewStaticText;
+
+procedure InitializeWizard;
+begin
+  { 在安装目录页显示红色提示，避免默认 Program Files 导致应用无法写入导出文件 }
+  SelectDirAdminHint := TNewStaticText.Create(WizardForm);
+  { 部分 Inno 版本无 SelectDirPage.Surface，使用路径框父面板作为容器 }
+  SelectDirAdminHint.Parent := WizardForm.DirEdit.Parent;
+  SelectDirAdminHint.Caption :=
+    'Recommendation: Do not install under "Program Files" or other protected locations where ' +
+    'normal users cannot write, or BookCanvas may fail when exporting topology and JSON config files.';
+  SelectDirAdminHint.AutoSize := True;
+  SelectDirAdminHint.WordWrap := True;
+  SelectDirAdminHint.Font.Color := clRed;
+  SelectDirAdminHint.Left := WizardForm.DirEdit.Left;
+  SelectDirAdminHint.Top := WizardForm.DirEdit.Top + WizardForm.DirEdit.Height + ScaleY(10);
+  SelectDirAdminHint.Width := WizardForm.DirEdit.Parent.ClientWidth - SelectDirAdminHint.Left - ScaleX(12);
+end;

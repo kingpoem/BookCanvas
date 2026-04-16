@@ -64,6 +64,7 @@ private:
     void appendOutput(const QString& text, int simulationTabId = -1);
     static QString taskPrefix(const RunTask& task);
     void appendRoutingHint(const QString& prefix, int simulationTabId);
+    void appendBooksimExportPathPermissionHint(const QString& prefix, int simulationTabId);
     void applyTheme();
 
     ElaPushButton* m_runButton;
